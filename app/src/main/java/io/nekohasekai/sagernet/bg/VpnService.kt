@@ -11,6 +11,7 @@ import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import io.nekohasekai.sagernet.*
 import io.nekohasekai.sagernet.database.DataStore
+import moe.matsuri.nb4a.utils.NGUtil
 import io.nekohasekai.sagernet.fmt.LOCALHOST
 import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
 import io.nekohasekai.sagernet.ktx.*
@@ -130,12 +131,15 @@ class VpnService : BaseVpnService(),
         val packageName = packageName
         val proxyApps = DataStore.proxyApps
         var bypass = DataStore.bypass
+        val hasRuBypass = DataStore.enableRuBypass
+        val serverExclude = DataStore.serverExcludePackages
+        val hasServerExclude = !serverExclude.isNullOrBlank()
         val workaroundSYSTEM = false /* DataStore.tunImplementation == TunImplementation.SYSTEM */
         val needBypassRootUid = workaroundSYSTEM || data.proxy!!.config.trafficMap.values.any {
             it[0].hysteriaBean?.protocol == HysteriaBean.PROTOCOL_FAKETCP
         }
 
-        if (proxyApps || needBypassRootUid) {
+        if (proxyApps || hasRuBypass || hasServerExclude || needBypassRootUid) {
             val individual = mutableSetOf<String>()
             val allApps by lazy {
                 packageManager.getInstalledPackages(PackageManager.GET_PERMISSIONS).filter {
@@ -157,15 +161,46 @@ class VpnService : BaseVpnService(),
                     individual.addAll(individualNew)
                     bypass = false
                 }
-            } else {
+            } else if (needBypassRootUid) {
                 individual.addAll(allApps)
                 bypass = false
+            }
+
+            // Collect auto-bypass packages (RU list + server-pushed)
+            val autoBypassPackages = mutableSetOf<String>()
+            if (hasServerExclude) {
+                autoBypassPackages.addAll(serverExclude!!.split('\n').filter { it.isNotBlank() })
+            }
+            if (hasRuBypass) {
+                try {
+                    autoBypassPackages.addAll(
+                        NGUtil.readTextFromAssets(this, "ru_bypass_packages.txt")
+                            .split("\n").filter { it.isNotBlank() }
+                    )
+                } catch (e: Exception) {
+                    Logs.w(e)
+                }
+            }
+
+            if (autoBypassPackages.isNotEmpty()) {
+                if (bypass) {
+                    // Bypass mode: add packages to disallowed list
+                    individual.addAll(autoBypassPackages)
+                } else {
+                    // Allowlist mode: remove packages so they are NOT proxied
+                    individual.removeAll(autoBypassPackages)
+                }
+            }
+
+            // Force bypass mode when auto-bypass is active but user didn't configure per-app
+            if (!proxyApps && (hasRuBypass || hasServerExclude)) {
+                bypass = true
             }
 
             val added = mutableListOf<String>()
 
             individual.apply {
-                // Allow Matsuri itself using VPN.
+                // Allow YokhanVPN itself using VPN.
                 remove(packageName)
                 if (!bypass) add(packageName)
             }.forEach {
@@ -188,7 +223,7 @@ class VpnService : BaseVpnService(),
             }
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && DataStore.appendHttpProxy) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && DataStore.appendHttpProxy && DataStore.enableLocalInbound) {
             builder.setHttpProxy(ProxyInfo.buildDirectProxy(LOCALHOST, DataStore.mixedPort))
         }
 

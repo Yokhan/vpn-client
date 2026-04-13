@@ -42,6 +42,9 @@ object Key {
     const val SHOW_DIRECT_SPEED = "showDirectSpeed"
 
     const val APPEND_HTTP_PROXY = "appendHttpProxy"
+    const val ENABLE_LOCAL_INBOUND = "enableLocalInbound"
+    const val ENABLE_RU_BYPASS = "enableRuBypass"
+    const val SERVER_EXCLUDE_PACKAGES = "serverExcludePackages"
 
     const val CONNECTION_TEST_URL = "connectionTestURL"
 

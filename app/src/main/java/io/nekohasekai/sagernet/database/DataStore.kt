@@ -155,6 +155,9 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     val persistAcrossReboot by configurationStore.boolean(Key.PERSIST_ACROSS_REBOOT) { false }
 
     var appendHttpProxy by configurationStore.boolean(Key.APPEND_HTTP_PROXY)
+    var enableLocalInbound by configurationStore.boolean(Key.ENABLE_LOCAL_INBOUND)
+    var enableRuBypass by configurationStore.boolean(Key.ENABLE_RU_BYPASS) { true }
+    var serverExcludePackages by configurationStore.string(Key.SERVER_EXCLUDE_PACKAGES)
     var connectionTestURL by configurationStore.string(Key.CONNECTION_TEST_URL) { CONNECTION_TEST_URL }
     var connectionTestConcurrent by configurationStore.int("connectionTestConcurrent") { 5 }
     var alwaysShowAddress by configurationStore.boolean(Key.ALWAYS_SHOW_ADDRESS)

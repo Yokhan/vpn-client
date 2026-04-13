@@ -173,6 +173,19 @@ class AppManagerActivity : ThemedActivity() {
             val uid = app.applicationInfo?.uid ?: continue
             proxiedUids[uid] = true
         }
+        // Show RU bypass packages as selected for UI consistency
+        if (DataStore.enableRuBypass) {
+            try {
+                val ruPackages = NGUtil.readTextFromAssets(app, "ru_bypass_packages.txt")
+                    .split("\n").filter { it.isNotBlank() }
+                for (pkg in ruPackages) {
+                    val appInfo = apps[pkg] ?: continue
+                    val uid = appInfo.applicationInfo?.uid ?: continue
+                    proxiedUids[uid] = true
+                }
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun isProxiedApp(app: ProxiedApp) = proxiedUids[app.uid]
@@ -232,6 +245,12 @@ class AppManagerActivity : ThemedActivity() {
             }
         }
         binding.autoSelectProxyApps.setOnClickListener { selectProxyApp() }
+
+        binding.bypassRuApps.isChecked = DataStore.enableRuBypass
+        binding.bypassRuApps.setOnCheckedChangeListener { _, isChecked ->
+            DataStore.enableRuBypass = isChecked
+            applyRuBypass(isChecked)
+        }
 
         initProxiedUids()
         binding.list.layoutManager = LinearLayoutManager(this, RecyclerView.VERTICAL, false)
@@ -332,6 +351,39 @@ class AppManagerActivity : ThemedActivity() {
             }
         }
         return super.onOptionsItemSelected(item)
+    }
+
+    private fun applyRuBypass(enable: Boolean) {
+        if (apps.isEmpty()) return
+        try {
+            val ruPackages = NGUtil.readTextFromAssets(app, "ru_bypass_packages.txt")
+                .split("\n")
+                .filter { it.isNotBlank() }
+                .toSet()
+            val allApps = cachedApps
+            if (enable) {
+                for (pkg in ruPackages) {
+                    val appInfo = allApps[pkg] ?: continue
+                    val uid = appInfo.applicationInfo?.uid ?: continue
+                    proxiedUids[uid] = true
+                }
+            } else {
+                for (pkg in ruPackages) {
+                    val appInfo = allApps[pkg] ?: continue
+                    val uid = appInfo.applicationInfo?.uid ?: continue
+                    proxiedUids.delete(uid)
+                }
+            }
+            // Save only user's manual selections, exclude RU bypass packages
+            // (RU bypass is applied at VPN runtime from the asset file)
+            DataStore.individual = apps
+                .filter { isProxiedApp(it) && it.packageName !in ruPackages }
+                .joinToString("\n") { it.packageName }
+            apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
+            appsAdapter.filter.filter(binding.search.text?.toString() ?: "")
+        } catch (e: Exception) {
+            Logs.e(e)
+        }
     }
 
     private fun selectProxyApp() {

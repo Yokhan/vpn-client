@@ -100,6 +100,13 @@
                                 android:checkable="false"
                                 android:text="@string/auto_select_proxy_apps" />
 
+                            <com.google.android.material.chip.Chip
+                                android:id="@+id/bypassRuApps"
+                                style="@style/Widget.MaterialComponents.Chip.Filter"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/bypass_ru_apps" />
+
                         </LinearLayout>
 
                         <com.google.android.material.textfield.TextInputLayout

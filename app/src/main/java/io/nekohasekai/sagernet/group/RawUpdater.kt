@@ -766,6 +766,24 @@ object RawUpdater : GroupUpdater() {
                 }
 
                 json.has("outbounds") -> {
+                    // Extract exclude_package from inbounds (server-pushed per-app bypass)
+                    val excludePackages = mutableSetOf<String>()
+                    if (json.has("inbounds")) {
+                        val inbounds = json.getJSONArray("inbounds")
+                        for (i in 0 until inbounds.length()) {
+                            val inbound = inbounds.getJSONObject(i)
+                            if (inbound.has("exclude_package")) {
+                                val pkgs = inbound.getJSONArray("exclude_package")
+                                for (j in 0 until pkgs.length()) {
+                                    excludePackages.add(pkgs.getString(j))
+                                }
+                            }
+                        }
+                    }
+                    // Always update: clear old list if server stopped sending packages
+                    // VpnService handles runtime merge without needing proxyApps=true
+                    DataStore.serverExcludePackages = excludePackages.joinToString("\n")
+
                     return json.getJSONArray("outbounds")
                         .filterIsInstance<JSONObject>()
                         .mapNotNull {

@@ -61,6 +61,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             Theme.applyNightTheme()
             true
         }
+        val enableLocalInbound = findPreference<SwitchPreference>(Key.ENABLE_LOCAL_INBOUND)!!
         val mixedPort = findPreference<EditTextPreference>(Key.MIXED_PORT)!!
         val serviceMode = findPreference<Preference>(Key.SERVICE_MODE)!!
         val allowAccess = findPreference<Preference>(Key.ALLOW_ACCESS)!!
@@ -144,6 +145,18 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         val enableClashAPI = findPreference<SwitchPreference>(Key.ENABLE_CLASH_API)!!
         enableClashAPI.setOnPreferenceChangeListener { _, newValue ->
             (activity as MainActivity?)?.refreshNavMenu(newValue as Boolean)
+            needReload()
+            true
+        }
+
+        fun updateLocalInboundDeps(enabled: Boolean) {
+            mixedPort.isEnabled = enabled
+            allowAccess.isEnabled = enabled
+            appendHttpProxy.isEnabled = enabled
+        }
+        updateLocalInboundDeps(DataStore.enableLocalInbound)
+        enableLocalInbound.setOnPreferenceChangeListener { _, newValue ->
+            updateLocalInboundDeps(newValue as Boolean)
             needReload()
             true
         }
