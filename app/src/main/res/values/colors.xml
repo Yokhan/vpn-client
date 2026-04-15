@@ -290,21 +290,18 @@
 
     <color name="preference_simple_menu_background">#FAFAFA</color>
 
-    <!-- BUFF IT Design System — tokens from color.json + design-tokens.css -->
-    <!-- Core palette -->
-    <color name="buffit_main">#f3ead7</color>            <!-- MainColor light -->
-    <color name="buffit_contrast">#453427</color>         <!-- ContrastColor light -->
-    <color name="buffit_main_dark">#382d24</color>        <!-- MainColor dark -->
-    <color name="buffit_text_header">#fff7dd</color>      <!-- color.text.header -->
-    <!-- Surfaces -->
-    <color name="buffit_auth_title">#5e4a2e</color>       <!-- color.auth.title-light -->
-    <color name="buffit_auth_btn_dark">#5c4b40</color>    <!-- color.auth.btn-telegram-dark -->
-    <color name="buffit_workout_bar">#7c573d</color>      <!-- --workout-bar -->
-    <color name="buffit_workout_bg">#e9dec8</color>       <!-- --workout-bg -->
-    <!-- Accents -->
-    <color name="buffit_green">#7bd062</color>            <!-- color.accent.green -->
-    <color name="buffit_green_done">#44d860</color>       <!-- color.accent.green-done -->
-    <color name="buffit_red">#ff6868</color>              <!-- color.accent.red -->
-    <color name="buffit_orange">#ff9b37</color>           <!-- color.accent.orange -->
+    <!-- BUFF IT Design System tokens -->
+    <color name="buffit_main">#f3ead7</color>
+    <color name="buffit_contrast">#453427</color>
+    <color name="buffit_main_dark">#382d24</color>
+    <color name="buffit_text_header">#fff7dd</color>
+    <color name="buffit_auth_title">#5e4a2e</color>
+    <color name="buffit_auth_btn_dark">#5c4b40</color>
+    <color name="buffit_workout_bar">#7c573d</color>
+    <color name="buffit_workout_bg">#e9dec8</color>
+    <color name="buffit_green">#7bd062</color>
+    <color name="buffit_green_done">#44d860</color>
+    <color name="buffit_red">#ff6868</color>
+    <color name="buffit_orange">#ff9b37</color>
 
 </resources>
