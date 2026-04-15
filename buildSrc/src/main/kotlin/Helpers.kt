@@ -197,10 +197,10 @@ fun Project.setupApp() {
                 outputFileName = if (isPreview) {
                     outputFileName.replace(
                         project.name,
-                        "BuffIT-VPN-" + requireMetadata().getProperty("PRE_VERSION_NAME")
+                        "BUFF-IT-GATES-" + requireMetadata().getProperty("PRE_VERSION_NAME")
                     ).replace("-preview", "")
                 } else {
-                    outputFileName.replace(project.name, "BuffIT-VPN-$versionName")
+                    outputFileName.replace(project.name, "BUFF-IT-GATES-$versionName")
                         .replace("-release", "")
                         .replace("-oss", "")
                 }
