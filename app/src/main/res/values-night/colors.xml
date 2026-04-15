@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="fab_color_progress">@color/material_light_white</color>
-    <color name="preference_simple_menu_background">#303030</color>
+    <color name="preference_simple_menu_background">#382d24</color>
 
     <!-- BUFF IT dark theme overrides -->
     <color name="buffit_contrast">#f3ead7</color>         <!-- dark: ContrastColor swaps -->
     <color name="buffit_auth_title">#f3ead7</color>       <!-- dark: same as ContrastColor -->
     <color name="buffit_workout_bar">#5c4b40</color>      <!-- dark: auth.btn-telegram-dark -->
     <color name="buffit_workout_bg">#382d24</color>       <!-- dark: same as MainColor dark -->
-    <color name="buffit_main">#1e1814</color>             <!-- dark: deep brown surface -->
-    <color name="buffit_main_dark">#1e1814</color>        <!-- dark: matches main -->
+    <color name="buffit_main">#382d24</color>             <!-- dark: MainColor from DS -->
+    <color name="buffit_main_dark">#382d24</color>        <!-- dark: matches main -->
     <color name="buffit_text_header">#f3ead7</color>      <!-- dark: warm cream on dark -->
     <color name="buffit_auth_btn_dark">#7c6a5a</color>    <!-- dark: lighter brown buttons -->
 </resources>
