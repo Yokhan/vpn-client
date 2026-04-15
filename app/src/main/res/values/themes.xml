@@ -6,6 +6,8 @@
         <item name="colorButtonNormal">?colorAccent</item>
         <item name="android:navigationBarColor">?colorPrimaryDark</item>
         <!-- BUFF IT Design System tokens -->
+        <item name="android:colorBackground">@color/buffit_main</item>
+        <item name="android:windowBackground">@color/buffit_main</item>
         <item name="colorPrimary">@color/buffit_contrast</item>
         <item name="colorPrimaryDark">@color/buffit_main_dark</item>
         <item name="colorAccent">@color/buffit_green</item>
@@ -60,6 +62,8 @@
         <item name="colorButtonNormal">?colorAccent</item>
         <item name="android:navigationBarColor">?colorPrimaryDark</item>
         <!-- BUFF IT Design System tokens -->
+        <item name="android:colorBackground">@color/buffit_main</item>
+        <item name="android:windowBackground">@color/buffit_main</item>
         <item name="colorPrimary">@color/buffit_contrast</item>
         <item name="colorPrimaryDark">@color/buffit_main_dark</item>
         <item name="colorAccent">@color/buffit_green</item>
