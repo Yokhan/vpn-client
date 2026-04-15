@@ -6,5 +6,5 @@
     <!-- BUFF IT Design System -->
     <dimen name="buffit_card_corner_radius">24dp</dimen>
     <dimen name="buffit_card_margin">8dp</dimen>
-    <dimen name="buffit_card_stroke_width">0.5dp</dimen>
+    <dimen name="buffit_card_stroke_width">1dp</dimen>
 </resources>

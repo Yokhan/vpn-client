@@ -13,6 +13,7 @@
         android:id="@+id/content_lin"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/buffit_glass_inner_glow"
         android:focusable="true"
         android:orientation="horizontal">
 
