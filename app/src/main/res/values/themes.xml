@@ -22,8 +22,8 @@
         <item name="primaryOrTextSecondary">?colorPrimary</item>
         <item name="primaryOrTextPrimary">?colorPrimary</item>
 
-        <item name="fabColorBackground">@color/buffit_contrast</item>
-        <item name="selectedColorPrimary">@color/buffit_contrast</item>
+        <item name="fabColorBackground">@color/buffit_toolbar</item>
+        <item name="selectedColorPrimary">@color/buffit_toolbar</item>
         <item name="itemShapeFillColor">@color/buffit_workout_bg</item>
         <item name="actionBarTheme">@style/ThemeOverlay.AppCompat.Dark.ActionBar</item>
         <item name="tabTextColor">#99FFFFFF</item>
@@ -81,8 +81,8 @@
         <item name="primaryOrTextSecondary">?colorPrimary</item>
         <item name="primaryOrTextPrimary">?colorPrimary</item>
 
-        <item name="fabColorBackground">@color/buffit_contrast</item>
-        <item name="selectedColorPrimary">@color/buffit_contrast</item>
+        <item name="fabColorBackground">@color/buffit_toolbar</item>
+        <item name="selectedColorPrimary">@color/buffit_toolbar</item>
         <item name="itemShapeFillColor">@color/buffit_workout_bg</item>
         <item name="actionBarTheme">@style/ThemeOverlay.AppCompat.Dark.ActionBar</item>
         <item name="tabTextColor">#99FFFFFF</item>
@@ -206,7 +206,7 @@
     <!-- BUFF IT Card Style (applied globally via materialCardViewStyle) -->
     <style name="Widget.BuffIT.CardView" parent="Widget.MaterialComponents.CardView">
         <item name="cardCornerRadius">@dimen/buffit_card_corner_radius</item>
-        <item name="cardElevation">0dp</item>
+        <item name="cardElevation">2dp</item>
         <item name="strokeColor">@color/buffit_card_border</item>
         <item name="strokeWidth">@dimen/buffit_card_stroke_width</item>
         <item name="cardBackgroundColor">@color/buffit_card_bg</item>

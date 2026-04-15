@@ -12,6 +12,6 @@
     <color name="buffit_main_dark">#382d24</color>        <!-- dark: matches main -->
     <color name="buffit_text_header">#f3ead7</color>      <!-- dark: warm cream on dark -->
     <color name="buffit_auth_btn_dark">#7c6a5a</color>    <!-- dark: lighter brown buttons -->
-    <color name="buffit_card_bg">#14FFFFFF</color>           <!-- dark: 8% white glassmorphism -->
-    <color name="buffit_card_border">#40FFFFFF</color>       <!-- dark: 25% white border -->
+    <color name="buffit_card_bg">#33FFFFFF</color>           <!-- dark: 20% white (compensate no blur) -->
+    <color name="buffit_card_border">#4DFFFFFF</color>       <!-- dark: 30% white border -->
 </resources>

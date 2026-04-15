@@ -306,5 +306,6 @@
     <!-- Card glassmorphism (light: 65% white, dark: 8% white) -->
     <color name="buffit_card_bg">#A6FFFFFF</color>
     <color name="buffit_card_border">#4DFFFFFF</color>
+    <color name="buffit_toolbar">#453427</color>
 
 </resources>
