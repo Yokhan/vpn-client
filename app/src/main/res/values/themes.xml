@@ -39,6 +39,7 @@
         <item name="windowNoTitle">true</item>
 
         <item name="chipStyle">@style/Widget.MaterialComponents.Chip.Choice.SagerNet</item>
+        <item name="materialCardViewStyle">@style/Widget.BuffIT.CardView</item>
 
         <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.BuffIT.Small</item>
         <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.BuffIT.Medium</item>
@@ -97,6 +98,7 @@
         <item name="windowNoTitle">true</item>
 
         <item name="chipStyle">@style/Widget.MaterialComponents.Chip.Choice.SagerNet</item>
+        <item name="materialCardViewStyle">@style/Widget.BuffIT.CardView</item>
 
         <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.BuffIT.Small</item>
         <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.BuffIT.Medium</item>
@@ -199,6 +201,15 @@
         <item name="android:fontFamily">@font/golos_text</item>
         <item name="fontFamily">@font/golos_text</item>
         <item name="android:textSize">12sp</item>
+    </style>
+
+    <!-- BUFF IT Card Style (applied globally via materialCardViewStyle) -->
+    <style name="Widget.BuffIT.CardView" parent="Widget.MaterialComponents.CardView">
+        <item name="cardCornerRadius">@dimen/buffit_card_corner_radius</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeColor">@color/buffit_card_border</item>
+        <item name="strokeWidth">@dimen/buffit_card_stroke_width</item>
+        <item name="cardBackgroundColor">@color/buffit_card_bg</item>
     </style>
 
     <!-- BUFF IT Shape Overrides -->

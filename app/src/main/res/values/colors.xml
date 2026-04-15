@@ -303,5 +303,8 @@
     <color name="buffit_green_done">#44d860</color>
     <color name="buffit_red">#ff6868</color>
     <color name="buffit_orange">#ff9b37</color>
+    <!-- Card glassmorphism (light: 65% white, dark: 8% white) -->
+    <color name="buffit_card_bg">#A6FFFFFF</color>
+    <color name="buffit_card_border">#4DFFFFFF</color>
 
 </resources>

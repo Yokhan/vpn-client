@@ -5,10 +5,9 @@
     android:id="@+id/content"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="4dp"
+    android:layout_margin="@dimen/buffit_card_margin"
     android:clickable="true"
-    android:focusable="true"
-    app:cardElevation="2dp">
+    android:focusable="true">
 
     <LinearLayout
         android:id="@+id/content_lin"
@@ -53,7 +52,7 @@
                         android:id="@+id/profile_name"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textAppearance="?android:attr/textAppearanceSmall"
+                        android:textAppearance="@style/TextAppearance.BuffIT.Body"
                         android:textColor="?android:attr/textColorPrimary"
                         android:textStyle="bold"
                         tools:text="@string/profile_name" />
@@ -154,7 +153,8 @@
                     android:id="@+id/profile_type"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textAppearance="?android:attr/textAppearanceSmall"
+                    android:textAppearance="@style/TextAppearance.BuffIT.Caption"
+                    android:textAllCaps="true"
                     android:textColor="?attr/accentOrTextSecondary" />
 
                 <LinearLayout
