@@ -40,16 +40,9 @@
         <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.BuffIT.Medium</item>
         <item name="itemShapeAppearance">@style/ShapeAppearance.BuffIT.Medium</item>
 
-        <!-- BUFF IT Typography -->
+        <!-- BUFF IT Typography: fontFamily only, styles available for explicit use -->
         <item name="android:fontFamily">@font/golos_text</item>
         <item name="fontFamily">@font/golos_text</item>
-        <item name="textAppearanceHeadline5">@style/TextAppearance.BuffIT.Display</item>
-        <item name="textAppearanceHeadline6">@style/TextAppearance.BuffIT.Headline</item>
-        <item name="textAppearanceSubtitle1">@style/TextAppearance.BuffIT.Title</item>
-        <item name="textAppearanceBody1">@style/TextAppearance.BuffIT.Body</item>
-        <item name="textAppearanceBody2">@style/TextAppearance.BuffIT.Body.Small</item>
-        <item name="textAppearanceButton">@style/TextAppearance.BuffIT.Button</item>
-        <item name="textAppearanceCaption">@style/TextAppearance.BuffIT.Caption</item>
 
         <item name="alertDialogTheme">
             @style/ThemeOverlay.MaterialComponents.MaterialAlertDialog.SagerNet
@@ -101,16 +94,9 @@
         <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.BuffIT.Medium</item>
         <item name="itemShapeAppearance">@style/ShapeAppearance.BuffIT.Medium</item>
 
-        <!-- BUFF IT Typography -->
+        <!-- BUFF IT Typography: fontFamily only -->
         <item name="android:fontFamily">@font/golos_text</item>
         <item name="fontFamily">@font/golos_text</item>
-        <item name="textAppearanceHeadline5">@style/TextAppearance.BuffIT.Display</item>
-        <item name="textAppearanceHeadline6">@style/TextAppearance.BuffIT.Headline</item>
-        <item name="textAppearanceSubtitle1">@style/TextAppearance.BuffIT.Title</item>
-        <item name="textAppearanceBody1">@style/TextAppearance.BuffIT.Body</item>
-        <item name="textAppearanceBody2">@style/TextAppearance.BuffIT.Body.Small</item>
-        <item name="textAppearanceButton">@style/TextAppearance.BuffIT.Button</item>
-        <item name="textAppearanceCaption">@style/TextAppearance.BuffIT.Caption</item>
 
         <item name="alertDialogTheme">
             @style/ThemeOverlay.MaterialComponents.MaterialAlertDialog.SagerNet
