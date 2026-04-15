@@ -9,6 +9,7 @@
         <item name="android:colorBackground">@color/buffit_main</item>
         <item name="android:windowBackground">@color/buffit_main</item>
         <item name="colorSurface">@color/buffit_main</item>
+        <item name="elevationOverlayEnabled">false</item>
         <item name="colorPrimary">@color/buffit_contrast</item>
         <item name="colorPrimaryDark">@color/buffit_main_dark</item>
         <item name="colorAccent">@color/buffit_green</item>
@@ -66,6 +67,7 @@
         <item name="android:colorBackground">@color/buffit_main</item>
         <item name="android:windowBackground">@color/buffit_main</item>
         <item name="colorSurface">@color/buffit_main</item>
+        <item name="elevationOverlayEnabled">false</item>
         <item name="colorPrimary">@color/buffit_contrast</item>
         <item name="colorPrimaryDark">@color/buffit_main_dark</item>
         <item name="colorAccent">@color/buffit_green</item>
