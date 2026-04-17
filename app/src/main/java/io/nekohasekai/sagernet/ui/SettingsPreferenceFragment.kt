@@ -48,9 +48,10 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             true
         }
         val enableLocalInbound = findPreference<SwitchPreference>(Key.ENABLE_LOCAL_INBOUND)!!
+        val stealthMode = findPreference<SwitchPreference>(Key.STEALTH_MODE)!!
         val mixedPort = findPreference<EditTextPreference>(Key.MIXED_PORT)!!
         val serviceMode = findPreference<Preference>(Key.SERVICE_MODE)!!
-        val allowAccess = findPreference<Preference>(Key.ALLOW_ACCESS)!!
+        val allowAccess = findPreference<SwitchPreference>(Key.ALLOW_ACCESS)!!
         val appendHttpProxy = findPreference<SwitchPreference>(Key.APPEND_HTTP_PROXY)!!
 
         val showDirectSpeed = findPreference<SwitchPreference>(Key.SHOW_DIRECT_SPEED)!!
@@ -130,17 +131,47 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         val acquireWakeLock = findPreference<SwitchPreference>(Key.ACQUIRE_WAKE_LOCK)!!
         val enableClashAPI = findPreference<SwitchPreference>(Key.ENABLE_CLASH_API)!!
         enableClashAPI.setOnPreferenceChangeListener { _, newValue ->
-            (activity as MainActivity?)?.refreshNavMenu(newValue as Boolean)
+            (activity as MainActivity?)?.refreshNavMenu(newValue as Boolean && !DataStore.stealthMode)
             needReload()
             true
         }
 
-        fun updateLocalInboundDeps(enabled: Boolean) {
+        fun updateLocalInboundDeps(localInboundEnabled: Boolean, stealthEnabled: Boolean = DataStore.stealthMode) {
+            val enabled = localInboundEnabled && !stealthEnabled
             mixedPort.isEnabled = enabled
             allowAccess.isEnabled = enabled
             appendHttpProxy.isEnabled = enabled
         }
-        updateLocalInboundDeps(DataStore.enableLocalInbound)
+        fun applyStealthMode(enabled: Boolean) {
+            if (enabled) {
+                if (DataStore.enableLocalInbound) {
+                    DataStore.enableLocalInbound = false
+                    enableLocalInbound.isChecked = false
+                }
+                if (DataStore.appendHttpProxy) {
+                    DataStore.appendHttpProxy = false
+                    appendHttpProxy.isChecked = false
+                }
+                if (DataStore.allowAccess) {
+                    DataStore.allowAccess = false
+                    allowAccess.isChecked = false
+                }
+                if (DataStore.enableClashAPI) {
+                    DataStore.enableClashAPI = false
+                    enableClashAPI.isChecked = false
+                }
+            }
+            enableLocalInbound.isEnabled = !enabled
+            enableClashAPI.isEnabled = !enabled
+            updateLocalInboundDeps(DataStore.enableLocalInbound, enabled)
+            (activity as MainActivity?)?.refreshNavMenu(DataStore.enableClashAPI && !enabled)
+        }
+        applyStealthMode(DataStore.stealthMode)
+        stealthMode.setOnPreferenceChangeListener { _, newValue ->
+            applyStealthMode(newValue as Boolean)
+            needReload()
+            true
+        }
         enableLocalInbound.setOnPreferenceChangeListener { _, newValue ->
             updateLocalInboundDeps(newValue as Boolean)
             needReload()

@@ -133,7 +133,7 @@ fun buildConfig(
     val domainListDNSDirectForce = mutableListOf<String>()
     val bypassDNSBeans = hashSetOf<AbstractBean>()
     val isVPN = DataStore.serviceMode == Key.MODE_VPN
-    val bind = if (!forTest && DataStore.allowAccess) "0.0.0.0" else LOCALHOST
+    val bind = if (!forTest && DataStore.allowAccess && !DataStore.stealthMode) "0.0.0.0" else LOCALHOST
     val remoteDns = DataStore.remoteDns.split("\n")
         .mapNotNull { dns -> dns.trim().takeIf { it.isNotBlank() && !it.startsWith("#") } }
     val directDNS = DataStore.directDns.split("\n")
@@ -156,7 +156,7 @@ fun buildConfig(
     }
 
     return MyOptions().apply {
-        if (!forTest && DataStore.enableClashAPI) experimental = ExperimentalOptions().apply {
+        if (!forTest && DataStore.enableClashAPI && !DataStore.stealthMode) experimental = ExperimentalOptions().apply {
             clash_api = ClashAPIOptions().apply {
                 external_controller = "127.0.0.1:9090"
                 external_ui = "../files/yacd"
@@ -224,7 +224,7 @@ fun buildConfig(
                     }
                 }
             })
-            if (!isVPN || DataStore.enableLocalInbound) {
+            if (!isVPN || (DataStore.enableLocalInbound && !DataStore.stealthMode)) {
                 inbounds.add(Inbound_MixedOptions().apply {
                     type = "mixed"
                     tag = TAG_MIXED

@@ -21,6 +21,14 @@ class WebviewFragment : ToolbarFragment(R.layout.layout_webview), Toolbar.OnMenu
 
     lateinit var mWebView: WebView
 
+    private fun normalizePanelUrl(url: String): String {
+        return when {
+            url.startsWith("http://127.0.0.1") -> url.replaceFirst("http://127.0.0.1", "http://localhost")
+            url.startsWith("https://127.0.0.1") -> url.replaceFirst("https://127.0.0.1", "https://localhost")
+            else -> url
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -48,7 +56,11 @@ class WebviewFragment : ToolbarFragment(R.layout.layout_webview), Toolbar.OnMenu
                 super.onPageFinished(view, url)
             }
         }
-        mWebView.loadUrl(DataStore.yacdURL)
+        val panelUrl = normalizePanelUrl(DataStore.yacdURL)
+        if (panelUrl != DataStore.yacdURL) {
+            DataStore.yacdURL = panelUrl
+        }
+        mWebView.loadUrl(panelUrl)
     }
 
     @SuppressLint("CheckResult")
@@ -62,7 +74,7 @@ class WebviewFragment : ToolbarFragment(R.layout.layout_webview), Toolbar.OnMenu
                 MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.set_panel_url)
                     .setView(view)
                     .setPositiveButton(android.R.string.ok) { _, _ ->
-                        DataStore.yacdURL = view.text.toString()
+                        DataStore.yacdURL = normalizePanelUrl(view.text.toString())
                         mWebView.loadUrl(DataStore.yacdURL)
                     }
                     .setNegativeButton(android.R.string.cancel, null)

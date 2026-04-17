@@ -29,21 +29,21 @@ https://matsuridayo.github.io
 
 ## 支持的代理协议 / Supported Proxy Protocols
 
-* SOCKS (4/4a/5)
-* HTTP(S)
-* SSH
-* Shadowsocks
-* VMess
-* Trojan
-* VLESS
-* AnyTLS
-* ShadowTLS
-* TUIC
-* Hysteria 1/2
-* WireGuard
-* Trojan-Go (trojan-go-plugin)
-* NaïveProxy (naive-plugin)
-* Mieru (mieru-plugin)
+- SOCKS (4/4a/5)
+- HTTP(S)
+- SSH
+- Shadowsocks
+- VMess
+- Trojan
+- VLESS
+- AnyTLS
+- ShadowTLS
+- TUIC
+- Hysteria 1/2
+- WireGuard
+- Trojan-Go (trojan-go-plugin)
+- NaïveProxy (naive-plugin)
+- Mieru (mieru-plugin)
 
 请到[这里](https://matsuridayo.github.io/nb4a-plugin/)下载插件以获得完整的代理支持.
 
@@ -52,13 +52,13 @@ supports.
 
 ## 支持的订阅格式 / Supported Subscription Format
 
-* 一些广泛使用的格式 (如 Shadowsocks, ClashMeta 和 v2rayN)
-* sing-box 出站
+- 一些广泛使用的格式 (如 Shadowsocks, ClashMeta 和 v2rayN)
+- sing-box 出站
 
 仅支持解析出站，即节点。分流规则等信息会被忽略。
 
-* Some widely used formats (like Shadowsocks, ClashMeta and v2rayN)
-* sing-box outbound
+- Some widely used formats (like Shadowsocks, ClashMeta and v2rayN)
+- sing-box outbound
 
 Only resolving outbound, i.e. nodes, is supported. Information such as diversion rules are ignored.
 
@@ -99,3 +99,11 @@ Android GUI:
 Web Dashboard:
 
 - [Yacd-meta](https://github.com/MetaCubeX/Yacd-meta)
+
+## Fork Build Notes
+
+- This fork does not build from a cold checkout with only `./gradlew assembleRelease`.
+- `libcore` depends on sibling source checkouts for `../libneko` and `../sing-box`; bootstrap them with `bash buildScript/lib/core/get_source.sh` or `./run lib core`.
+- Android/Gradle build requires a real JDK with `javac`. A standalone JRE is not enough.
+- Release signing is externalized. Set `KEYSTORE_PATH`, `KEYSTORE_PASS`, `ALIAS_NAME`, and `ALIAS_PASS` in your environment or `local.properties`.
+- Preview APKs are built by the existing GitHub Actions pipeline in `.github/workflows/preview.yml`, which now runs on `push`, `pull_request`, and `workflow_dispatch`.

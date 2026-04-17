@@ -94,7 +94,7 @@ class MainActivity : ThemedActivity(),
             onNewIntent(intent)
         }
 
-        refreshNavMenu(DataStore.enableClashAPI)
+        refreshNavMenu(DataStore.enableClashAPI && !DataStore.stealthMode)
 
         // sdk 33 notification
         if (Build.VERSION.SDK_INT >= 33) {

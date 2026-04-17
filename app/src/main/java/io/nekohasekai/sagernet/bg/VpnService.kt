@@ -36,6 +36,19 @@ class VpnService : BaseVpnService(),
 
     private var metered = false
 
+    private fun loadPackageList(assetName: String): Set<String> {
+        return try {
+            NGUtil.readTextFromAssets(this, assetName)
+                .lineSequence()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.startsWith("#") }
+                .toSet()
+        } catch (e: Exception) {
+            Logs.w(e)
+            emptySet()
+        }
+    }
+
     override var upstreamInterfaceName: String? = null
 
     override suspend fun startProcesses() {
@@ -132,6 +145,7 @@ class VpnService : BaseVpnService(),
         val proxyApps = DataStore.proxyApps
         var bypass = DataStore.bypass
         val hasRuBypass = DataStore.enableRuBypass
+        val stealthMode = DataStore.stealthMode
         val serverExclude = DataStore.serverExcludePackages
         val hasServerExclude = !serverExclude.isNullOrBlank()
         val workaroundSYSTEM = false /* DataStore.tunImplementation == TunImplementation.SYSTEM */
@@ -139,7 +153,7 @@ class VpnService : BaseVpnService(),
             it[0].hysteriaBean?.protocol == HysteriaBean.PROTOCOL_FAKETCP
         }
 
-        if (proxyApps || hasRuBypass || hasServerExclude || needBypassRootUid) {
+        if (proxyApps || hasRuBypass || hasServerExclude || stealthMode || needBypassRootUid) {
             val individual = mutableSetOf<String>()
             val allApps by lazy {
                 packageManager.getInstalledPackages(PackageManager.GET_PERMISSIONS).filter {
@@ -172,14 +186,10 @@ class VpnService : BaseVpnService(),
                 autoBypassPackages.addAll(serverExclude!!.split('\n').filter { it.isNotBlank() })
             }
             if (hasRuBypass) {
-                try {
-                    autoBypassPackages.addAll(
-                        NGUtil.readTextFromAssets(this, "ru_bypass_packages.txt")
-                            .split("\n").filter { it.isNotBlank() }
-                    )
-                } catch (e: Exception) {
-                    Logs.w(e)
-                }
+                autoBypassPackages.addAll(loadPackageList("ru_bypass_packages.txt"))
+            }
+            if (stealthMode) {
+                autoBypassPackages.addAll(loadPackageList("stealth_bypass_packages.txt"))
             }
 
             if (autoBypassPackages.isNotEmpty()) {
@@ -193,7 +203,7 @@ class VpnService : BaseVpnService(),
             }
 
             // Force bypass mode when auto-bypass is active but user didn't configure per-app
-            if (!proxyApps && (hasRuBypass || hasServerExclude)) {
+            if (!proxyApps && autoBypassPackages.isNotEmpty()) {
                 bypass = true
             }
 
@@ -223,7 +233,7 @@ class VpnService : BaseVpnService(),
             }
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && DataStore.appendHttpProxy && DataStore.enableLocalInbound) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && DataStore.appendHttpProxy && DataStore.enableLocalInbound && !DataStore.stealthMode) {
             builder.setHttpProxy(ProxyInfo.buildDirectProxy(LOCALHOST, DataStore.mixedPort))
         }
 

@@ -156,6 +156,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
 
     var appendHttpProxy by configurationStore.boolean(Key.APPEND_HTTP_PROXY)
     var enableLocalInbound by configurationStore.boolean(Key.ENABLE_LOCAL_INBOUND)
+    var stealthMode by configurationStore.boolean(Key.STEALTH_MODE)
     var enableRuBypass by configurationStore.boolean(Key.ENABLE_RU_BYPASS) { true }
     var serverExcludePackages by configurationStore.string(Key.SERVER_EXCLUDE_PACKAGES)
     var connectionTestURL by configurationStore.string(Key.CONNECTION_TEST_URL) { CONNECTION_TEST_URL }
@@ -165,7 +166,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var tunImplementation by configurationStore.stringToInt(Key.TUN_IMPLEMENTATION) { TunImplementation.GVISOR }
     var profileTrafficStatistics by configurationStore.boolean(Key.PROFILE_TRAFFIC_STATISTICS) { true }
 
-    var yacdURL by configurationStore.string("yacdURL") { "http://127.0.0.1:9090/ui" }
+    var yacdURL by configurationStore.string("yacdURL") { "http://localhost:9090/ui" }
 
     // protocol
 

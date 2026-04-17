@@ -93,8 +93,8 @@ class AppManagerActivity : ThemedActivity() {
 
         override fun onClick(v: View?) {
             if (isProxiedApp(item)) proxiedUids.delete(item.uid) else proxiedUids[item.uid] = true
-            DataStore.individual = apps.filter { isProxiedApp(it) }
-                .joinToString("\n") { it.packageName }
+            applyBundledBypassSelections()
+            persistSelections()
 
             appsAdapter.notifyItemRangeChanged(0, appsAdapter.itemCount, SWITCH)
         }
@@ -165,6 +165,45 @@ class AppManagerActivity : ThemedActivity() {
     private var apps = emptyList<ProxiedApp>()
     private val appsAdapter = AppsAdapter()
 
+    private fun loadAssetPackageList(assetName: String): Set<String> {
+        return try {
+            NGUtil.readTextFromAssets(app, assetName)
+                .lineSequence()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.startsWith("#") }
+                .toSet()
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    private fun bundledBypassPackages(): Set<String> {
+        val packages = mutableSetOf<String>()
+        if (DataStore.enableRuBypass) {
+            packages.addAll(loadAssetPackageList("ru_bypass_packages.txt"))
+        }
+        if (DataStore.stealthMode) {
+            packages.addAll(loadAssetPackageList("stealth_bypass_packages.txt"))
+        }
+        return packages
+    }
+
+    private fun applyBundledBypassSelections() {
+        val installedApps = cachedApps
+        for (pkg in bundledBypassPackages()) {
+            val appInfo = installedApps[pkg] ?: continue
+            val uid = appInfo.applicationInfo?.uid ?: continue
+            proxiedUids[uid] = true
+        }
+    }
+
+    private fun persistSelections() {
+        val bundledPackages = bundledBypassPackages()
+        DataStore.individual = apps
+            .filter { isProxiedApp(it) && it.packageName !in bundledPackages }
+            .joinToString("\n") { it.packageName }
+    }
+
     private fun initProxiedUids(str: String = DataStore.individual) {
         proxiedUids.clear()
         val apps = cachedApps
@@ -173,19 +212,7 @@ class AppManagerActivity : ThemedActivity() {
             val uid = app.applicationInfo?.uid ?: continue
             proxiedUids[uid] = true
         }
-        // Show RU bypass packages as selected for UI consistency
-        if (DataStore.enableRuBypass) {
-            try {
-                val ruPackages = NGUtil.readTextFromAssets(app, "ru_bypass_packages.txt")
-                    .split("\n").filter { it.isNotBlank() }
-                for (pkg in ruPackages) {
-                    val appInfo = apps[pkg] ?: continue
-                    val uid = appInfo.applicationInfo?.uid ?: continue
-                    proxiedUids[uid] = true
-                }
-            } catch (_: Exception) {
-            }
-        }
+        applyBundledBypassSelections()
     }
 
     private fun isProxiedApp(app: ProxiedApp) = proxiedUids[app.uid]
@@ -292,8 +319,8 @@ class AppManagerActivity : ThemedActivity() {
                             proxiedUids[app.uid] = true
                         }
                     }
-                    DataStore.individual = apps.filter { isProxiedApp(it) }
-                        .joinToString("\n") { it.packageName }
+                    applyBundledBypassSelections()
+                    persistSelections()
                     apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
                     onMainDispatcher {
                         appsAdapter.filter.filter(binding.search.text?.toString() ?: "")
@@ -306,7 +333,8 @@ class AppManagerActivity : ThemedActivity() {
             R.id.action_clear_selections -> {
                 runOnDefaultDispatcher {
                     proxiedUids.clear()
-                    DataStore.individual = ""
+                    applyBundledBypassSelections()
+                    persistSelections()
                     apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
                     onMainDispatcher {
                         appsAdapter.filter.filter(binding.search.text?.toString() ?: "")
@@ -356,10 +384,7 @@ class AppManagerActivity : ThemedActivity() {
     private fun applyRuBypass(enable: Boolean) {
         if (apps.isEmpty()) return
         try {
-            val ruPackages = NGUtil.readTextFromAssets(app, "ru_bypass_packages.txt")
-                .split("\n")
-                .filter { it.isNotBlank() }
-                .toSet()
+            val ruPackages = loadAssetPackageList("ru_bypass_packages.txt")
             val allApps = cachedApps
             if (enable) {
                 for (pkg in ruPackages) {
@@ -374,11 +399,8 @@ class AppManagerActivity : ThemedActivity() {
                     proxiedUids.delete(uid)
                 }
             }
-            // Save only user's manual selections, exclude RU bypass packages
-            // (RU bypass is applied at VPN runtime from the asset file)
-            DataStore.individual = apps
-                .filter { isProxiedApp(it) && it.packageName !in ruPackages }
-                .joinToString("\n") { it.packageName }
+            applyBundledBypassSelections()
+            persistSelections()
             apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
             appsAdapter.filter.filter(binding.search.text?.toString() ?: "")
         } catch (e: Exception) {
@@ -412,8 +434,8 @@ class AppManagerActivity : ThemedActivity() {
                             }
                         }
                     }
-                    DataStore.individual =
-                        apps.filter { isProxiedApp(it) }.joinToString("\n") { it.packageName }
+                    applyBundledBypassSelections()
+                    persistSelections()
                     apps = apps.sortedWith(compareBy({ !isProxiedApp(it) }, { it.name.toString() }))
                     appsAdapter.filter.filter(binding.search.text?.toString() ?: "")
                 } catch (e: Exception) {
