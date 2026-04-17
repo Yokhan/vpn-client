@@ -1,5 +1,9 @@
 name: Preview Build
 on:
+  push:
+    branches:
+      - "**"
+  pull_request:
   workflow_dispatch:
     inputs:
 jobs:
