@@ -446,12 +446,14 @@ class ConfigurationFragment @JvmOverloads constructor(
             }
 
             R.id.action_update_subscription -> {
-                val group = DataStore.currentGroup()
-                if (group.type != GroupType.SUBSCRIPTION) {
-                    snackbar(R.string.group_not_subscription).show()
-                    Logs.e("onMenuItemClick: Group(${group.displayName()}) is not subscription")
-                } else {
-                    runOnLifecycleDispatcher {
+                runOnLifecycleDispatcher {
+                    val group = DataStore.currentGroup()
+                    if (group.type != GroupType.SUBSCRIPTION) {
+                        onMainDispatcher {
+                            snackbar(R.string.group_not_subscription).show()
+                        }
+                        Logs.e("onMenuItemClick: Group(${group.displayName()}) is not subscription")
+                    } else {
                         GroupUpdater.startUpdate(group, true)
                     }
                 }
