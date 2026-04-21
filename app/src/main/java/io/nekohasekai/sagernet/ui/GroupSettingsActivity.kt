@@ -42,6 +42,10 @@ class GroupSettingsActivity(
     private lateinit var frontProxyPreference: OutboundPreference
     private lateinit var landingProxyPreference: OutboundPreference
 
+    private fun cacheOutboundName(key: String, profile: ProxyEntity?) {
+        DataStore.profileCacheStore.putString(key + "Name", profile?.displayName())
+    }
+
     fun ProxyGroup.init() {
         DataStore.groupName = name ?: ""
         DataStore.groupType = type
@@ -52,6 +56,8 @@ class GroupSettingsActivity(
         DataStore.landingProxy = landingProxy
         DataStore.frontProxyTmp = if (frontProxy >= 0) 3 else 0
         DataStore.landingProxyTmp = if (landingProxy >= 0) 3 else 0
+        cacheOutboundName(Key.GROUP_FRONT_PROXY, frontProxy.takeIf { it >= 0 }?.let(ProfileManager::getProfile))
+        cacheOutboundName(Key.GROUP_LANDING_PROXY, landingProxy.takeIf { it >= 0 }?.let(ProfileManager::getProfile))
 
         val subscription = subscription ?: SubscriptionBean().applyDefaultValues()
         DataStore.subscriptionLink = subscription.link
@@ -368,6 +374,7 @@ class GroupSettingsActivity(
                 it.data!!.getLongExtra(ProfileSelectActivity.EXTRA_PROFILE_ID, 0)
             ) ?: return@runOnDefaultDispatcher
             DataStore.frontProxy = profile.id
+            cacheOutboundName(Key.GROUP_FRONT_PROXY, profile)
             onMainDispatcher {
                 frontProxyPreference.value = "3"
             }
@@ -382,6 +389,7 @@ class GroupSettingsActivity(
                 it.data!!.getLongExtra(ProfileSelectActivity.EXTRA_PROFILE_ID, 0)
             ) ?: return@runOnDefaultDispatcher
             DataStore.landingProxy = profile.id
+            cacheOutboundName(Key.GROUP_LANDING_PROXY, profile)
             onMainDispatcher {
                 landingProxyPreference.value = "3"
             }

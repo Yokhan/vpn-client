@@ -1102,9 +1102,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             if (::configurationListView.isInitialized && configurationListView.size == 0) {
                 configurationListView.adapter = adapter
-                runOnDefaultDispatcher {
-                    adapter?.reloadProfiles()
-                }
+                adapter?.reloadProfiles()
             } else if (!::configurationListView.isInitialized) {
                 onViewCreated(requireView(), null)
             }
@@ -1240,18 +1238,9 @@ class ConfigurationFragment @JvmOverloads constructor(
             var configurationIdList: MutableList<Long> = mutableListOf()
             val configurationList = HashMap<Long, ProxyEntity>()
 
-            private fun getItem(profileId: Long): ProxyEntity {
-                var profile = configurationList[profileId]
-                if (profile == null) {
-                    profile = ProfileManager.getProfile(profileId)
-                    if (profile != null) {
-                        configurationList[profileId] = profile
-                    }
-                }
-                return profile!!
+            private fun getItemAt(index: Int) = checkNotNull(configurationList[configurationIdList[index]]) {
+                "Missing cached profile for position $index"
             }
-
-            private fun getItemAt(index: Int) = getItem(configurationIdList[index])
 
             override fun onCreateViewHolder(
                 parent: ViewGroup,
@@ -1268,9 +1257,22 @@ class ConfigurationFragment @JvmOverloads constructor(
             }
 
             override fun onBindViewHolder(holder: ConfigurationHolder, position: Int) {
-                try {
-                    holder.bind(getItemAt(position))
-                } catch (ignored: NullPointerException) { // when group deleted
+                val profileId = configurationIdList[position]
+                val cachedProfile = configurationList[profileId]
+                if (cachedProfile != null) {
+                    holder.bind(cachedProfile)
+                    return
+                }
+
+                runOnDefaultDispatcher {
+                    val profile = ProfileManager.getProfile(profileId) ?: return@runOnDefaultDispatcher
+                    configurationList[profileId] = profile
+                    onMainDispatcher {
+                        val currentIndex = configurationIdList.indexOf(profileId)
+                        if (currentIndex >= 0) {
+                            notifyItemChanged(currentIndex)
+                        }
+                    }
                 }
             }
 
@@ -1425,46 +1427,47 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             override suspend fun groupUpdated(groupId: Long) {
                 if (groupId != proxyGroup.id) return
-                proxyGroup = SagerDatabase.groupDao.getById(groupId)!!
+                proxyGroup = SagerDatabase.groupDao.getById(groupId) ?: return
                 reloadProfiles()
             }
 
             fun reloadProfiles() {
-                var newProfiles = SagerDatabase.proxyDao.getByGroup(proxyGroup.id)
-                when (proxyGroup.order) {
-                    GroupOrder.BY_NAME -> {
-                        newProfiles = newProfiles.sortedBy { it.displayName() }
+                val group = proxyGroup
+                runOnDefaultDispatcher {
+                    var newProfiles = SagerDatabase.proxyDao.getByGroup(group.id)
+                    when (group.order) {
+                        GroupOrder.BY_NAME -> {
+                            newProfiles = newProfiles.sortedBy { it.displayName() }
+                        }
 
+                        GroupOrder.BY_DELAY -> {
+                            newProfiles =
+                                newProfiles.sortedBy { if (it.status == 1) it.ping else 114514 }
+                        }
                     }
 
-                    GroupOrder.BY_DELAY -> {
-                        newProfiles =
-                            newProfiles.sortedBy { if (it.status == 1) it.ping else 114514 }
-                    }
-                }
-
-                configurationList.clear()
-                configurationList.putAll(newProfiles.associateBy { it.id })
-                val newProfileIds = newProfiles.map { it.id }
-
-                var selectedProfileIndex = -1
-
-                if (selected) {
-                    val selectedProxy = selectedItem?.id ?: DataStore.selectedProxy
-                    selectedProfileIndex = newProfileIds.indexOf(selectedProxy)
-                }
-
-                configurationListView.post {
-                    configurationIdList.clear()
-                    configurationIdList.addAll(newProfileIds)
-                    notifyDataSetChanged()
-
-                    if (selectedProfileIndex != -1) {
-                        configurationListView.scrollTo(selectedProfileIndex, true)
-                    } else if (newProfiles.isNotEmpty()) {
-                        configurationListView.scrollTo(0, true)
+                    val newProfileIds = newProfiles.map { it.id }
+                    val selectedProfileIndex = if (selected) {
+                        val selectedProxy = selectedItem?.id ?: DataStore.selectedProxy
+                        newProfileIds.indexOf(selectedProxy)
+                    } else {
+                        -1
                     }
 
+                    configurationListView.post {
+                        if (proxyGroup.id != group.id) return@post
+                        configurationList.clear()
+                        configurationList.putAll(newProfiles.associateBy { it.id })
+                        configurationIdList.clear()
+                        configurationIdList.addAll(newProfileIds)
+                        notifyDataSetChanged()
+
+                        if (selectedProfileIndex != -1) {
+                            configurationListView.scrollTo(selectedProfileIndex, true)
+                        } else if (newProfiles.isNotEmpty()) {
+                            configurationListView.scrollTo(0, true)
+                        }
+                    }
                 }
             }
 

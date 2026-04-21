@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.AttributeSet
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.database.ProfileManager
 import moe.matsuri.nb4a.ui.SimpleMenuPreference
 
 class OutboundPreference
@@ -19,11 +18,8 @@ class OutboundPreference
 
     override fun getSummary(): CharSequence? {
         if (value == "3") {
-            val routeOutbound = DataStore.profileCacheStore.getLong(key + "Long") ?: 0
-            if (routeOutbound > 0) {
-                ProfileManager.getProfile(routeOutbound)?.displayName()?.let {
-                    return it
-                }
+            DataStore.profileCacheStore.getString(key + "Name")?.takeIf { it.isNotBlank() }?.let {
+                return it
             }
         }
         return super.getSummary()

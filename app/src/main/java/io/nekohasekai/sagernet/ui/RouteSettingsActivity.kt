@@ -49,6 +49,13 @@ class RouteSettingsActivity(
 
     private var ruleEntity: RuleEntity? = null
 
+    private fun cacheOutboundName(profileId: Long) {
+        DataStore.profileCacheStore.putString(
+            Key.ROUTE_OUTBOUND + "Name",
+            profileId.takeIf { it > 0 }?.let(ProfileManager::getProfile)?.displayName()
+        )
+    }
+
     fun init(packageName: String?) {
         RuleEntity().apply {
             if (!packageName.isNullOrBlank()) {
@@ -75,6 +82,7 @@ class RouteSettingsActivity(
             -2L -> 2
             else -> 3
         }
+        cacheOutboundName(outbound)
         DataStore.routePackages = packages.joinToString("\n")
     }
 
@@ -134,6 +142,7 @@ class RouteSettingsActivity(
                 )
             ) ?: return@runOnDefaultDispatcher
             DataStore.routeOutboundRule = profile.id
+            DataStore.profileCacheStore.putString(Key.ROUTE_OUTBOUND + "Name", profile.displayName())
             onMainDispatcher {
                 outbound.value = "3"
             }
