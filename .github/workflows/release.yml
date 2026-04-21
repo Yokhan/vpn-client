@@ -60,9 +60,18 @@ jobs:
         with:
           path: ~/.gradle
           key: gradle-oss-${{ hashFiles('**/*.gradle.kts') }}
+      - name: Restore release keystore
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          fi
       - name: Gradle Build
         env:
           BUILD_PLUGIN: none
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          ALIAS_NAME: ${{ secrets.ALIAS_NAME }}
+          ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
         run: |
           echo "sdk.dir=${ANDROID_HOME}" > local.properties
           echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
@@ -121,10 +130,20 @@ jobs:
         with:
           path: ~/.gradle
           key: gradle-play-${{ hashFiles('**/*.gradle.kts') }}
+      - name: Restore release keystore
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          fi
       - name: Checkout Library
         run: |
           git submodule update --init 'app/*'
       - name: Gradle Build
+        env:
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          ALIAS_NAME: ${{ secrets.ALIAS_NAME }}
+          ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
         run: |
           echo "sdk.dir=${ANDROID_HOME}" > local.properties
           echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
