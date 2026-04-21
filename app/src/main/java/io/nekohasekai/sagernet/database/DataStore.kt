@@ -43,35 +43,57 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     // main
 
     var runningTest = false
+    @Volatile
+    private var cachedGroups: List<ProxyGroup> = emptyList()
+
+    fun cacheGroups(groups: List<ProxyGroup>) {
+        cachedGroups = groups.sortedBy { it.userOrder }
+    }
+
+    fun cacheGroup(group: ProxyGroup) {
+        cachedGroups = (cachedGroups.filterNot { it.id == group.id } + group).sortedBy { it.userOrder }
+    }
+
+    fun removeCachedGroups(groupIds: Collection<Long>) {
+        if (groupIds.isEmpty()) return
+        cachedGroups = cachedGroups.filterNot { it.id in groupIds }
+    }
 
     fun currentGroupId(): Long {
         val currentSelected = configurationStore.getLong(Key.PROFILE_GROUP, -1)
         if (currentSelected > 0L) return currentSelected
-        val groups = SagerDatabase.groupDao.allGroups()
+        val groups = cachedGroups.ifEmpty {
+            SagerDatabase.groupDao.allGroups().also(::cacheGroups)
+        }
         if (groups.isNotEmpty()) {
             val groupId = groups[0].id
             selectedGroup = groupId
             return groupId
         }
         val groupId = SagerDatabase.groupDao.createGroup(ProxyGroup(ungrouped = true))
+        cacheGroup(ProxyGroup(id = groupId, ungrouped = true))
         selectedGroup = groupId
         return groupId
     }
 
     fun currentGroup(): ProxyGroup {
-        var group: ProxyGroup? = null
         val currentSelected = configurationStore.getLong(Key.PROFILE_GROUP, -1)
         if (currentSelected > 0L) {
-            group = SagerDatabase.groupDao.getById(currentSelected)
+            cachedGroups.find { it.id == currentSelected }?.let { return it }
         }
-        if (group != null) return group
-        val groups = SagerDatabase.groupDao.allGroups()
+        val groups = cachedGroups.ifEmpty {
+            SagerDatabase.groupDao.allGroups().also(::cacheGroups)
+        }
+        var group = currentSelected.takeIf { it > 0L }?.let { id ->
+            groups.find { it.id == id }
+        }
         if (groups.isEmpty()) {
             group = ProxyGroup(ungrouped = true).apply {
                 id = SagerDatabase.groupDao.createGroup(this)
             }
+            cacheGroup(group)
         } else {
-            group = groups[0]
+            group = group ?: groups[0]
         }
         selectedGroup = group.id
         return group
@@ -80,7 +102,9 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     fun selectedGroupForImport(): Long {
         val current = currentGroup()
         if (current.type == GroupType.BASIC) return current.id
-        val groups = SagerDatabase.groupDao.allGroups()
+        val groups = cachedGroups.ifEmpty {
+            SagerDatabase.groupDao.allGroups().also(::cacheGroups)
+        }
         return groups.find { it.type == GroupType.BASIC }!!.id
     }
 

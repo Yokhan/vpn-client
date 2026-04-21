@@ -47,6 +47,8 @@ class RouteSettingsActivity(
 ) : ThemedActivity(resId),
     OnPreferenceDataStoreChangeListener {
 
+    private var ruleEntity: RuleEntity? = null
+
     fun init(packageName: String?) {
         RuleEntity().apply {
             if (!packageName.isNullOrBlank()) {
@@ -222,34 +224,35 @@ class RouteSettingsActivity(
             setHomeAsUpIndicator(R.drawable.ic_navigation_close)
         }
 
-        if (savedInstanceState == null) {
-            val editingId = intent.getLongExtra(EXTRA_ROUTE_ID, 0L)
-            DataStore.editingId = editingId
-            runOnDefaultDispatcher {
+        val editingId = intent.getLongExtra(EXTRA_ROUTE_ID, 0L)
+        DataStore.editingId = editingId
+        runOnDefaultDispatcher {
+            if (savedInstanceState == null) {
                 if (editingId == 0L) {
                     init(intent.getStringExtra(EXTRA_PACKAGE_NAME))
                 } else {
-                    val ruleEntity = SagerDatabase.rulesDao.getById(editingId)
+                    ruleEntity = SagerDatabase.rulesDao.getById(editingId)
                     if (ruleEntity == null) {
                         onMainDispatcher {
                             finish()
                         }
                         return@runOnDefaultDispatcher
                     }
-                    ruleEntity.init()
+                    ruleEntity!!.init()
                 }
+            } else if (editingId != 0L) {
+                ruleEntity = SagerDatabase.rulesDao.getById(editingId)
+            }
 
-                onMainDispatcher {
+            onMainDispatcher {
+                if (savedInstanceState == null) {
                     supportFragmentManager.beginTransaction()
                         .replace(R.id.settings, MyPreferenceFragmentCompat())
                         .commit()
-
-                    DataStore.dirty = false
-                    DataStore.profileCacheStore.registerChangeListener(this@RouteSettingsActivity)
                 }
+                DataStore.dirty = false
+                DataStore.profileCacheStore.registerChangeListener(this@RouteSettingsActivity)
             }
-
-
         }
 
     }
@@ -274,7 +277,7 @@ class RouteSettingsActivity(
 
             ProfileManager.createRule(RuleEntity().apply { serialize() })
         } else {
-            val entity = SagerDatabase.rulesDao.getById(DataStore.editingId)
+            val entity = ruleEntity ?: SagerDatabase.rulesDao.getById(DataStore.editingId)
             if (entity == null) {
                 finish()
                 return

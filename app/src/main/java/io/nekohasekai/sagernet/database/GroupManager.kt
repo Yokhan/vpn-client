@@ -68,11 +68,17 @@ object GroupManager {
     }
 
     suspend fun postUpdate(group: ProxyGroup) {
+        DataStore.cacheGroup(group)
         iterator { groupUpdated(group) }
     }
 
     suspend fun postUpdate(groupId: Long) {
-        postUpdate(SagerDatabase.groupDao.getById(groupId) ?: return)
+        val group = SagerDatabase.groupDao.getById(groupId)
+        if (group == null) {
+            DataStore.removeCachedGroups(listOf(groupId))
+            return
+        }
+        postUpdate(group)
     }
 
     suspend fun postReload(groupId: Long) {
@@ -82,6 +88,7 @@ object GroupManager {
     suspend fun createGroup(group: ProxyGroup): ProxyGroup {
         group.userOrder = SagerDatabase.groupDao.nextOrder() ?: 1
         group.id = SagerDatabase.groupDao.createGroup(group.applyDefaultValues())
+        DataStore.cacheGroup(group)
         iterator { groupAdd(group) }
         if (group.type == GroupType.SUBSCRIPTION) {
             SubscriptionUpdater.reconfigureUpdater()
@@ -91,6 +98,7 @@ object GroupManager {
 
     suspend fun updateGroup(group: ProxyGroup) {
         SagerDatabase.groupDao.updateGroup(group)
+        DataStore.cacheGroup(group)
         iterator { groupUpdated(group) }
         if (group.type == GroupType.SUBSCRIPTION) {
             SubscriptionUpdater.reconfigureUpdater()
@@ -100,6 +108,7 @@ object GroupManager {
     suspend fun deleteGroup(groupId: Long) {
         SagerDatabase.groupDao.deleteById(groupId)
         SagerDatabase.proxyDao.deleteByGroup(groupId)
+        DataStore.removeCachedGroups(listOf(groupId))
         iterator { groupRemoved(groupId) }
         SubscriptionUpdater.reconfigureUpdater()
     }
@@ -107,6 +116,7 @@ object GroupManager {
     suspend fun deleteGroup(group: List<ProxyGroup>) {
         SagerDatabase.groupDao.deleteGroup(group)
         SagerDatabase.proxyDao.deleteByGroup(group.map { it.id }.toLongArray())
+        DataStore.removeCachedGroups(group.map { it.id })
         for (proxyGroup in group) iterator { groupRemoved(proxyGroup.id) }
         SubscriptionUpdater.reconfigureUpdater()
     }

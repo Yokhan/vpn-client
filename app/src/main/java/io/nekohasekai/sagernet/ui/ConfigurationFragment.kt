@@ -929,6 +929,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                         newGroupList.remove(it)
                     }
                 }
+                DataStore.cacheGroups(newGroupList)
 
                 var selectedGroup = selectedItem?.groupId ?: DataStore.currentGroupId()
                 var set = false

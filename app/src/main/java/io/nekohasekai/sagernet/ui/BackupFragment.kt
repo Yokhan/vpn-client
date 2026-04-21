@@ -291,6 +291,7 @@ class BackupFragment : NamedFragment(R.layout.layout_backup) {
             }
             SagerDatabase.groupDao.reset()
             SagerDatabase.groupDao.insert(groups)
+            DataStore.cacheGroups(groups)
         }
         if (rule && content.has("rules")) {
             val rules = mutableListOf<RuleEntity>()
