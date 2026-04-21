@@ -228,7 +228,7 @@ class MainActivity : ThemedActivity(),
     }
 
     private suspend fun finishImportProfile(profile: AbstractBean) {
-        val targetId = DataStore.selectedGroupForImport()
+        val targetId = DataStore.ensureSelectedGroupForImport()
 
         ProfileManager.createProfile(targetId, profile)
 

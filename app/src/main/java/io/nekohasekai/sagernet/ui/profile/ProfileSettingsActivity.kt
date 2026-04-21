@@ -120,7 +120,7 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
         runOnDefaultDispatcher {
             if (savedInstanceState == null) {
                 if (editingId == 0L) {
-                    DataStore.editingGroup = DataStore.selectedGroupForImport()
+                    DataStore.editingGroup = DataStore.ensureSelectedGroupForImport()
                     createEntity().applyDefaultValues().init()
                 } else {
                     proxyEntity = SagerDatabase.proxyDao.getById(editingId)

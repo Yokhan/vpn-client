@@ -325,10 +325,10 @@ class ConfigurationFragment @JvmOverloads constructor(
                     }
                 }
             }
-        }
+    }
 
     suspend fun import(proxies: List<AbstractBean>) {
-        val targetId = DataStore.selectedGroupForImport()
+        val targetId = DataStore.ensureSelectedGroupForImport()
         for (proxy in proxies) {
             ProfileManager.createProfile(targetId, proxy)
         }
@@ -447,7 +447,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             R.id.action_update_subscription -> {
                 runOnLifecycleDispatcher {
-                    val group = DataStore.currentGroup()
+                    val group = DataStore.ensureCurrentGroup()
                     if (group.type != GroupType.SUBSCRIPTION) {
                         onMainDispatcher {
                             snackbar(R.string.group_not_subscription).show()
@@ -461,7 +461,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             R.id.action_clear_traffic_statistics -> {
                 runOnDefaultDispatcher {
-                    val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
+                    val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.ensureCurrentGroupId())
                     val toClear = mutableListOf<ProxyEntity>()
                     if (profiles.isNotEmpty()) for (profile in profiles) {
                         if (profile.tx != 0L || profile.rx != 0L) {
@@ -478,7 +478,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             R.id.action_connection_test_clear_results -> {
                 runOnDefaultDispatcher {
-                    val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
+                    val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.ensureCurrentGroupId())
                     val toClear = mutableListOf<ProxyEntity>()
                     if (profiles.isNotEmpty()) for (profile in profiles) {
                         if (profile.status != 0) {
@@ -496,7 +496,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             R.id.action_connection_test_delete_unavailable -> {
                 runOnDefaultDispatcher {
-                    val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
+                    val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.ensureCurrentGroupId())
                     val toClear = mutableListOf<ProxyEntity>()
                     if (profiles.isNotEmpty()) for (profile in profiles) {
                         if (profile.status != 0 && profile.status != 1) {
@@ -535,7 +535,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             R.id.action_remove_duplicate -> {
                 runOnDefaultDispatcher {
-                    val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
+                    val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.ensureCurrentGroupId())
                     val toClear = mutableListOf<ProxyEntity>()
                     val uniqueProxies = LinkedHashSet<Protocols.Deduplication>()
                     for (pf in profiles) {
@@ -701,7 +701,7 @@ class ConfigurationFragment @JvmOverloads constructor(
         var notificationTitle = getString(R.string.connection_test)
 
         val mainJob = runOnDefaultDispatcher {
-            val group = DataStore.currentGroup()
+            val group = DataStore.ensureCurrentGroup()
             notificationTitle = "[${group.displayName()}] ${getString(R.string.connection_test)}"
             val profilesList = SagerDatabase.proxyDao.getByGroup(group.id).filter {
                 if (icmpPing) {
@@ -843,7 +843,7 @@ class ConfigurationFragment @JvmOverloads constructor(
         var notificationTitle = getString(R.string.connection_test)
 
         val mainJob = runOnDefaultDispatcher {
-            val group = DataStore.currentGroup()
+            val group = DataStore.ensureCurrentGroup()
             notificationTitle = "[${group.displayName()}] ${getString(R.string.connection_test)}"
             val profilesList = SagerDatabase.proxyDao.getByGroup(group.id)
             test.proxyN = profilesList.size
@@ -1033,7 +1033,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
         override suspend fun onRemoved(groupId: Long, profileId: Long) {
             val group = groupList.find { it.id == groupId } ?: return
-            if (group.ungrouped && SagerDatabase.proxyDao.countByGroup(groupId) == 0L) {
+            if (group.ungrouped) {
                 reload()
             }
         }

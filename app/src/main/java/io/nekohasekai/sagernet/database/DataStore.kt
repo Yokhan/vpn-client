@@ -2,6 +2,8 @@ package io.nekohasekai.sagernet.database
 
 import android.os.Binder
 import androidx.preference.PreferenceDataStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import io.nekohasekai.sagernet.CONNECTION_TEST_URL
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.IPv6Mode
@@ -34,7 +36,15 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var currentProfile by configurationStore.long(Key.PROFILE_CURRENT)
 
     var selectedProxy by configurationStore.long(Key.PROFILE_ID)
-    var selectedGroup by configurationStore.long(Key.PROFILE_GROUP) { currentGroupId() } // "ungrouped" group id = 1
+    var selectedGroup: Long
+        get() {
+            val storedGroupId = configurationStore.getLong(Key.PROFILE_GROUP, 0L)
+            if (storedGroupId > 0L && (cachedGroups.isEmpty() || cachedGroups.any { it.id == storedGroupId })) {
+                return storedGroupId
+            }
+            return cachedGroups.firstOrNull()?.id ?: storedGroupId.takeIf { it > 0L } ?: 1L
+        }
+        set(value) = configurationStore.putLong(Key.PROFILE_GROUP, value)
 
     // only in bg process
     var vpnService: VpnService? = null
@@ -48,64 +58,77 @@ object DataStore : OnPreferenceDataStoreChangeListener {
 
     fun cacheGroups(groups: List<ProxyGroup>) {
         cachedGroups = groups.sortedBy { it.userOrder }
+        normalizeSelectedGroup()
     }
 
     fun cacheGroup(group: ProxyGroup) {
         cachedGroups = (cachedGroups.filterNot { it.id == group.id } + group).sortedBy { it.userOrder }
+        normalizeSelectedGroup()
     }
 
     fun removeCachedGroups(groupIds: Collection<Long>) {
         if (groupIds.isEmpty()) return
         cachedGroups = cachedGroups.filterNot { it.id in groupIds }
+        normalizeSelectedGroup()
     }
 
     fun currentGroupId(): Long {
-        val currentSelected = configurationStore.getLong(Key.PROFILE_GROUP, -1)
-        if (currentSelected > 0L) return currentSelected
-        val groups = cachedGroups.ifEmpty {
-            SagerDatabase.groupDao.allGroups().also(::cacheGroups)
-        }
-        if (groups.isNotEmpty()) {
-            val groupId = groups[0].id
-            selectedGroup = groupId
-            return groupId
-        }
-        val groupId = SagerDatabase.groupDao.createGroup(ProxyGroup(ungrouped = true))
-        cacheGroup(ProxyGroup(id = groupId, ungrouped = true))
-        selectedGroup = groupId
-        return groupId
+        return selectedGroup
     }
 
     fun currentGroup(): ProxyGroup {
-        val currentSelected = configurationStore.getLong(Key.PROFILE_GROUP, -1)
-        if (currentSelected > 0L) {
-            cachedGroups.find { it.id == currentSelected }?.let { return it }
-        }
-        val groups = cachedGroups.ifEmpty {
-            SagerDatabase.groupDao.allGroups().also(::cacheGroups)
-        }
-        var group = currentSelected.takeIf { it > 0L }?.let { id ->
-            groups.find { it.id == id }
-        }
-        if (groups.isEmpty()) {
-            group = ProxyGroup(ungrouped = true).apply {
-                id = SagerDatabase.groupDao.createGroup(this)
-            }
-            cacheGroup(group)
-        } else {
-            group = group ?: groups[0]
-        }
-        selectedGroup = group.id
-        return group
+        return cachedGroups.find { it.id == selectedGroup }
+            ?: cachedGroups.firstOrNull()
+            ?: ProxyGroup(id = currentGroupId(), ungrouped = true)
     }
 
     fun selectedGroupForImport(): Long {
         val current = currentGroup()
         if (current.type == GroupType.BASIC) return current.id
-        val groups = cachedGroups.ifEmpty {
-            SagerDatabase.groupDao.allGroups().also(::cacheGroups)
+        return cachedGroups.find { it.type == GroupType.BASIC }?.id ?: current.id
+    }
+
+    suspend fun ensureGroupsLoaded(): List<ProxyGroup> = withContext(Dispatchers.IO) {
+        if (cachedGroups.isNotEmpty()) return@withContext cachedGroups
+
+        var groups = SagerDatabase.groupDao.allGroups()
+        if (groups.isEmpty()) {
+            val ungrouped = ProxyGroup(ungrouped = true).apply {
+                id = SagerDatabase.groupDao.createGroup(this)
+            }
+            groups = listOf(ungrouped)
         }
-        return groups.find { it.type == GroupType.BASIC }!!.id
+        cacheGroups(groups)
+        cachedGroups
+    }
+
+    suspend fun ensureCurrentGroupId(): Long {
+        ensureGroupsLoaded()
+        return currentGroupId()
+    }
+
+    suspend fun ensureCurrentGroup(): ProxyGroup {
+        ensureGroupsLoaded()
+        return currentGroup()
+    }
+
+    suspend fun ensureSelectedGroupForImport(): Long {
+        val groups = ensureGroupsLoaded()
+        val current = groups.find { it.id == selectedGroup } ?: groups.first()
+        if (current.type == GroupType.BASIC) return current.id
+        return groups.find { it.type == GroupType.BASIC }?.id ?: current.id
+    }
+
+    fun cachedGroups(): List<ProxyGroup> = cachedGroups
+
+    private fun normalizeSelectedGroup() {
+        val groups = cachedGroups
+        if (groups.isEmpty()) return
+        val storedGroupId = configurationStore.getLong(Key.PROFILE_GROUP, 0L)
+        val resolvedGroupId = groups.find { it.id == storedGroupId }?.id ?: groups.first().id
+        if (storedGroupId != resolvedGroupId) {
+            selectedGroup = resolvedGroupId
+        }
     }
 
     var appTLSVersion by configurationStore.string(Key.APP_TLS_VERSION)

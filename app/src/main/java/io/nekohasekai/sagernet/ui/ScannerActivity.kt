@@ -121,7 +121,7 @@ class ScannerActivity : ThemedActivity(),
                 val text = result?.text ?: throw Exception("QR code not found")
                 val results = RawUpdater.parseRaw(text)
                 if (!results.isNullOrEmpty()) {
-                    val currentGroupId = DataStore.selectedGroupForImport()
+                    val currentGroupId = DataStore.ensureSelectedGroupForImport()
                     if (DataStore.selectedGroup != currentGroupId) {
                         DataStore.selectedGroup = currentGroupId
                     }

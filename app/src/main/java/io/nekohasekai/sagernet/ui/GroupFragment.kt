@@ -265,7 +265,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
         override suspend fun groupRemoved(groupId: Long) {
             val index = groupList.indexOfFirst { it.id == groupId }
             if (index == -1) return
-            val needsReload = SagerDatabase.groupDao.allGroups().size <= 2
+            val needsReload = DataStore.cachedGroups().size <= 2
             onMainDispatcher {
                 undoManager.flush()
                 if (needsReload) {
