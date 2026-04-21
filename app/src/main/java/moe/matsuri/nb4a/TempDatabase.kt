@@ -22,7 +22,6 @@ abstract class TempDatabase : RoomDatabase() {
         @Suppress("EXPERIMENTAL_API_USAGE")
         private val instance by lazy {
             Room.inMemoryDatabaseBuilder(SagerNet.application, TempDatabase::class.java)
-                .allowMainThreadQueries()
                 .setQueryExecutor(queryExecutor)
                 .build()
         }

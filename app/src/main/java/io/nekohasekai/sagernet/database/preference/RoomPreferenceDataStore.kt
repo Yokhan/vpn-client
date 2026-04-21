@@ -1,18 +1,45 @@
 package io.nekohasekai.sagernet.database.preference
 
 import androidx.preference.PreferenceDataStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 
 @Suppress("MemberVisibilityCanBePrivate", "unused")
 open class RoomPreferenceDataStore(private val kvPairDao: KeyValuePair.Dao) :
     PreferenceDataStore() {
 
-    fun getBoolean(key: String) = kvPairDao[key]?.boolean
-    fun getFloat(key: String) = kvPairDao[key]?.float
-    fun getInt(key: String) = kvPairDao[key]?.long?.toInt()
-    fun getLong(key: String) = kvPairDao[key]?.long
-    fun getString(key: String) = kvPairDao[key]?.string
-    fun getStringSet(key: String) = kvPairDao[key]?.stringSet
-    fun reset() = kvPairDao.reset()
+    private val writeScope = CoroutineScope(
+        SupervisorJob() + Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "RoomPreferenceDataStore").apply {
+                isDaemon = true
+            }
+        }.asCoroutineDispatcher()
+    )
+    private val cache = ConcurrentHashMap<String, KeyValuePair>().apply {
+        runBlocking(Dispatchers.IO) {
+            kvPairDao.all().forEach { put(it.key, it) }
+        }
+    }
+
+    fun all() = cache.values.toList()
+    fun getBoolean(key: String) = cache[key]?.boolean
+    fun getFloat(key: String) = cache[key]?.float
+    fun getInt(key: String) = cache[key]?.long?.toInt()
+    fun getLong(key: String) = cache[key]?.long
+    fun getString(key: String) = cache[key]?.string
+    fun getStringSet(key: String) = cache[key]?.stringSet
+    fun reset() {
+        cache.clear()
+        writeScope.launch {
+            kvPairDao.reset()
+        }
+    }
 
     override fun getBoolean(key: String, defValue: Boolean) = getBoolean(key) ?: defValue
     override fun getFloat(key: String, defValue: Float) = getFloat(key) ?: defValue
@@ -33,38 +60,59 @@ open class RoomPreferenceDataStore(private val kvPairDao: KeyValuePair.Dao) :
 
     fun putLong(key: String, value: Long?) = if (value == null) remove(key) else putLong(key, value)
     override fun putBoolean(key: String, value: Boolean) {
-        kvPairDao.put(KeyValuePair(key).put(value))
+        cache[key] = KeyValuePair(key).put(value)
+        writeScope.launch {
+            kvPairDao.put(KeyValuePair(key).put(value))
+        }
         fireChangeListener(key)
     }
 
     override fun putFloat(key: String, value: Float) {
-        kvPairDao.put(KeyValuePair(key).put(value))
+        cache[key] = KeyValuePair(key).put(value)
+        writeScope.launch {
+            kvPairDao.put(KeyValuePair(key).put(value))
+        }
         fireChangeListener(key)
     }
 
     override fun putInt(key: String, value: Int) {
-        kvPairDao.put(KeyValuePair(key).put(value.toLong()))
+        cache[key] = KeyValuePair(key).put(value.toLong())
+        writeScope.launch {
+            kvPairDao.put(KeyValuePair(key).put(value.toLong()))
+        }
         fireChangeListener(key)
     }
 
     override fun putLong(key: String, value: Long) {
-        kvPairDao.put(KeyValuePair(key).put(value))
+        cache[key] = KeyValuePair(key).put(value)
+        writeScope.launch {
+            kvPairDao.put(KeyValuePair(key).put(value))
+        }
         fireChangeListener(key)
     }
 
     override fun putString(key: String, value: String?) = if (value == null) remove(key) else {
-        kvPairDao.put(KeyValuePair(key).put(value))
+        cache[key] = KeyValuePair(key).put(value)
+        writeScope.launch {
+            kvPairDao.put(KeyValuePair(key).put(value))
+        }
         fireChangeListener(key)
     }
 
     override fun putStringSet(key: String, values: MutableSet<String>?) =
         if (values == null) remove(key) else {
-            kvPairDao.put(KeyValuePair(key).put(values))
+            cache[key] = KeyValuePair(key).put(values)
+            writeScope.launch {
+                kvPairDao.put(KeyValuePair(key).put(values))
+            }
             fireChangeListener(key)
         }
 
     fun remove(key: String) {
-        kvPairDao.delete(key)
+        cache.remove(key)
+        writeScope.launch {
+            kvPairDao.delete(key)
+        }
         fireChangeListener(key)
     }
 

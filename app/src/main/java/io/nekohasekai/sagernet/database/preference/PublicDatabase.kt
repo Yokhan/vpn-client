@@ -24,7 +24,6 @@ abstract class PublicDatabase : RoomDatabase() {
             SagerNet.application.getDatabasePath(Key.DB_PROFILE).parentFile?.mkdirs()
             Room.databaseBuilder(SagerNet.application, PublicDatabase::class.java, Key.DB_PUBLIC)
                 .setJournalMode(JournalMode.TRUNCATE)
-                .allowMainThreadQueries()
                 .enableMultiInstanceInvalidation()
                 .setQueryExecutor(queryExecutor)
                 .build()
