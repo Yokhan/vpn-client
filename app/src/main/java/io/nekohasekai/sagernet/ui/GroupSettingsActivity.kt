@@ -38,6 +38,7 @@ class GroupSettingsActivity(
 ) : ThemedActivity(resId),
     OnPreferenceDataStoreChangeListener {
 
+    private var groupEntity: ProxyGroup? = null
     private lateinit var frontProxyPreference: OutboundPreference
     private lateinit var landingProxyPreference: OutboundPreference
 
@@ -206,33 +207,35 @@ class GroupSettingsActivity(
             setHomeAsUpIndicator(R.drawable.ic_navigation_close)
         }
 
-        if (savedInstanceState == null) {
-            val editingId = intent.getLongExtra(EXTRA_GROUP_ID, 0L)
-            DataStore.editingId = editingId
-            runOnDefaultDispatcher {
+        val editingId = intent.getLongExtra(EXTRA_GROUP_ID, 0L)
+        DataStore.editingId = editingId
+        runOnDefaultDispatcher {
+            if (savedInstanceState == null) {
                 if (editingId == 0L) {
                     ProxyGroup().init()
                 } else {
-                    val entity = SagerDatabase.groupDao.getById(editingId)
-                    if (entity == null) {
+                    groupEntity = SagerDatabase.groupDao.getById(editingId)
+                    if (groupEntity == null) {
                         onMainDispatcher {
                             finish()
                         }
                         return@runOnDefaultDispatcher
                     }
-                    entity.init()
+                    groupEntity!!.init()
                 }
+            } else if (editingId != 0L) {
+                groupEntity = SagerDatabase.groupDao.getById(editingId)
+            }
 
-                onMainDispatcher {
+            onMainDispatcher {
+                if (savedInstanceState == null) {
                     supportFragmentManager.beginTransaction()
                         .replace(R.id.settings, MyPreferenceFragmentCompat())
                         .commit()
-
-                    DataStore.dirty = false
-                    DataStore.profileCacheStore.registerChangeListener(this@GroupSettingsActivity)
                 }
+                DataStore.dirty = false
+                DataStore.profileCacheStore.registerChangeListener(this@GroupSettingsActivity)
             }
-
         }
 
     }
@@ -243,7 +246,7 @@ class GroupSettingsActivity(
         if (editingId == 0L) {
             GroupManager.createGroup(ProxyGroup().apply { serialize() })
         } else if (needSave()) {
-            val entity = SagerDatabase.groupDao.getById(DataStore.editingId)
+            val entity = groupEntity ?: SagerDatabase.groupDao.getById(DataStore.editingId)
             if (entity == null) {
                 finish()
                 return
@@ -254,7 +257,8 @@ class GroupSettingsActivity(
             if (!keepUserInfo) {
                 entity.subscription?.subscriptionUserinfo = "";
             }
-            GroupManager.updateGroup(entity.apply { serialize() })
+            groupEntity = entity.apply { serialize() }
+            GroupManager.updateGroup(groupEntity!!)
         }
 
         finish()
