@@ -42,6 +42,12 @@ class SagerNet : Application(),
         super.attachBaseContext(base)
 
         application = this
+        Thread {
+            DataStore.refreshConfiguration()
+        }.apply {
+            name = "DataStoreWarmup"
+            isDaemon = true
+        }.start()
     }
 
     private val nativeInterface = NativeInterface()
@@ -55,6 +61,7 @@ class SagerNet : Application(),
         super.onCreate()
 
         Thread.setDefaultUncaughtExceptionHandler(CrashHandler)
+        val bootstrapPreferences = bootstrapPreferences()
 
         if (isMainProcess || isBgProcess) {
             externalAssets.mkdirs()
@@ -64,8 +71,8 @@ class SagerNet : Application(),
                 cacheDir.absolutePath + "/",
                 filesDir.absolutePath + "/",
                 externalAssets.absolutePath + "/",
-                DataStore.logBufSize,
-                DataStore.logLevel > 0,
+                bootstrapPreferences.getInt(Key.LOG_BUF_SIZE, 0),
+                bootstrapPreferences.getInt(Key.LOG_LEVEL, 0) > 0,
                 nativeInterface, nativeInterface, LocalResolverImpl
             )
 
@@ -80,8 +87,10 @@ class SagerNet : Application(),
 
         if (isMainProcess) {
             Theme.apply(this)
+            Theme.currentNightMode = bootstrapPreferences.getInt(Key.NIGHT_THEME, 0)
             Theme.applyNightTheme()
             runOnDefaultDispatcher {
+                DataStore.refreshConfiguration()
                 DefaultNetworkListener.start(this) {
                     underlyingNetwork = it
                 }
@@ -122,8 +131,31 @@ class SagerNet : Application(),
 
     @SuppressLint("InlinedApi")
     companion object {
+        private const val BOOTSTRAP_PREFERENCES = "bootstrap-preferences"
 
         lateinit var application: SagerNet
+
+        fun bootstrapPreferences() =
+            application.getSharedPreferences(BOOTSTRAP_PREFERENCES, Context.MODE_PRIVATE)
+
+        fun bootstrapServiceMode(): String =
+            bootstrapPreferences().getString(Key.SERVICE_MODE, null) ?: DataStore.serviceMode
+
+        fun bootstrapSelectedProxy(): Long = bootstrapPreferences().let { preferences ->
+            if (preferences.contains(Key.PROFILE_ID)) {
+                preferences.getLong(Key.PROFILE_ID, 0L)
+            } else {
+                DataStore.selectedProxy
+            }
+        }
+
+        fun bootstrapPersistAcrossReboot(): Boolean = bootstrapPreferences().let { preferences ->
+            if (preferences.contains(Key.PERSIST_ACROSS_REBOOT)) {
+                preferences.getBoolean(Key.PERSIST_ACROSS_REBOOT, false)
+            } else {
+                DataStore.persistAcrossReboot
+            }
+        }
 
         val isTv by lazy {
             uiMode.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
@@ -190,15 +222,40 @@ class SagerNet : Application(),
             }
         }
 
-        fun startService() = ContextCompat.startForegroundService(
-            application, Intent(application, SagerConnection.serviceClass)
-        )
+        private fun startServiceBlocking() {
+            DataStore.flushConfiguration()
+            ContextCompat.startForegroundService(
+                application, Intent(application, SagerConnection.serviceClass)
+            )
+        }
 
-        fun reloadService() =
+        private fun reloadServiceBlocking() {
+            DataStore.flushConfiguration()
             application.sendBroadcast(Intent(Action.RELOAD).setPackage(application.packageName))
+        }
 
-        fun stopService() =
+        private fun stopServiceBlocking() {
+            DataStore.flushConfiguration()
             application.sendBroadcast(Intent(Action.CLOSE).setPackage(application.packageName))
+        }
+
+        fun startService() = startServiceBlocking()
+
+        fun startServiceAsync() = runOnDefaultDispatcher {
+            startServiceBlocking()
+        }
+
+        fun reloadService() = reloadServiceBlocking()
+
+        fun reloadServiceAsync() = runOnDefaultDispatcher {
+            reloadServiceBlocking()
+        }
+
+        fun stopService() = stopServiceBlocking()
+
+        fun stopServiceAsync() = runOnDefaultDispatcher {
+            stopServiceBlocking()
+        }
 
         var underlyingNetwork: Network? = null
 

@@ -8,6 +8,7 @@ import android.os.IBinder
 import android.os.RemoteException
 import io.nekohasekai.sagernet.Action
 import io.nekohasekai.sagernet.Key
+import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.aidl.ISagerNetService
 import io.nekohasekai.sagernet.aidl.ISagerNetServiceCallback
 import io.nekohasekai.sagernet.aidl.SpeedDisplayData
@@ -22,7 +23,7 @@ class SagerConnection(
 
     companion object {
         val serviceClass
-            get() = when (DataStore.serviceMode) {
+            get() = when (SagerNet.bootstrapServiceMode()) {
                 Key.MODE_PROXY -> ProxyService::class
                 Key.MODE_VPN -> VpnService::class
                 else -> throw UnknownError()

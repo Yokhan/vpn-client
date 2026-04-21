@@ -16,7 +16,6 @@ import androidx.core.content.getSystemService
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
-import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.broadcastReceiver
 
@@ -56,11 +55,13 @@ class VpnRequestActivity : AppCompatActivity() {
             context: Context,
             input: Void?,
         ): SynchronousResult<Boolean>? {
-            if (DataStore.serviceMode == Key.MODE_VPN) VpnService.prepare(context)?.let { intent ->
-                cachedIntent = intent
-                return null
+            if (SagerNet.bootstrapServiceMode() == Key.MODE_VPN) {
+                VpnService.prepare(context)?.let { intent ->
+                    cachedIntent = intent
+                    return null
+                }
             }
-            SagerNet.startService()
+            SagerNet.startServiceAsync()
             return SynchronousResult(false)
         }
 
@@ -69,7 +70,7 @@ class VpnRequestActivity : AppCompatActivity() {
 
         override fun parseResult(resultCode: Int, intent: Intent?) =
             if (resultCode == Activity.RESULT_OK) {
-                SagerNet.startService()
+                SagerNet.startServiceAsync()
                 false
             } else {
                 Logs.e("Failed to start VpnService: $intent")

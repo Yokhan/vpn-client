@@ -91,8 +91,8 @@ class TileService : BaseTileService(), SagerConnection.Callback {
         if (service == null) tapPending =
             true else BaseService.State.values()[service.state].let { state ->
             when {
-                state.canStop -> SagerNet.stopService()
-                state == BaseService.State.Stopped -> SagerNet.startService()
+                state.canStop -> SagerNet.stopServiceAsync()
+                state == BaseService.State.Stopped -> SagerNet.startServiceAsync()
             }
         }
     }

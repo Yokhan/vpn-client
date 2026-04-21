@@ -1,5 +1,6 @@
 package io.nekohasekai.sagernet.database
 
+import android.content.Context
 import android.os.Binder
 import androidx.preference.PreferenceDataStore
 import kotlinx.coroutines.Dispatchers
@@ -8,6 +9,7 @@ import io.nekohasekai.sagernet.CONNECTION_TEST_URL
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.IPv6Mode
 import io.nekohasekai.sagernet.Key
+import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.TunImplementation
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.bg.VpnService
@@ -29,8 +31,17 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     @Volatile
     var serviceState = BaseService.State.Idle
 
-    val configurationStore = RoomPreferenceDataStore(PublicDatabase.kvPairDao)
-    val profileCacheStore = RoomPreferenceDataStore(TempDatabase.profileCacheDao)
+    val configurationStore = RoomPreferenceDataStore(
+        PublicDatabase.kvPairDao,
+        PublicDatabase.instance,
+        true,
+        "KeyValuePair"
+    )
+    val profileCacheStore = RoomPreferenceDataStore(TempDatabase.profileCacheDao, preload = false)
+
+    init {
+        configurationStore.registerChangeListener(this)
+    }
 
     // last used, but may not be running
     var currentProfile by configurationStore.long(Key.PROFILE_CURRENT)
@@ -120,6 +131,27 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     }
 
     fun cachedGroups(): List<ProxyGroup> = cachedGroups
+
+    fun refreshConfiguration() {
+        configurationStore.refresh()
+        syncBootstrapPreferences()
+    }
+
+    fun flushConfiguration() {
+        configurationStore.flush()
+    }
+
+    private fun syncBootstrapPreferences() {
+        SagerNet.bootstrapPreferences()
+            .edit()
+            .putInt(Key.NIGHT_THEME, nightTheme)
+            .putInt(Key.LOG_LEVEL, logLevel)
+            .putInt(Key.LOG_BUF_SIZE, logBufSize)
+            .putLong(Key.PROFILE_ID, selectedProxy)
+            .putBoolean(Key.PERSIST_ACROSS_REBOOT, persistAcrossReboot)
+            .putString(Key.SERVICE_MODE, serviceMode)
+            .apply()
+    }
 
     private fun normalizeSelectedGroup() {
         val groups = cachedGroups
@@ -305,5 +337,15 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var rulesFirstCreate by profileCacheStore.boolean("rulesFirstCreate")
 
     override fun onPreferenceDataStoreChanged(store: PreferenceDataStore, key: String) {
+        if (store !== configurationStore) return
+        when (key) {
+            Key.NIGHT_THEME,
+            Key.LOG_LEVEL,
+            Key.LOG_BUF_SIZE,
+            Key.PROFILE_ID,
+            Key.PERSIST_ACROSS_REBOOT,
+            Key.SERVICE_MODE
+            -> syncBootstrapPreferences()
+        }
     }
 }

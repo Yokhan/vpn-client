@@ -14,7 +14,9 @@ import androidx.activity.addCallback
 import androidx.annotation.IdRes
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentManager
 import androidx.preference.PreferenceDataStore
+import androidx.core.view.GravityCompat
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.snackbar.Snackbar
@@ -67,22 +69,22 @@ class MainActivity : ThemedActivity(),
         navigation.setNavigationItemSelectedListener(this)
 
         if (savedInstanceState == null) {
-            displayFragmentWithId(R.id.nav_configuration)
+            displayFragmentWithId(R.id.nav_home)
         }
         onBackPressedDispatcher.addCallback {
-            if (supportFragmentManager.findFragmentById(R.id.fragment_holder) is ConfigurationFragment) {
+            if (supportFragmentManager.backStackEntryCount > 0) {
+                supportFragmentManager.popBackStack()
+                return@addCallback
+            }
+            if (supportFragmentManager.findFragmentById(R.id.fragment_holder) is DashboardFragment) {
                 moveTaskToBack(true)
             } else {
-                displayFragmentWithId(R.id.nav_configuration)
+                displayFragmentWithId(R.id.nav_home)
             }
         }
 
-        binding.fab.setOnClickListener {
-            if (DataStore.serviceState.canStop) SagerNet.stopService() else connect.launch(
-                null
-            )
-        }
-        binding.stats.setOnClickListener { if (DataStore.serviceState.connected) binding.stats.testConnection() }
+        binding.fab.setOnClickListener { toggleConnection() }
+        binding.stats.setOnClickListener { runConnectionTest() }
 
         setContentView(binding.root)
         changeState(BaseService.State.Idle)
@@ -296,7 +298,9 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        if (item.isChecked) binding.drawerLayout.closeDrawers() else {
+        if (item.isChecked && supportFragmentManager.backStackEntryCount == 0) {
+            binding.drawerLayout.closeDrawers()
+        } else {
             return displayFragmentWithId(item.itemId)
         }
         return true
@@ -304,8 +308,19 @@ class MainActivity : ThemedActivity(),
 
 
     @SuppressLint("CommitTransaction")
-    fun displayFragment(fragment: ToolbarFragment) {
-        if (fragment is ConfigurationFragment) {
+    fun displayFragment(fragment: ToolbarFragment, addToBackStack: Boolean = false) {
+        if (!addToBackStack && supportFragmentManager.backStackEntryCount > 0) {
+            supportFragmentManager.popBackStackImmediate(
+                null,
+                FragmentManager.POP_BACK_STACK_INCLUSIVE
+            )
+        }
+        if (fragment is ConfigurationFragment ||
+            fragment is ConfigurationHubFragment ||
+            fragment is GroupHubFragment ||
+            fragment is RouteHubFragment ||
+            fragment is DashboardFragment
+        ) {
             binding.stats.allowShow = true
             binding.fab.show()
         } else if (!DataStore.showBottomBar) {
@@ -313,20 +328,29 @@ class MainActivity : ThemedActivity(),
             binding.stats.performHide()
             binding.fab.hide()
         }
-        supportFragmentManager.beginTransaction()
-            .replace(R.id.fragment_holder, fragment)
-            .commitAllowingStateLoss()
+        supportFragmentManager.beginTransaction().apply {
+            replace(R.id.fragment_holder, fragment)
+            if (addToBackStack) addToBackStack(fragment::class.java.name)
+        }.commitAllowingStateLoss()
         binding.drawerLayout.closeDrawers()
+    }
+
+    fun openSubFragment(fragment: ToolbarFragment) {
+        displayFragment(fragment, addToBackStack = true)
     }
 
     fun displayFragmentWithId(@IdRes id: Int): Boolean {
         when (id) {
-            R.id.nav_configuration -> {
-                displayFragment(ConfigurationFragment())
+            R.id.nav_home -> {
+                displayFragment(DashboardFragment())
             }
 
-            R.id.nav_group -> displayFragment(GroupFragment())
-            R.id.nav_route -> displayFragment(RouteFragment())
+            R.id.nav_configuration -> {
+                displayFragment(ConfigurationHubFragment())
+            }
+
+            R.id.nav_group -> displayFragment(GroupHubFragment())
+            R.id.nav_route -> displayFragment(RouteHubFragment())
             R.id.nav_settings -> displayFragment(SettingsFragment())
             R.id.nav_traffic -> displayFragment(WebviewFragment())
             R.id.nav_tools -> displayFragment(ToolsFragment())
@@ -353,10 +377,13 @@ class MainActivity : ThemedActivity(),
         msg: String? = null,
         animate: Boolean = false,
     ) {
+        val previousState = DataStore.serviceState
         DataStore.serviceState = state
 
-        binding.fab.changeState(state, DataStore.serviceState, animate)
+        binding.fab.changeState(state, previousState, animate)
         binding.stats.changeState(state)
+        (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
+            ?.updateConnectionState(state)
         if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
     }
 
@@ -396,6 +423,8 @@ class MainActivity : ThemedActivity(),
     // ONLY do UI update here, write DB in bg process
     override fun cbSpeedUpdate(stats: SpeedDisplayData) {
         binding.stats.updateSpeed(stats.txRateProxy, stats.rxRateProxy)
+        (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
+            ?.updateSpeeds(stats.txRateProxy, stats.rxRateProxy)
     }
 
     override fun cbTrafficUpdate(data: TrafficData) {
@@ -412,6 +441,8 @@ class MainActivity : ThemedActivity(),
             ProfileManager.postUpdate(old, true)
             ProfileManager.postUpdate(id, true)
         }
+        (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
+            ?.refreshDashboard()
     }
 
     override fun onPreferenceDataStoreChanged(store: PreferenceDataStore, key: String) {
@@ -420,9 +451,15 @@ class MainActivity : ThemedActivity(),
             Key.PROXY_APPS, Key.BYPASS_MODE, Key.INDIVIDUAL -> {
                 if (DataStore.serviceState.canStop) {
                     snackbar(getString(R.string.need_reload)).setAction(R.string.apply) {
-                        SagerNet.reloadService()
+                        SagerNet.reloadServiceAsync()
                     }.show()
                 }
+            }
+        }
+        when (key) {
+            Key.SERVICE_MODE, Key.PROFILE_ID, Key.PROFILE_GROUP -> {
+                (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
+                    ?.refreshDashboard()
             }
         }
     }
@@ -448,13 +485,13 @@ class MainActivity : ThemedActivity(),
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> {
                 if (super.onKeyDown(keyCode, event)) return true
-                binding.drawerLayout.open()
+                binding.drawerLayout.openDrawer(GravityCompat.START)
                 navigation.requestFocus()
             }
 
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 if (binding.drawerLayout.isOpen) {
-                    binding.drawerLayout.close()
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
                     return true
                 }
             }
@@ -466,6 +503,22 @@ class MainActivity : ThemedActivity(),
         val fragment =
             supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment
         return fragment != null && fragment.onKeyDown(keyCode, event)
+    }
+
+    fun toggleConnection() {
+        if (DataStore.serviceState.canStop) {
+            SagerNet.stopServiceAsync()
+        } else {
+            connect.launch(null)
+        }
+    }
+
+    fun runConnectionTest() {
+        if (DataStore.serviceState.connected) {
+            binding.stats.testConnection()
+        } else {
+            snackbar(R.string.not_connected).show()
+        }
     }
 
 }

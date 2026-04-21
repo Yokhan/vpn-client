@@ -1,44 +1,91 @@
 package io.nekohasekai.sagernet.database.preference
 
 import androidx.preference.PreferenceDataStore
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import java.util.concurrent.ConcurrentHashMap
+import androidx.room.InvalidationTracker
+import androidx.room.RoomDatabase
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @Suppress("MemberVisibilityCanBePrivate", "unused")
-open class RoomPreferenceDataStore(private val kvPairDao: KeyValuePair.Dao) :
+open class RoomPreferenceDataStore(
+    private val kvPairDao: KeyValuePair.Dao,
+    database: RoomDatabase? = null,
+    private val preload: Boolean = true,
+    vararg observedTables: String,
+) :
     PreferenceDataStore() {
 
-    private val writeScope = CoroutineScope(
-        SupervisorJob() + Executors.newSingleThreadExecutor { runnable ->
-            Thread(runnable, "RoomPreferenceDataStore").apply {
+    private val workerThreadName = "RoomPreferenceDataStore-${System.identityHashCode(this)}"
+    private val writeExecutor = Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, workerThreadName).apply {
                 isDaemon = true
             }
-        }.asCoroutineDispatcher()
-    )
-    private val cache = ConcurrentHashMap<String, KeyValuePair>().apply {
-        runBlocking(Dispatchers.IO) {
-            kvPairDao.all().forEach { put(it.key, it) }
+        }
+    @Volatile
+    private var cache: Map<String, KeyValuePair> = emptyMap()
+    @Volatile
+    private var loaded = false
+    private val invalidationObserver =
+        if (database != null && observedTables.isNotEmpty()) object : InvalidationTracker.Observer(
+            observedTables.first(),
+            *observedTables.drop(1).toTypedArray()
+        ) {
+            override fun onInvalidated(tables: Set<String>) {
+                writeExecutor.execute(::refreshLocked)
+            }
+        } else null
+
+    init {
+        if (preload) {
+            executeWrite(::refreshLocked)
+        }
+        invalidationObserver?.let { observer ->
+            database!!.invalidationTracker.addObserver(observer)
         }
     }
 
-    fun all() = cache.values.toList()
-    fun getBoolean(key: String) = cache[key]?.boolean
-    fun getFloat(key: String) = cache[key]?.float
-    fun getInt(key: String) = cache[key]?.long?.toInt()
-    fun getLong(key: String) = cache[key]?.long
-    fun getString(key: String) = cache[key]?.string
-    fun getStringSet(key: String) = cache[key]?.stringSet
+    fun all(): List<KeyValuePair> {
+        ensureLoaded()
+        return cache.values.toList()
+    }
+    fun getBoolean(key: String): Boolean? {
+        ensureLoaded()
+        return cache[key]?.boolean
+    }
+    fun getFloat(key: String): Float? {
+        ensureLoaded()
+        return cache[key]?.float
+    }
+    fun getInt(key: String): Int? {
+        ensureLoaded()
+        return cache[key]?.long?.toInt()
+    }
+    fun getLong(key: String): Long? {
+        ensureLoaded()
+        return cache[key]?.long
+    }
+    fun getString(key: String): String? {
+        ensureLoaded()
+        return cache[key]?.string
+    }
+    fun getStringSet(key: String): Set<String>? {
+        ensureLoaded()
+        return cache[key]?.stringSet
+    }
     fun reset() {
-        cache.clear()
-        writeScope.launch {
+        cache = emptyMap()
+        loaded = true
+        scheduleWrite {
             kvPairDao.reset()
         }
+    }
+
+    fun refresh() {
+        executeWrite(::refreshLocked)
+    }
+
+    fun flush() {
+        executeWrite { }
     }
 
     override fun getBoolean(key: String, defValue: Boolean) = getBoolean(key) ?: defValue
@@ -60,60 +107,99 @@ open class RoomPreferenceDataStore(private val kvPairDao: KeyValuePair.Dao) :
 
     fun putLong(key: String, value: Long?) = if (value == null) remove(key) else putLong(key, value)
     override fun putBoolean(key: String, value: Boolean) {
-        cache[key] = KeyValuePair(key).put(value)
-        writeScope.launch {
-            kvPairDao.put(KeyValuePair(key).put(value))
+        ensureLoaded()
+        val pair = KeyValuePair(key).put(value)
+        cache = cache + (key to pair)
+        scheduleWrite {
+            kvPairDao.put(pair)
         }
         fireChangeListener(key)
     }
 
     override fun putFloat(key: String, value: Float) {
-        cache[key] = KeyValuePair(key).put(value)
-        writeScope.launch {
-            kvPairDao.put(KeyValuePair(key).put(value))
+        ensureLoaded()
+        val pair = KeyValuePair(key).put(value)
+        cache = cache + (key to pair)
+        scheduleWrite {
+            kvPairDao.put(pair)
         }
         fireChangeListener(key)
     }
 
     override fun putInt(key: String, value: Int) {
-        cache[key] = KeyValuePair(key).put(value.toLong())
-        writeScope.launch {
-            kvPairDao.put(KeyValuePair(key).put(value.toLong()))
+        ensureLoaded()
+        val pair = KeyValuePair(key).put(value.toLong())
+        cache = cache + (key to pair)
+        scheduleWrite {
+            kvPairDao.put(pair)
         }
         fireChangeListener(key)
     }
 
     override fun putLong(key: String, value: Long) {
-        cache[key] = KeyValuePair(key).put(value)
-        writeScope.launch {
-            kvPairDao.put(KeyValuePair(key).put(value))
+        ensureLoaded()
+        val pair = KeyValuePair(key).put(value)
+        cache = cache + (key to pair)
+        scheduleWrite {
+            kvPairDao.put(pair)
         }
         fireChangeListener(key)
     }
 
     override fun putString(key: String, value: String?) = if (value == null) remove(key) else {
-        cache[key] = KeyValuePair(key).put(value)
-        writeScope.launch {
-            kvPairDao.put(KeyValuePair(key).put(value))
+        ensureLoaded()
+        val pair = KeyValuePair(key).put(value)
+        cache = cache + (key to pair)
+        scheduleWrite {
+            kvPairDao.put(pair)
         }
         fireChangeListener(key)
     }
 
     override fun putStringSet(key: String, values: MutableSet<String>?) =
         if (values == null) remove(key) else {
-            cache[key] = KeyValuePair(key).put(values)
-            writeScope.launch {
-                kvPairDao.put(KeyValuePair(key).put(values))
+            ensureLoaded()
+            val pair = KeyValuePair(key).put(values)
+            cache = cache + (key to pair)
+            scheduleWrite {
+                kvPairDao.put(pair)
             }
             fireChangeListener(key)
         }
 
     fun remove(key: String) {
-        cache.remove(key)
-        writeScope.launch {
+        ensureLoaded()
+        cache = cache - key
+        scheduleWrite {
             kvPairDao.delete(key)
         }
         fireChangeListener(key)
+    }
+
+    private fun refreshLocked() {
+        cache = kvPairDao.all().associateBy { it.key }
+        loaded = true
+    }
+
+    private fun ensureLoaded() {
+        if (loaded) return
+        executeWrite {
+            if (!loaded) {
+                refreshLocked()
+            }
+        }
+    }
+
+    private fun executeWrite(block: () -> Unit) {
+        if (Thread.currentThread().name == workerThreadName) {
+            block()
+            return
+        }
+        writeExecutor.submit(block).get(30, TimeUnit.SECONDS)
+    }
+
+    private fun scheduleWrite(block: () -> Unit) {
+        writeExecutor.execute(block)
     }
 
     private val listeners = HashSet<OnPreferenceDataStoreChangeListener>()

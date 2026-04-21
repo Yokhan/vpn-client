@@ -178,11 +178,13 @@ class BaseService {
             if (intent.action == Action.SERVICE) data.binder else null
 
         fun reload() {
-            if (DataStore.selectedProxy == 0L) {
-                stopRunner(false, (this as Context).getString(R.string.profile_empty))
-                return
-            }
+            val context = this as Context
             runOnDefaultDispatcher {
+                DataStore.refreshConfiguration()
+                if (DataStore.selectedProxy == 0L) {
+                    stopRunner(false, context.getString(R.string.profile_empty))
+                    return@runOnDefaultDispatcher
+                }
                 if (canReloadSelector()) {
                     val ent = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
                     val tag = data.proxy!!.config.profileTagMap[ent?.id] ?: ""
@@ -319,7 +321,6 @@ class BaseService {
             val data = data
             if (data.state != State.Stopped) return Service.START_NOT_STICKY
             this as Context
-            BootReceiver.enabled = DataStore.persistAcrossReboot
             if (!data.closeReceiverRegistered) {
                 val filter = IntentFilter().apply {
                     addAction(Action.RELOAD)
@@ -351,9 +352,11 @@ class BaseService {
             }
 
             data.changeState(State.Connecting)
-            val service = this as Context
+            val service = this
             data.connectingJob = runOnDefaultDispatcher {
                 try {
+                    DataStore.refreshConfiguration()
+                    BootReceiver.enabled = DataStore.persistAcrossReboot
                     val profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
                     if (profile == null) { // gracefully shutdown: https://stackoverflow.com/q/47337857/2245107
                         data.notification = createNotification("")

@@ -122,7 +122,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         }
 
         serviceMode.setOnPreferenceChangeListener { _, _ ->
-            if (DataStore.serviceState.started) SagerNet.stopService()
+            if (DataStore.serviceState.started) SagerNet.stopServiceAsync()
             true
         }
 
