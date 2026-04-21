@@ -20,6 +20,8 @@ jniLibs/
 /library/libcore_build/
 .idea/deploymentTargetDropDown.xml
 /nkmr
+.claude/settings.local.json
+.claude/settings.json.bak*
 
 # submodules
 /external
