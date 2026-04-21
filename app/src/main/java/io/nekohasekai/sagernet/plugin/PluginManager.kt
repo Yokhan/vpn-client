@@ -40,6 +40,14 @@ object PluginManager {
     }
 
     private fun initNative(pluginId: String): InitResult? {
+        if (pluginId == "naive-plugin") {
+            try {
+                initNativeInternal(pluginId)?.let { return InitResult(it, ProviderInfo()) }
+            } catch (t: Throwable) {
+                Logs.w("initNativeInternal preferred naive failed", t)
+            }
+        }
+
         val info = Plugins.getPlugin(pluginId) ?: return null
 
         // internal so
@@ -71,6 +79,7 @@ object PluginManager {
             return null
         }
         return when (pluginId) {
+            "naive-plugin" -> soIfExist("libnaive.so")
             "hysteria-plugin" -> soIfExist("libhysteria.so")
             "hysteria2-plugin" -> soIfExist("libhysteria2.so")
             else -> null

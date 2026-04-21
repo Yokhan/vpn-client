@@ -15,6 +15,8 @@ local.properties
 *.keystore
 release.keystore
 jniLibs/
+!/app/src/main/jniLibs/
+!/app/src/main/jniLibs/**
 /library/libcore_build/
 .idea/deploymentTargetDropDown.xml
 /nkmr

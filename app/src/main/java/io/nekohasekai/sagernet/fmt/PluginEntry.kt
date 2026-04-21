@@ -27,11 +27,11 @@ enum class PluginEntry(
     NaiveProxy(
         "naive-plugin",
         SagerNet.application.getString(R.string.action_naive),
-        "moe.matsuri.exe.naive",
+        "io.nekohasekai.sagernet.plugin.naive",
         DownloadSource(
             playStore = false,
             fdroid = false,
-            downloadLink = "https://github.com/MatsuriDayo/plugins/releases?q=naive"
+            downloadLink = "https://github.com/klzgrad/naiveproxy/releases/latest"
         )
     ),
     Hysteria(

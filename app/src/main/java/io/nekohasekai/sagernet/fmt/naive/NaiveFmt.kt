@@ -27,11 +27,13 @@ fun parseNaive(link: String): NaiveBean {
 }
 
 fun NaiveBean.toUri(proxyOnly: Boolean = false): String {
-    val builder = linkBuilder().host(finalAddress).port(finalPort)
-    if (username.isNotBlank()) {
-        builder.username(username)
-        if (password.isNotBlank()) {
-            builder.password(password)
+    val authUsername = username
+    val authPassword = password
+    val builder = linkBuilder().host(serverAddress).port(serverPort)
+    if (authUsername.isNotBlank()) {
+        builder.username(authUsername)
+        if (authPassword.isNotBlank()) {
+            builder.password(authPassword)
         }
     }
     if (!proxyOnly) {
@@ -55,28 +57,43 @@ fun NaiveBean.toUri(proxyOnly: Boolean = false): String {
 }
 
 fun NaiveBean.buildNaiveConfig(port: Int): String {
-    return JSONObject().apply {
-        // process ipv6
-        finalAddress = finalAddress.wrapIPV6Host()
-        serverAddress = serverAddress.wrapIPV6Host()
+    val authUsername = username
+    val authPassword = password
+    val resolvedServerAddress = serverAddress.wrapIPV6Host()
+    var resolvedFinalAddress = finalAddress.wrapIPV6Host()
 
+    return JSONObject().apply {
         // process sni
         if (sni.isNotBlank()) {
-            put("host-resolver-rules", "MAP $sni $finalAddress")
-            finalAddress = sni
+            put("host-resolver-rules", "MAP $sni $resolvedFinalAddress")
+            resolvedFinalAddress = sni
         } else {
             if (serverAddress.isIpAddress()) {
                 // for naive, using IP as SNI name hardly happens
                 // and host-resolver-rules cannot resolve the SNI problem
                 // so do nothing
             } else {
-                put("host-resolver-rules", "MAP $serverAddress $finalAddress")
-                finalAddress = serverAddress
+                put("host-resolver-rules", "MAP $resolvedServerAddress $resolvedFinalAddress")
+                resolvedFinalAddress = resolvedServerAddress
             }
         }
 
         put("listen", "socks://$LOCALHOST:$port")
-        put("proxy", toUri(true))
+        put(
+            "proxy",
+            linkBuilder()
+                .host(resolvedFinalAddress)
+                .port(finalPort)
+                .apply {
+                    if (authUsername.isNotBlank()) {
+                        username(authUsername)
+                        if (authPassword.isNotBlank()) {
+                            password(authPassword)
+                        }
+                    }
+                }
+                .toLink(proto, false)
+        )
         if (extraHeaders.isNotBlank()) {
             put("extra-headers", extraHeaders.split("\n").joinToString("\r\n"))
         }

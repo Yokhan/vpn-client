@@ -107,3 +107,5 @@ Web Dashboard:
 - Android/Gradle build requires a real JDK with `javac`. A standalone JRE is not enough.
 - Release signing is externalized. Set `KEYSTORE_PATH`, `KEYSTORE_PASS`, `ALIAS_NAME`, and `ALIAS_PASS` in your environment or `local.properties`.
 - Preview APKs are built by the existing GitHub Actions pipeline in `.github/workflows/preview.yml`, which now runs on `push`, `pull_request`, and `workflow_dispatch`.
+- NaiveProxy in this fork tracks the official `klzgrad/naiveproxy` upstream and vendors `libnaive.so` in `app/src/main/jniLibs/<abi>/`, so Naive works without a separate plugin APK.
+- To refresh the bundled Naive binaries from upstream, run `powershell -NoProfile -ExecutionPolicy Bypass -File buildScript/lib/naive/update.ps1`. The pinned upstream release and hashes are recorded in `buildScript/lib/naive/upstream.json`.
