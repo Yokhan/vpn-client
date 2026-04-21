@@ -180,23 +180,27 @@ class BaseService {
         fun reload() {
             if (DataStore.selectedProxy == 0L) {
                 stopRunner(false, (this as Context).getString(R.string.profile_empty))
-            }
-            if (canReloadSelector()) {
-                val ent = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
-                val tag = data.proxy!!.config.profileTagMap[ent?.id] ?: ""
-                if (tag.isNotBlank() && ent != null) {
-                    // select from GUI
-                    data.proxy!!.box.selectOutbound(tag)
-                    // or select from webui
-                    // => selector_OnProxySelected
-                }
                 return
             }
-            val s = data.state
-            when {
-                s == State.Stopped -> startRunner()
-                s.canStop -> stopRunner(true)
-                else -> Logs.w("Illegal state $s when invoking use")
+            runOnDefaultDispatcher {
+                if (canReloadSelector()) {
+                    val ent = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
+                    val tag = data.proxy!!.config.profileTagMap[ent?.id] ?: ""
+                    if (tag.isNotBlank() && ent != null) {
+                        // select from GUI
+                        data.proxy!!.box.selectOutbound(tag)
+                        // or select from webui
+                        // => selector_OnProxySelected
+                    }
+                    return@runOnDefaultDispatcher
+                }
+
+                val s = data.state
+                when {
+                    s == State.Stopped -> startRunner()
+                    s.canStop -> stopRunner(true)
+                    else -> Logs.w("Illegal state $s when invoking use")
+                }
             }
         }
 
@@ -314,16 +318,7 @@ class BaseService {
 
             val data = data
             if (data.state != State.Stopped) return Service.START_NOT_STICKY
-            val profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
             this as Context
-            if (profile == null) { // gracefully shutdown: https://stackoverflow.com/q/47337857/2245107
-                data.notification = createNotification("")
-                stopRunner(false, getString(R.string.profile_empty))
-                return Service.START_NOT_STICKY
-            }
-
-            val proxy = ProxyInstance(profile, this)
-            data.proxy = proxy
             BootReceiver.enabled = DataStore.persistAcrossReboot
             if (!data.closeReceiverRegistered) {
                 val filter = IntentFilter().apply {
@@ -356,8 +351,18 @@ class BaseService {
             }
 
             data.changeState(State.Connecting)
-            runOnMainDispatcher {
+            val service = this as Context
+            data.connectingJob = runOnDefaultDispatcher {
                 try {
+                    val profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
+                    if (profile == null) { // gracefully shutdown: https://stackoverflow.com/q/47337857/2245107
+                        data.notification = createNotification("")
+                        stopRunner(false, getString(R.string.profile_empty))
+                        return@runOnDefaultDispatcher
+                    }
+
+                    val proxy = ProxyInstance(profile, service)
+                    data.proxy = proxy
                     data.notification = createNotification(ServiceNotification.genTitle(profile))
 
                     Executable.killAll()    // clean up old processes
