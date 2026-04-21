@@ -38,7 +38,7 @@ abstract class GroupUpdater {
 
     protected suspend fun forceResolve(
         profiles: List<AbstractBean>, groupId: Long?
-    ) {
+    ) = coroutineScope {
         val ipv6Mode = DataStore.ipv6Mode
         val lookupPool = newFixedThreadPoolContext(5, "DNS Lookup")
         val lookupJobs = mutableListOf<Job>()
@@ -57,7 +57,7 @@ abstract class GroupUpdater {
 
             if (profile.serverAddress.isIpAddress()) continue
 
-            lookupJobs.add(GlobalScope.launch(lookupPool) {
+            lookupJobs.add(launch(lookupPool) {
                 try {
                     val results = if (
                         SagerNet.underlyingNetwork != null &&
@@ -85,8 +85,11 @@ abstract class GroupUpdater {
             })
         }
 
-        lookupJobs.joinAll()
-        lookupPool.close()
+        try {
+            lookupJobs.joinAll()
+        } finally {
+            lookupPool.close()
+        }
     }
 
     protected fun rewriteAddress(
