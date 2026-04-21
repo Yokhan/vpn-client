@@ -698,9 +698,11 @@ class ConfigurationFragment @JvmOverloads constructor(
         val test = TestDialog()
         val dialog = test.builder.show()
         val testJobs = mutableListOf<Job>()
-        val group = DataStore.currentGroup()
+        var notificationTitle = getString(R.string.connection_test)
 
         val mainJob = runOnDefaultDispatcher {
+            val group = DataStore.currentGroup()
+            notificationTitle = "[${group.displayName()}] ${getString(R.string.connection_test)}"
             val profilesList = SagerDatabase.proxyDao.getByGroup(group.id).filter {
                 if (icmpPing) {
                     if (it.requireBean().canICMPing()) {
@@ -826,8 +828,7 @@ class ConfigurationFragment @JvmOverloads constructor(
         test.minimize = {
             test.dialogStatus.set(1)
             test.notification = ConnectionTestNotification(
-                dialog.context,
-                "[${group.displayName()}] ${getString(R.string.connection_test)}"
+                dialog.context, notificationTitle
             )
             dialog.hide()
         }
@@ -839,9 +840,11 @@ class ConfigurationFragment @JvmOverloads constructor(
         val test = TestDialog()
         val dialog = test.builder.show()
         val testJobs = mutableListOf<Job>()
-        val group = DataStore.currentGroup()
+        var notificationTitle = getString(R.string.connection_test)
 
         val mainJob = runOnDefaultDispatcher {
+            val group = DataStore.currentGroup()
+            notificationTitle = "[${group.displayName()}] ${getString(R.string.connection_test)}"
             val profilesList = SagerDatabase.proxyDao.getByGroup(group.id)
             test.proxyN = profilesList.size
             val profiles = ConcurrentLinkedQueue(profilesList)
@@ -895,8 +898,7 @@ class ConfigurationFragment @JvmOverloads constructor(
         test.minimize = {
             test.dialogStatus.set(1)
             test.notification = ConnectionTestNotification(
-                dialog.context,
-                "[${group.displayName()}] ${getString(R.string.connection_test)}"
+                dialog.context, notificationTitle
             )
             dialog.hide()
         }
