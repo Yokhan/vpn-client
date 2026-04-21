@@ -99,6 +99,7 @@ class GuardedProcessPool(private val onFatal: suspend (IOException) -> Unit) : C
         }
     }
 
+    private val closeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     override val coroutineContext = Dispatchers.Main.immediate + Job()
     var processCount = 0
 
@@ -117,8 +118,13 @@ class GuardedProcessPool(private val onFatal: suspend (IOException) -> Unit) : C
     }
 
     @MainThread
-    fun close(scope: CoroutineScope) {
+    fun close() {
         cancel()
-        coroutineContext[Job]!!.also { job -> scope.launch { job.cancelAndJoin() } }
+        coroutineContext[Job]!!.also { job ->
+            closeScope.launch {
+                job.cancelAndJoin()
+                closeScope.cancel()
+            }
+        }
     }
 }

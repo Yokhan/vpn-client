@@ -33,6 +33,6 @@ suspend fun <T> onMainDispatcher(block: suspend CoroutineScope.() -> T) =
 
 fun runBlockingOnMainDispatcher(block: suspend CoroutineScope.() -> Unit) {
     runBlocking {
-        GlobalScope.launch(Dispatchers.Main.immediate, block = block)
+        withContext(Dispatchers.Main.immediate, block)
     }
 }
