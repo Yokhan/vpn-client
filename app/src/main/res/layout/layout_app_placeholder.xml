@@ -2,6 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/dashboard_bg_off"
     android:gravity="center"
     android:orientation="vertical"
     android:padding="32dp"
@@ -14,7 +15,7 @@
         android:gravity="center"
         android:paddingBottom="16dp"
         android:text="@string/app_list_permission_denied"
-        android:textColor="?attr/colorOnBackground"
+        android:textColor="@color/dashboard_text_secondary"
         android:textSize="16sp" />
 
     <com.google.android.material.button.MaterialButton

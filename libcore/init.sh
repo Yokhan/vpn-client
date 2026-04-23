@@ -7,11 +7,15 @@ if [ -z "$GOPATH" ]; then
     GOPATH=$(go env GOPATH)
 fi
 
+GOMOBILE_REPO="${CORE_GOMOBILE_REPO:-MatsuriDayo/gomobile}"
+GOMOBILE_REF="${CORE_GOMOBILE_REF:-master2}"
+GOMOBILE_GIT_URL="${CORE_GOMOBILE_GIT_URL:-https://github.com/${GOMOBILE_REPO}.git}"
+
 # Install gomobile
 if [ ! -f "$GOPATH/bin/gomobile-matsuri" ]; then
-    git clone https://github.com/MatsuriDayo/gomobile.git
+    git clone "$GOMOBILE_GIT_URL" gomobile
     pushd gomobile
-	git checkout origin/master2
+	git checkout "$GOMOBILE_REF"
     pushd cmd
     pushd gomobile
     go install -v

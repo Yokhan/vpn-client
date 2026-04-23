@@ -2,7 +2,8 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/dashboard_bg_off">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -18,11 +19,15 @@
             android:id="@+id/group_list"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:padding="4dp"
+            android:clipToPadding="false"
+            android:paddingStart="2dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="2dp"
+            android:paddingBottom="28dp"
             android:scrollbarSize="0dp"
             app:fastScrollAutoHide="true"
-            app:fastScrollThumbColor="?colorPrimary"
-            app:fastScrollThumbInactiveColor="?colorPrimary">
+            app:fastScrollThumbColor="@color/dashboard_accent"
+            app:fastScrollThumbInactiveColor="@color/dashboard_text_tertiary">
 
         </com.simplecityapps.recyclerview_fastscroll.views.FastScrollRecyclerView>
 

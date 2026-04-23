@@ -1,10 +1,9 @@
 ---
-name: 'Bug Report'
-about: 'Please troubleshoot server-side issues and upgrade to the latest client before raising a question.'
-title: 'BUG: '
-labels: ''
-assignees: ''
-
+name: "Bug Report"
+about: "Please troubleshoot server-side issues and upgrade to the latest client before raising a question."
+title: "BUG: "
+labels: ""
+assignees: ""
 ---
 
 ## Describe the problem

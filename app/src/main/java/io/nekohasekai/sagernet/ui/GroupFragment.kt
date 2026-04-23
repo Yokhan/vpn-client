@@ -388,7 +388,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
             itemView.setOnClickListener { }
 
             editButton.isGone = proxyGroup.ungrouped
-            updateButton.isInvisible = proxyGroup.type != GroupType.SUBSCRIPTION
+            updateButton.isGone = proxyGroup.type != GroupType.SUBSCRIPTION
             groupName.text = proxyGroup.displayName()
 
             editButton.setOnClickListener {
@@ -431,7 +431,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                     }
                 }
 
-                updateButton.isInvisible = true
+                updateButton.isGone = true
                 editButton.isGone = true
             } else {
                 (groupName.parent as LinearLayout).apply {
@@ -439,7 +439,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                 }
 
                 subscriptionUpdateProgress.isVisible = false
-                updateButton.isInvisible = proxyGroup.type != GroupType.SUBSCRIPTION
+                updateButton.isGone = proxyGroup.type != GroupType.SUBSCRIPTION
                 editButton.isGone = proxyGroup.ungrouped
             }
 

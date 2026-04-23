@@ -290,22 +290,39 @@
 
     <color name="preference_simple_menu_background">#FAFAFA</color>
 
-    <!-- BUFF IT Design System tokens -->
-    <color name="buffit_main">#f3ead7</color>
-    <color name="buffit_contrast">#453427</color>
-    <color name="buffit_main_dark">#382d24</color>
-    <color name="buffit_text_header">#fff7dd</color>
-    <color name="buffit_auth_title">#5e4a2e</color>
-    <color name="buffit_auth_btn_dark">#5c4b40</color>
-    <color name="buffit_workout_bar">#7c573d</color>
-    <color name="buffit_workout_bg">#e9dec8</color>
+    <!-- YokhanVPN Design System tokens -->
+    <color name="buffit_main">#F5F5F5</color>
+    <color name="buffit_contrast">#1A1A2E</color>
+    <color name="buffit_main_dark">#121212</color>
+    <color name="buffit_text_header">#1A1A2E</color>
+    <color name="buffit_auth_title">#1A1A2E</color>
+    <color name="buffit_auth_btn_dark">#333333</color>
+    <color name="buffit_workout_bar">#E0E0E0</color>
+    <color name="buffit_workout_bg">#F0F0F0</color>
     <color name="buffit_green">#7bd062</color>
     <color name="buffit_green_done">#44d860</color>
     <color name="buffit_red">#ff6868</color>
     <color name="buffit_orange">#ff9b37</color>
-    <!-- Card glassmorphism (light: 65% white, dark: 8% white) -->
-    <color name="buffit_card_bg">#A6FFFFFF</color>
-    <color name="buffit_card_border">#4DFFFFFF</color>
-    <color name="buffit_toolbar">#453427</color>
+    <!-- Cards: solid white with subtle border -->
+    <color name="buffit_card_bg">#FFFFFF</color>
+    <color name="buffit_card_border">#1A000000</color>
+    <color name="buffit_toolbar">#FFFFFF</color>
+
+    <!-- Dashboard web-to-Android parity tokens -->
+    <color name="dashboard_bg_off">#F3F3F7</color>
+    <color name="dashboard_text_primary">#111117</color>
+    <color name="dashboard_text_secondary">#6C6C74</color>
+    <color name="dashboard_text_tertiary">#A3A3AB</color>
+    <color name="dashboard_text_quaternary">#CCCCD2</color>
+    <color name="dashboard_accent">#E55A1B</color>
+    <color name="dashboard_green">#28B44F</color>
+    <color name="dashboard_red">#E53E3E</color>
+    <color name="dashboard_space_bg">#0A0A18</color>
+    <color name="dashboard_space_text_primary">#E8E8F0</color>
+    <color name="dashboard_space_text_secondary">#8888A0</color>
+    <color name="dashboard_card_border_off">#14000000</color>
+    <color name="dashboard_card_border_on">#1AFFFFFF</color>
+    <color name="dashboard_divider_light">#0D000000</color>
+    <color name="dashboard_divider_dark">#1AFFFFFF</color>
 
 </resources>

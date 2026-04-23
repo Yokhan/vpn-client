@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentManager
 import androidx.preference.PreferenceDataStore
 import androidx.core.view.GravityCompat
+import androidx.core.view.isVisible
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.snackbar.Snackbar
@@ -315,11 +316,14 @@ class MainActivity : ThemedActivity(),
                 FragmentManager.POP_BACK_STACK_INCLUSIVE
             )
         }
-        if (fragment is ConfigurationFragment ||
+        if (fragment is DashboardFragment) {
+            binding.stats.allowShow = true
+            binding.fab.hide()
+            binding.fabProgress.isVisible = false
+        } else if (fragment is ConfigurationFragment ||
             fragment is ConfigurationHubFragment ||
             fragment is GroupHubFragment ||
-            fragment is RouteHubFragment ||
-            fragment is DashboardFragment
+            fragment is RouteHubFragment
         ) {
             binding.stats.allowShow = true
             binding.fab.show()

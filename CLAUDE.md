@@ -5,6 +5,7 @@ Fork of NekoBox for Android with anti-detection hardening for Russian users.
 ## What this is
 
 Modified NekoBox (sing-box Android client) with:
+
 1. SOCKS5 inbound OFF by default (prevents localhost proxy scanning)
 2. exclude_package from sing-box JSON config (not just UI)
 3. Auto-update subscriptions via WorkManager

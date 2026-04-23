@@ -52,9 +52,7 @@
           }
         ],
         "primaryKey": {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "autoGenerate": true
         },
         "indices": [],
@@ -210,18 +208,14 @@
           }
         ],
         "primaryKey": {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "autoGenerate": true
         },
         "indices": [
           {
             "name": "groupId",
             "unique": false,
-            "columnNames": [
-              "groupId"
-            ],
+            "columnNames": ["groupId"],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `groupId` ON `${TABLE_NAME}` (`groupId`)"
           }
@@ -312,9 +306,7 @@
           }
         ],
         "primaryKey": {
-          "columnNames": [
-            "id"
-          ],
+          "columnNames": ["id"],
           "autoGenerate": true
         },
         "indices": [],

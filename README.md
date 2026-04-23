@@ -1,111 +1,117 @@
-# NekoBox for Android
+# YokhanVPN
 
-[![API](https://img.shields.io/badge/API-21%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=21)
-[![Releases](https://img.shields.io/github/v/release/MatsuriDayo/NekoBoxForAndroid)](https://github.com/MatsuriDayo/NekoBoxForAndroid/releases)
-[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-orange.svg)](https://www.gnu.org/licenses/gpl-3.0)
+Android VPN client based on the NekoBox / sing-box stack, adapted for the Yokhan project and hardened for the actual user flow in this repo.
 
-sing-box / universal proxy toolchain for Android.
+## What This Repo Is
 
-一款使用 sing-box 的 Android 通用代理软件.
+This repository is the Android client for the Yokhan VPN stack.
 
-## 下载 / Downloads
+Main changes relative to upstream:
 
-[![GitHub All Releases](https://img.shields.io/github/downloads/Matsuridayo/NekoBoxForAndroid/total?label=downloads-total&logo=github&style=flat-square)](https://github.com/Matsuridayo/NekoBoxForAndroid/releases)
+- dashboard and core navigation were reworked into the current Yokhan Android design system
+- SOCKS5 inbound is off by default to reduce localhost proxy exposure
+- `exclude_package` is applied in generated sing-box config, not only in UI
+- subscription updates are automated through WorkManager
+- Russian app bypass defaults are bundled into the client
 
-[GitHub Releases 下载](https://github.com/Matsuridayo/NekoBoxForAndroid/releases)
+## Current State
 
-**Google Play 版本自 2024 年 5 月起已被第三方控制，为非开源版本，请不要下载。**
+- package: `com.buffitgates.vpnservice`
+- current version: `1.6.3`
+- main Android app module: `app/`
+- native core wrapper: `libcore/`
+- metadata and versioning: `nb4a.properties`
 
-**The Google Play version has been controlled by a third party since May 2024 and is a non-open
-source version. Please do not download it.**
+## Local Build
 
-## 更新日志 & Telegram 发布频道 / Changelog & Telegram Channel
+Prerequisites:
 
-https://t.me/Matsuridayo
+- Android SDK
+- Android NDK
+- JDK 17
+- Go 1.25-compatible toolchain for native `libcore` rebuilds
 
-## 项目主页 & 文档 / Homepage & Documents
+Quick debug build:
 
-https://matsuridayo.github.io
+```bash
+./gradlew app:assembleOssDebug
+```
 
-## 支持的代理协议 / Supported Proxy Protocols
+Release build:
 
-- SOCKS (4/4a/5)
-- HTTP(S)
-- SSH
-- Shadowsocks
-- VMess
-- Trojan
-- VLESS
-- AnyTLS
-- ShadowTLS
-- TUIC
-- Hysteria 1/2
-- WireGuard
-- Trojan-Go (trojan-go-plugin)
-- NaïveProxy (naive-plugin)
-- Mieru (mieru-plugin)
+```bash
+./gradlew app:assembleOssRelease
+```
 
-请到[这里](https://matsuridayo.github.io/nb4a-plugin/)下载插件以获得完整的代理支持.
+Important:
 
-Please visit [here](https://matsuridayo.github.io/nb4a-plugin/) to download plugins for full proxy
-supports.
+- cold checkout is not just `./gradlew assembleRelease`
+- native `libcore` build pulls sibling sources for `sing-box` and `libneko`
+- prepare CI-like build assets with `./run init action gradle`
+- rebuild native core with `./run lib core`
 
-## 支持的订阅格式 / Supported Subscription Format
+Release signing is externalized. Local release signing is picked up from `local.properties` or environment:
 
-- 一些广泛使用的格式 (如 Shadowsocks, ClashMeta 和 v2rayN)
-- sing-box 出站
+- `KEYSTORE_PATH`
+- `KEYSTORE_PASS`
+- `ALIAS_NAME`
+- `ALIAS_PASS`
 
-仅支持解析出站，即节点。分流规则等信息会被忽略。
+## CI/CD
 
-- Some widely used formats (like Shadowsocks, ClashMeta and v2rayN)
-- sing-box outbound
+The repo now has two GitHub Actions workflows:
 
-Only resolving outbound, i.e. nodes, is supported. Information such as diversion rules are ignored.
+- `CI` in `.github/workflows/ci.yml`
+- `Release` in `.github/workflows/release.yml`
 
-## 捐助 / Donate
+Use cases:
 
-<details>
+- every branch and PR gets a CI build artifact
+- manual branch builds can produce signed test APKs
+- tagged builds or manual dispatch can publish GitHub Releases from this repo
 
-如果这个项目对您有帮助, 可以通过捐赠的方式帮助我们维持这个项目.
+Short version:
 
-捐赠满等额 50 USD 可以在「[捐赠榜](https://mtrdnt.pages.dev/donation_list)」显示头像, 如果您未被添加到这里,
-欢迎联系我们补充.
+1. Push branch changes.
+2. Run `CI` with `build_task=app:assembleOssRelease` and `signed=true` if you need an installable APK for testing.
+3. Download the artifact from the run.
+4. When ready, create or push a release tag and let `Release` publish APKs in `Yokhan/YokhanVPN`.
 
-Donations of 50 USD or more can display your avatar on
-the [Donation List](https://mtrdnt.pages.dev/donation_list). If you are not added here, please
-contact us to add it.
+Full setup and operations are documented in [docs/ci-cd.md](docs/ci-cd.md).
 
-USDT TRC20
+## Detaching From Matsuri
 
-`TRhnA7SXE5Sap5gSG3ijxRmdYFiD4KRhPs`
+Android app publishing is now repo-owned in `Yokhan/YokhanVPN`.
 
-XMR
+The remaining native-source defaults still point to Matsuri forks unless overridden.
 
-`49bwESYQjoRL3xmvTcjZKHEKaiGywjLYVQJMUv79bXonGiyDCs8AzE3KiGW2ytTybBCpWJUvov8SjZZEGg66a4e59GXa6k5`
+To fully detach native build sources, set GitHub repository variables or environment values for:
 
-</details>
+- `CORE_SING_BOX_REPO` or `CORE_SING_BOX_GIT_URL`
+- `CORE_LIBNEKO_REPO` or `CORE_LIBNEKO_GIT_URL`
+- `CORE_GOMOBILE_REPO` or `CORE_GOMOBILE_GIT_URL`
+- `CORE_GOMOBILE_REF`
 
-## Credits
+If these are not set, build scripts fall back to:
 
-Core:
+- `MatsuriDayo/sing-box`
+- `MatsuriDayo/libneko`
+- `MatsuriDayo/gomobile`
 
-- [SagerNet/sing-box](https://github.com/SagerNet/sing-box)
+## Repo Layout
 
-Android GUI:
+- `app/` - Android client
+- `libcore/` - Go mobile bridge and native bindings
+- `buildScript/` - build bootstrap and native build scripts
+- `.github/workflows/` - CI and release automation
+- `preview/` - web/dashboard design reference used during Android redesign
+- `.claude/rules/` - local project and design-system notes
 
-- [shadowsocks/shadowsocks-android](https://github.com/shadowsocks/shadowsocks-android)
-- [SagerNet/SagerNet](https://github.com/SagerNet/SagerNet)
+## Related
 
-Web Dashboard:
+- server/bot project: `../YokhanIndependentVPN/`
+- upstream Android base: `https://github.com/MatsuriDayo/NekoBoxForAndroid`
 
-- [Yacd-meta](https://github.com/MetaCubeX/Yacd-meta)
+## License
 
-## Fork Build Notes
-
-- This fork does not build from a cold checkout with only `./gradlew assembleRelease`.
-- `libcore` depends on sibling source checkouts for `../libneko` and `../sing-box`; bootstrap them with `bash buildScript/lib/core/get_source.sh` or `./run lib core`.
-- Android/Gradle build requires a real JDK with `javac`. A standalone JRE is not enough.
-- Release signing is externalized. Set `KEYSTORE_PATH`, `KEYSTORE_PASS`, `ALIAS_NAME`, and `ALIAS_PASS` in your environment or `local.properties`.
-- Preview APKs are built by the existing GitHub Actions pipeline in `.github/workflows/preview.yml`, which now runs on `push`, `pull_request`, and `workflow_dispatch`.
-- NaiveProxy in this fork tracks the official `klzgrad/naiveproxy` upstream and vendors `libnaive.so` in `app/src/main/jniLibs/<abi>/`, so Naive works without a separate plugin APK.
-- To refresh the bundled Naive binaries from upstream, run `powershell -NoProfile -ExecutionPolicy Bypass -File buildScript/lib/naive/update.ps1`. The pinned upstream release and hashes are recorded in `buildScript/lib/naive/upstream.json`.
+GPL-3.0, inherited from upstream.

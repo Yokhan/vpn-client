@@ -1,10 +1,9 @@
 ---
-name: '问题反馈'
-about: '在提出问题前请先自行排除服务器端问题和升级到最新客户端。'
-title: 'BUG: '
-labels: ''
-assignees: ''
-
+name: "问题反馈"
+about: "在提出问题前请先自行排除服务器端问题和升级到最新客户端。"
+title: "BUG: "
+labels: ""
+assignees: ""
 ---
 
 ## 描述问题

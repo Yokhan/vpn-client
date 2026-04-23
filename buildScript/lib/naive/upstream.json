@@ -1,32 +1,32 @@
 ﻿{
-    "repository":  "klzgrad/naiveproxy",
-    "tag":  "v147.0.7727.49-1",
-    "published_at":  "2026-04-07T23:29:30Z",
-    "release_url":  "https://github.com/klzgrad/naiveproxy/releases/tag/v147.0.7727.49-1",
-    "assets":  [
-                   {
-                       "abi":  "arm64-v8a",
-                       "apk":  "naiveproxy-plugin-v147.0.7727.49-1-arm64-v8a.apk",
-                       "apk_sha256":  "7ea1b9a56bc21be50c1a193294341e9e52d947e56c05425e4583de7c659a4755",
-                       "lib_sha256":  "1e98b657239bbdcc040e93f4c069e0a89cd32d4faf786acc0e77a6bd2f57c037"
-                   },
-                   {
-                       "abi":  "armeabi-v7a",
-                       "apk":  "naiveproxy-plugin-v147.0.7727.49-1-armeabi-v7a.apk",
-                       "apk_sha256":  "603e1197a1892ace8f7bb88ce157c413b1c453ef8bf1545fd1412540a7b3bd83",
-                       "lib_sha256":  "299dc7353fa27f89053bbc5749a76326c1f30a59835a620d61e9ef69b83209c7"
-                   },
-                   {
-                       "abi":  "x86",
-                       "apk":  "naiveproxy-plugin-v147.0.7727.49-1-x86.apk",
-                       "apk_sha256":  "278d900544e60f567c899607b141a10bd06c65db5f89caa0db5bf859bd837d3d",
-                       "lib_sha256":  "c9c10c7345062c2b1eec9b1f706f2f87172619473abd49242d31781cde20b982"
-                   },
-                   {
-                       "abi":  "x86_64",
-                       "apk":  "naiveproxy-plugin-v147.0.7727.49-1-x86_64.apk",
-                       "apk_sha256":  "2665319ad97ae9a4882b42cbc9280c5b94b15171e52383798210eb02b320564d",
-                       "lib_sha256":  "9dedf6cdf0f35999e0d6a6025cf573174df6bb00b7ed5eb820320727ec7817c4"
-                   }
-               ]
+  "repository": "klzgrad/naiveproxy",
+  "tag": "v147.0.7727.49-1",
+  "published_at": "2026-04-07T23:29:30Z",
+  "release_url": "https://github.com/klzgrad/naiveproxy/releases/tag/v147.0.7727.49-1",
+  "assets": [
+    {
+      "abi": "arm64-v8a",
+      "apk": "naiveproxy-plugin-v147.0.7727.49-1-arm64-v8a.apk",
+      "apk_sha256": "7ea1b9a56bc21be50c1a193294341e9e52d947e56c05425e4583de7c659a4755",
+      "lib_sha256": "1e98b657239bbdcc040e93f4c069e0a89cd32d4faf786acc0e77a6bd2f57c037"
+    },
+    {
+      "abi": "armeabi-v7a",
+      "apk": "naiveproxy-plugin-v147.0.7727.49-1-armeabi-v7a.apk",
+      "apk_sha256": "603e1197a1892ace8f7bb88ce157c413b1c453ef8bf1545fd1412540a7b3bd83",
+      "lib_sha256": "299dc7353fa27f89053bbc5749a76326c1f30a59835a620d61e9ef69b83209c7"
+    },
+    {
+      "abi": "x86",
+      "apk": "naiveproxy-plugin-v147.0.7727.49-1-x86.apk",
+      "apk_sha256": "278d900544e60f567c899607b141a10bd06c65db5f89caa0db5bf859bd837d3d",
+      "lib_sha256": "c9c10c7345062c2b1eec9b1f706f2f87172619473abd49242d31781cde20b982"
+    },
+    {
+      "abi": "x86_64",
+      "apk": "naiveproxy-plugin-v147.0.7727.49-1-x86_64.apk",
+      "apk_sha256": "2665319ad97ae9a4882b42cbc9280c5b94b15171e52383798210eb02b320564d",
+      "lib_sha256": "9dedf6cdf0f35999e0d6a6025cf573174df6bb00b7ed5eb820320727ec7817c4"
+    }
+  ]
 }

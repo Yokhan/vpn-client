@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/dashboard_bg_off"
     android:orientation="vertical"
     tools:context=".ui.ToolsFragment">
 
@@ -16,20 +17,24 @@
         android:id="@+id/tools_tab"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?colorPrimary"
-        android:elevation="4dp"
-        app:tabIndicatorColor="?tabIndicatorColor"
+        android:background="@android:color/transparent"
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="4dp"
+        app:tabIndicatorColor="@color/dashboard_accent"
         app:tabIndicatorFullWidth="false"
         app:tabMode="fixed"
-        app:tabPaddingStart="16dp"
-        app:tabRippleColor="?tabRippleColor"
-        app:tabSelectedTextColor="?tabSelectedTextColor"
-        app:tabTextColor="?tabTextColor"
+        app:tabPaddingStart="14dp"
+        app:tabRippleColor="@color/dashboard_divider_light"
+        app:tabSelectedTextColor="@color/dashboard_text_primary"
+        app:tabTextColor="@color/dashboard_text_secondary"
         app:tabUnboundedRipple="false" />
 
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/tools_pager"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:background="@color/dashboard_bg_off" />
 
 </LinearLayout>
