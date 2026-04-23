@@ -28,9 +28,7 @@
           }
         ],
         "primaryKey": {
-          "columnNames": [
-            "key"
-          ],
+          "columnNames": ["key"],
           "autoGenerate": false
         },
         "indices": [],

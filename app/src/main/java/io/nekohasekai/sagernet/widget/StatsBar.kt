@@ -1,13 +1,12 @@
 package io.nekohasekai.sagernet.widget
 
-import android.annotation.SuppressLint
 import android.content.Context
-import android.text.format.Formatter
 import android.util.AttributeSet
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.widget.TooltipCompat
 import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomappbar.BottomAppBar
@@ -24,9 +23,12 @@ class StatsBar @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null,
     defStyleAttr: Int = R.attr.bottomAppBarStyle,
 ) : BottomAppBar(context, attrs, defStyleAttr) {
-    private lateinit var statusText: TextView
-    private lateinit var txText: TextView
-    private lateinit var rxText: TextView
+
+    private lateinit var statusDot: TextView
+    private lateinit var statusLabel: TextView
+    private lateinit var statusHint: TextView
+    private lateinit var latencyValue: TextView
+    private lateinit var protocolValue: TextView
     private lateinit var behavior: YourBehavior
 
     var allowShow = true
@@ -67,16 +69,17 @@ class StatsBar @JvmOverloads constructor(
         }
     }
 
-
     override fun setOnClickListener(l: OnClickListener?) {
-        statusText = findViewById(R.id.status)
-        txText = findViewById(R.id.tx)
-        rxText = findViewById(R.id.rx)
+        statusDot = findViewById(R.id.status_dot)
+        statusLabel = findViewById(R.id.status_label)
+        statusHint = findViewById(R.id.status_hint)
+        latencyValue = findViewById(R.id.latency_value)
+        protocolValue = findViewById(R.id.protocol_value)
         super.setOnClickListener(l)
     }
 
     private fun setStatus(text: CharSequence) {
-        statusText.text = text
+        statusLabel.text = text
         TooltipCompat.setTooltipText(this, text)
     }
 
@@ -88,40 +91,52 @@ class StatsBar @JvmOverloads constructor(
                 what()
             }
         }
-        if ((state == BaseService.State.Connected).also { hideOnScroll = it }) {
+
+        val isConnected = state == BaseService.State.Connected
+
+        // Status dot color
+        val dotColor = if (isConnected) R.color.buffit_green else R.color.buffit_red
+        statusDot.setTextColor(ContextCompat.getColor(context, dotColor))
+
+        // Status text
+        setStatus(
+            context.getText(
+                when (state) {
+                    BaseService.State.Connected -> R.string.dashboard_connected_status
+                    BaseService.State.Connecting -> R.string.dashboard_state_connecting
+                    BaseService.State.Stopping -> R.string.dashboard_state_stopping
+                    else -> R.string.dashboard_disconnected_status
+                }
+            )
+        )
+
+        // Hint text
+        statusHint.text = context.getText(
+            if (isConnected) R.string.dashboard_tap_disconnect
+            else R.string.dashboard_tap_connect
+        )
+
+        if (isConnected) {
             postWhenStarted {
                 if (allowShow) performShow()
-                setStatus(app.getText(R.string.vpn_connected))
             }
         } else {
             postWhenStarted {
-                performHide()
+                if (allowShow) performShow()
             }
-            updateSpeed(0, 0)
-            setStatus(
-                context.getText(
-                    when (state) {
-                        BaseService.State.Connecting -> R.string.connecting
-                        BaseService.State.Stopping -> R.string.stopping
-                        else -> R.string.not_connected
-                    }
-                )
-            )
         }
     }
 
-    @SuppressLint("SetTextI18n")
     fun updateSpeed(txRate: Long, rxRate: Long) {
-        txText.text = "▲  ${
-            context.getString(
-                R.string.speed, Formatter.formatFileSize(context, txRate)
-            )
-        }"
-        rxText.text = "▼  ${
-            context.getString(
-                R.string.speed, Formatter.formatFileSize(context, rxRate)
-            )
-        }"
+        // Speed is now shown in the dashboard fragment, not here
+    }
+
+    fun updateLatency(ms: Int) {
+        latencyValue.text = context.getString(R.string.dashboard_latency_ms, ms)
+    }
+
+    fun updateProtocol(name: String) {
+        protocolValue.text = name.uppercase()
     }
 
     fun testConnection() {
@@ -133,23 +148,16 @@ class StatsBar @JvmOverloads constructor(
                 val elapsed = activity.urlTest()
                 onMainDispatcher {
                     isEnabled = true
+                    updateLatency(elapsed.toInt())
                     setStatus(
-                        app.getString(
-                            if (DataStore.connectionTestURL.startsWith("https://")) {
-                                R.string.connection_test_available
-                            } else {
-                                R.string.connection_test_available_http
-                            }, elapsed
-                        )
+                        app.getText(R.string.dashboard_connected_status)
                     )
                 }
-
             } catch (e: Exception) {
                 Logs.w(e.toString())
                 onMainDispatcher {
                     isEnabled = true
                     setStatus(app.getText(R.string.connection_test_testing))
-
                     activity.snackbar(
                         app.getString(
                             R.string.connection_test_error, e.readableMessage
@@ -159,5 +167,4 @@ class StatsBar @JvmOverloads constructor(
             }
         }
     }
-
 }

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+
+    <!-- Rocket body -->
+    <path
+        android:pathData="M32,6 C32,6 38,14 38,30 C38,40 36,46 32,50 C28,46 26,40 26,30 C26,14 32,6 32,6Z"
+        android:fillColor="#ECEFF1" />
+
+    <!-- Nose cone (green tint for connected) -->
+    <path
+        android:pathData="M32,6 C32,6 35,12 36,18 L28,18 C29,12 32,6 32,6Z"
+        android:fillColor="#66BB6A" />
+
+    <!-- Window -->
+    <path
+        android:pathData="M32,24 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"
+        android:fillColor="#2E7D32" />
+
+    <!-- Window highlight -->
+    <path
+        android:pathData="M31,22.5 m-1,0 a1,1.2 0 1,0 2,0 a1,1.2 0 1,0 -2,0"
+        android:fillColor="#81C784" />
+
+    <!-- Left fin -->
+    <path
+        android:pathData="M26,38 L20,48 L26,46Z"
+        android:fillColor="#66BB6A" />
+
+    <!-- Right fin -->
+    <path
+        android:pathData="M38,38 L44,48 L38,46Z"
+        android:fillColor="#66BB6A" />
+
+    <!-- Exhaust flame (outer - orange) -->
+    <path
+        android:pathData="M28,50 L32,62 L36,50 C35,54 29,54 28,50Z"
+        android:fillColor="#FF9800" />
+
+    <!-- Exhaust flame (inner - yellow) -->
+    <path
+        android:pathData="M30,50 L32,58 L34,50 C33,53 31,53 30,50Z"
+        android:fillColor="#FDD835" />
+
+    <!-- Exhaust flame (core - white) -->
+    <path
+        android:pathData="M31,50 L32,55 L33,50 C32.5,52 31.5,52 31,50Z"
+        android:fillColor="#FFFFFF" />
+</vector>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+
+    <!-- Rocket body -->
+    <path
+        android:pathData="M32,8 C32,8 38,16 38,32 C38,42 36,48 32,52 C28,48 26,42 26,32 C26,16 32,8 32,8Z"
+        android:fillColor="#B0BEC5" />
+
+    <!-- Nose cone -->
+    <path
+        android:pathData="M32,8 C32,8 35,14 36,20 L28,20 C29,14 32,8 32,8Z"
+        android:fillColor="#90A4AE" />
+
+    <!-- Window -->
+    <path
+        android:pathData="M32,26 m-3,0 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0"
+        android:fillColor="#455A64" />
+
+    <!-- Window highlight -->
+    <path
+        android:pathData="M31,24.5 m-1,0 a1,1.2 0 1,0 2,0 a1,1.2 0 1,0 -2,0"
+        android:fillColor="#78909C" />
+
+    <!-- Left fin -->
+    <path
+        android:pathData="M26,40 L20,50 L26,48Z"
+        android:fillColor="#90A4AE" />
+
+    <!-- Right fin -->
+    <path
+        android:pathData="M38,40 L44,50 L38,48Z"
+        android:fillColor="#90A4AE" />
+
+    <!-- Base / launchpad -->
+    <path
+        android:pathData="M22,54 L42,54 L40,52 L24,52Z"
+        android:fillColor="#78909C" />
+
+    <!-- Launchpad ground -->
+    <path
+        android:pathData="M18,54 L46,54 L46,56 L18,56Z"
+        android:fillColor="#607D8B" />
+</vector>

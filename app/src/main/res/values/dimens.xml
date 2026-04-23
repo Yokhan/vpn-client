@@ -3,8 +3,16 @@
     <dimen name="main_list_padding_bottom">88dp</dimen>
     <dimen name="bottom_sheet_padding">8dp</dimen>
 
-    <!-- BUFF IT Design System -->
+    <!-- Design System -->
     <dimen name="buffit_card_corner_radius">24dp</dimen>
     <dimen name="buffit_card_margin">8dp</dimen>
     <dimen name="buffit_card_stroke_width">1dp</dimen>
+
+    <!-- Dashboard connect circle -->
+    <dimen name="connect_ring_size">180dp</dimen>
+    <dimen name="connect_ring_stroke">3dp</dimen>
+    <dimen name="connect_icon_size">128dp</dimen>
+    <dimen name="profile_bar_width">4dp</dimen>
+    <dimen name="speed_text_size">20sp</dimen>
+    <dimen name="stats_bar_segment_padding">12dp</dimen>
 </resources>
