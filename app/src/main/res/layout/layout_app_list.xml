@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/dashboard_bg_off"
     android:duplicateParentState="false"
     android:orientation="vertical">
 
@@ -46,14 +47,20 @@
                     <com.google.android.material.card.MaterialCardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_margin="4dp"
-                        app:cardElevation="2dp">
+                        android:layout_marginStart="12dp"
+                        android:layout_marginTop="4dp"
+                        android:layout_marginEnd="12dp"
+                        app:cardBackgroundColor="@android:color/transparent"
+                        app:cardCornerRadius="10dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="@color/dashboard_card_border_off"
+                        app:strokeWidth="1dp">
 
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:orientation="vertical"
-                            android:padding="8dp">
+                            android:padding="12dp">
 
                             <com.google.android.material.chip.Chip
                                 android:id="@+id/show_system_apps"
@@ -92,6 +99,7 @@
         android:id="@+id/loading"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="@color/dashboard_bg_off"
         android:gravity="center"
         android:orientation="vertical">
 
@@ -107,12 +115,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
+        android:paddingTop="8dp"
+        android:paddingBottom="28dp"
         android:scrollbarSize="0dp"
         android:visibility="gone"
         app:fastScrollAutoHide="true"
-        app:fastScrollPopupTextColor="?colorPrimary"
-        app:fastScrollThumbColor="?colorPrimary"
-        app:fastScrollThumbInactiveColor="?colorPrimary"
+        app:fastScrollPopupTextColor="@color/dashboard_text_primary"
+        app:fastScrollThumbColor="@color/dashboard_accent"
+        app:fastScrollThumbInactiveColor="@color/dashboard_text_tertiary"
         app:layout_behavior="@string/appbar_scrolling_view_behavior"
         tools:listitem="@layout/layout_apps_item" />
 

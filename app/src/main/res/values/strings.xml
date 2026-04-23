@@ -39,6 +39,8 @@
     <string name="dashboard_latency_label">ЗАДЕРЖКА</string>
     <string name="dashboard_protocol_label">ПРОТОКОЛ</string>
     <string name="dashboard_latency_ms">%d МС</string>
+    <string name="dashboard_orb_idle">ПУСК</string>
+    <string name="dashboard_status_label">СТАТУС</string>
     <string name="configuration_hub_title">Profiles &amp; Import</string>
     <string name="configuration_hub_current_profile">Selected profile</string>
     <string name="configuration_hub_current_group">Active group</string>
@@ -94,6 +96,7 @@
     <string name="group_hub_title">Groups</string>
     <string name="group_hub_overview_title">Group overview</string>
     <string name="group_hub_totals_title">Inventory</string>
+    <string name="group_hub_profile_inventory">Profiles</string>
     <string name="group_hub_actions_title">Quick actions</string>
     <string name="group_hub_open_list">Open group list</string>
     <string name="group_hub_update_all">Update all subscriptions</string>

@@ -308,4 +308,21 @@
     <color name="buffit_card_border">#1A000000</color>
     <color name="buffit_toolbar">#FFFFFF</color>
 
+    <!-- Dashboard web-to-Android parity tokens -->
+    <color name="dashboard_bg_off">#F3F3F7</color>
+    <color name="dashboard_text_primary">#111117</color>
+    <color name="dashboard_text_secondary">#6C6C74</color>
+    <color name="dashboard_text_tertiary">#A3A3AB</color>
+    <color name="dashboard_text_quaternary">#CCCCD2</color>
+    <color name="dashboard_accent">#E55A1B</color>
+    <color name="dashboard_green">#28B44F</color>
+    <color name="dashboard_red">#E53E3E</color>
+    <color name="dashboard_space_bg">#0A0A18</color>
+    <color name="dashboard_space_text_primary">#E8E8F0</color>
+    <color name="dashboard_space_text_secondary">#8888A0</color>
+    <color name="dashboard_card_border_off">#14000000</color>
+    <color name="dashboard_card_border_on">#1AFFFFFF</color>
+    <color name="dashboard_divider_light">#0D000000</color>
+    <color name="dashboard_divider_dark">#1AFFFFFF</color>
+
 </resources>

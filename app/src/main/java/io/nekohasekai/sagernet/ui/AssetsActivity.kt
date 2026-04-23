@@ -8,6 +8,7 @@ import android.view.MenuItem
 import android.view.ViewGroup
 import androidx.activity.addCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.isGone
 import androidx.core.view.isInvisible
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
@@ -230,12 +231,12 @@ class AssetsActivity : ThemedActivity() {
 
             binding.assetStatus.text = getString(R.string.route_asset_status, localVersion)
 
-            binding.rulesUpdate.isInvisible = file.name !in assetNames
+            binding.rulesUpdate.isGone = file.name !in assetNames
             binding.rulesUpdate.setOnClickListener {
                 updating.incrementAndGet()
                 layout.refreshLayout.isEnabled = false
                 binding.subscriptionUpdateProgress.isInvisible = false
-                binding.rulesUpdate.isInvisible = true
+                binding.rulesUpdate.isGone = true
                 runOnDefaultDispatcher {
                     runCatching {
                         updateAsset(file, versionFile, localVersion)
@@ -246,7 +247,7 @@ class AssetsActivity : ThemedActivity() {
                     }
 
                     onMainDispatcher {
-                        binding.rulesUpdate.isInvisible = false
+                        binding.rulesUpdate.isGone = file.name !in assetNames
                         binding.subscriptionUpdateProgress.isInvisible = true
                         if (updating.decrementAndGet() == 0) {
                             layout.refreshLayout.isEnabled = true

@@ -5,23 +5,30 @@
     android:id="@+id/content"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="@dimen/buffit_card_margin"
+    android:layout_marginStart="10dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginEnd="10dp"
+    android:layout_marginBottom="4dp"
     android:clickable="true"
-    android:focusable="true">
+    android:focusable="true"
+    app:cardBackgroundColor="@android:color/transparent"
+    app:cardCornerRadius="10dp"
+    app:cardElevation="0dp"
+    app:strokeColor="@color/dashboard_card_border_off"
+    app:strokeWidth="1dp">
 
     <LinearLayout
         android:id="@+id/content_lin"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/buffit_glass_inner_glow"
         android:focusable="true"
         android:orientation="horizontal">
 
         <LinearLayout
             android:id="@+id/selected_view"
-            android:layout_width="4dp"
+            android:layout_width="3dp"
             android:layout_height="match_parent"
-            android:background="?selectedColorPrimary"
+            android:background="@color/dashboard_accent"
             android:orientation="horizontal"
             android:visibility="invisible"
             tools:visibility="visible" />
@@ -37,7 +44,10 @@
                 android:id="@+id/container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingTop="12dp"
+                android:paddingEnd="4dp">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -45,16 +55,18 @@
                     android:layout_gravity="center_vertical"
                     android:layout_weight="1"
                     android:gravity="center_vertical"
-                    android:paddingLeft="12dp"
-                    android:paddingTop="8dp"
+                    android:paddingEnd="8dp"
                     android:paddingBottom="8dp">
 
                     <TextView
                         android:id="@+id/profile_name"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textAppearance="@style/TextAppearance.BuffIT.Body"
-                        android:textColor="?android:attr/textColorPrimary"
+                        android:ellipsize="end"
+                        android:fontFamily="monospace"
+                        android:maxLines="1"
+                        android:textColor="@color/dashboard_text_primary"
+                        android:textSize="16sp"
                         android:textStyle="bold"
                         tools:text="@string/profile_name" />
                 </LinearLayout>
@@ -114,7 +126,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:paddingStart="12dp"
-                android:paddingEnd="8dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="4dp"
                 android:visibility="gone"
                 tools:visibility="visible">
@@ -125,7 +137,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/server_address"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:attr/textColorSecondary" />
+                    android:textColor="@color/dashboard_text_secondary" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -138,25 +150,33 @@
                     android:layout_height="wrap_content"
                     android:text="@string/traffic"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?android:attr/textColorSecondary" />
+                    android:textColor="@color/dashboard_text_secondary" />
 
             </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/dashboard_divider_light" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
                 android:orientation="horizontal"
                 android:paddingStart="12dp"
-                android:paddingEnd="8dp"
+                android:paddingEnd="12dp"
                 android:paddingBottom="12dp">
 
                 <TextView
                     android:id="@+id/profile_type"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textAppearance="@style/TextAppearance.BuffIT.Caption"
-                    android:textAllCaps="true"
-                    android:textColor="?attr/accentOrTextSecondary" />
+                    android:ellipsize="end"
+                    android:fontFamily="monospace"
+                    android:maxLines="1"
+                    android:textColor="@color/dashboard_text_secondary"
+                    android:textSize="11sp" />
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -169,7 +189,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="4dp"
                     android:textAppearance="?android:attr/textAppearanceSmall"
-                    android:textColor="?attr/accentOrTextSecondary" />
+                    android:textColor="@color/dashboard_text_secondary" />
 
             </LinearLayout>
 

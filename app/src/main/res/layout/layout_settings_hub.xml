@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/dashboard_bg_off"
     android:orientation="vertical">
 
     <include
@@ -29,27 +30,50 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardElevation="2dp">
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardCornerRadius="10dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/dashboard_card_border_off"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="18dp">
+                    android:padding="12dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/settings_service_mode_card_title"
-                        android:textAppearance="?attr/textAppearanceSubtitle1"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <View
+                            android:layout_width="6dp"
+                            android:layout_height="6dp"
+                            android:layout_marginEnd="4dp"
+                            android:background="@drawable/bg_dashboard_tag_square" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.06"
+                            android:text="@string/settings_service_mode_card_title"
+                            android:textAllCaps="true"
+                            android:textColor="@color/dashboard_text_secondary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/service_mode_value"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:textAppearance="?attr/textAppearanceHeadline6"
+                        android:layout_marginTop="8dp"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/dashboard_text_primary"
+                        android:textSize="18sp"
                         android:textStyle="bold"
                         tools:text="VPN" />
 
@@ -57,9 +81,10 @@
                         android:id="@+id/service_mode_summary"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:textAppearance="?attr/textAppearanceBody2"
-                        android:textColor="?android:textColorSecondary"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="@font/golos_text"
+                        android:textColor="@color/dashboard_text_secondary"
+                        android:textSize="14sp"
                         tools:text="Tunnel all configured traffic through Android VPN mode." />
 
                     <com.google.android.material.button.MaterialButton
@@ -67,7 +92,7 @@
                         style="@style/Widget.MaterialComponents.Button"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="12dp"
                         android:text="@string/settings_switch_to_proxy"
                         app:icon="@drawable/ic_baseline_compare_arrows_24"
                         app:iconPadding="8dp" />
@@ -77,26 +102,47 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                app:cardElevation="2dp">
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardCornerRadius="10dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/dashboard_card_border_off"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="18dp">
+                    android:padding="12dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/settings_quick_switches_title"
-                        android:textAppearance="?attr/textAppearanceSubtitle1"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <View
+                            android:layout_width="6dp"
+                            android:layout_height="6dp"
+                            android:layout_marginEnd="4dp"
+                            android:background="@drawable/bg_dashboard_tag_square" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.06"
+                            android:text="@string/settings_quick_switches_title"
+                            android:textAllCaps="true"
+                            android:textColor="@color/dashboard_text_secondary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="12dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
@@ -109,17 +155,20 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
                                 android:text="@string/settings_stealth_title"
-                                android:textAppearance="?attr/textAppearanceBody1"
+                                android:textColor="@color/dashboard_text_primary"
+                                android:textSize="14sp"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
+                                android:fontFamily="@font/golos_text"
                                 android:text="@string/settings_stealth_summary"
-                                android:textAppearance="?attr/textAppearanceBody2"
-                                android:textColor="?android:textColorSecondary" />
+                                android:textColor="@color/dashboard_text_secondary"
+                                android:textSize="13sp" />
                         </LinearLayout>
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
@@ -128,10 +177,16 @@
                             android:layout_height="wrap_content" />
                     </LinearLayout>
 
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="12dp"
+                        android:background="@color/dashboard_divider_light" />
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="12dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
@@ -144,17 +199,20 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
                                 android:text="@string/settings_direct_speed_title"
-                                android:textAppearance="?attr/textAppearanceBody1"
+                                android:textColor="@color/dashboard_text_primary"
+                                android:textSize="14sp"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
+                                android:fontFamily="@font/golos_text"
                                 android:text="@string/settings_direct_speed_summary"
-                                android:textAppearance="?attr/textAppearanceBody2"
-                                android:textColor="?android:textColorSecondary" />
+                                android:textColor="@color/dashboard_text_secondary"
+                                android:textSize="13sp" />
                         </LinearLayout>
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
@@ -163,10 +221,16 @@
                             android:layout_height="wrap_content" />
                     </LinearLayout>
 
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="12dp"
+                        android:background="@color/dashboard_divider_light" />
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="12dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
@@ -179,17 +243,20 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
+                                android:fontFamily="monospace"
                                 android:text="@string/settings_auto_connect_title"
-                                android:textAppearance="?attr/textAppearanceBody1"
+                                android:textColor="@color/dashboard_text_primary"
+                                android:textSize="14sp"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
+                                android:fontFamily="@font/golos_text"
                                 android:text="@string/settings_auto_connect_summary"
-                                android:textAppearance="?attr/textAppearanceBody2"
-                                android:textColor="?android:textColorSecondary" />
+                                android:textColor="@color/dashboard_text_secondary"
+                                android:textSize="13sp" />
                         </LinearLayout>
 
                         <com.google.android.material.switchmaterial.SwitchMaterial
@@ -203,111 +270,166 @@
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                app:cardElevation="2dp">
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardCornerRadius="10dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/dashboard_card_border_off"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="18dp">
+                    android:padding="12dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/settings_runtime_title"
-                        android:textAppearance="?attr/textAppearanceSubtitle1"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:text="@string/settings_apps_title"
-                        android:textAppearance="?attr/textAppearanceCaption"
-                        android:textColor="?android:textColorSecondary" />
+                        <View
+                            android:layout_width="6dp"
+                            android:layout_height="6dp"
+                            android:layout_marginEnd="4dp"
+                            android:background="@drawable/bg_dashboard_tag_square" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.06"
+                            android:text="@string/settings_runtime_title"
+                            android:textAllCaps="true"
+                            android:textColor="@color/dashboard_text_secondary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/app_routing_value"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:textAppearance="?attr/textAppearanceBody1"
+                        android:layout_marginTop="12dp"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/dashboard_text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
                         tools:text="Per-app routing rules enabled" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:text="@string/settings_dns_title"
-                        android:textAppearance="?attr/textAppearanceCaption"
-                        android:textColor="?android:textColorSecondary" />
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="monospace"
+                        android:text="@string/settings_apps_title"
+                        android:textColor="@color/dashboard_text_tertiary"
+                        android:textSize="10sp" />
 
                     <TextView
                         android:id="@+id/dns_summary_value"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:textAppearance="?attr/textAppearanceBody1"
+                        android:layout_marginTop="12dp"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/dashboard_text_primary"
+                        android:textSize="12sp"
                         tools:text="Remote: https://dns.google/dns-query&#10;Direct: https://223.5.5.5/dns-query" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:text="@string/settings_network_title"
-                        android:textAppearance="?attr/textAppearanceCaption"
-                        android:textColor="?android:textColorSecondary" />
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="monospace"
+                        android:text="@string/settings_dns_title"
+                        android:textColor="@color/dashboard_text_tertiary"
+                        android:textSize="10sp" />
 
                     <TextView
                         android:id="@+id/network_summary_value"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:textAppearance="?attr/textAppearanceBody1"
+                        android:layout_marginTop="12dp"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/dashboard_text_primary"
+                        android:textSize="12sp"
                         tools:text="DNS routing On | FakeDNS On | LAN access Off" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="monospace"
+                        android:text="@string/settings_network_title"
+                        android:textColor="@color/dashboard_text_tertiary"
+                        android:textSize="10sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                app:cardElevation="2dp">
+                android:layout_marginTop="8dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardCornerRadius="10dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/dashboard_card_border_off"
+                app:strokeWidth="1dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="18dp">
+                    android:padding="12dp">
 
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/settings_advanced_title_card"
-                        android:textAppearance="?attr/textAppearanceSubtitle1"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:text="@string/settings_advanced_title"
-                        android:textAppearance="?attr/textAppearanceCaption"
-                        android:textColor="?android:textColorSecondary" />
+                        <View
+                            android:layout_width="6dp"
+                            android:layout_height="6dp"
+                            android:layout_marginEnd="4dp"
+                            android:background="@drawable/bg_dashboard_tag_square" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.06"
+                            android:text="@string/settings_advanced_title_card"
+                            android:textAllCaps="true"
+                            android:textColor="@color/dashboard_text_secondary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/advanced_summary_value"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:textAppearance="?attr/textAppearanceBody1"
+                        android:layout_marginTop="12dp"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/dashboard_text_primary"
+                        android:textSize="12sp"
                         tools:text="Local inbound Off | Clash API Off" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="monospace"
+                        android:text="@string/settings_advanced_title"
+                        android:textColor="@color/dashboard_text_tertiary"
+                        android:textSize="10sp" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="12dp"
                         android:orientation="horizontal">
 
                         <com.google.android.material.button.MaterialButton
@@ -340,7 +462,7 @@
                         style="@style/Widget.MaterialComponents.Button"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
+                        android:layout_marginTop="8dp"
                         android:text="@string/settings_open_advanced"
                         app:icon="@drawable/ic_action_settings"
                         app:iconPadding="8dp" />
