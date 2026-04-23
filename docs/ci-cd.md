@@ -15,7 +15,7 @@ The pipeline is designed to solve four separate problems:
 
 ### `CI`
 
-File: `.github/workflows/preview.yml`
+File: `.github/workflows/ci.yml`
 
 Triggers:
 

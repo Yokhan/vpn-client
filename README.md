@@ -61,7 +61,7 @@ Release signing is externalized. Local release signing is picked up from `local.
 
 The repo now has two GitHub Actions workflows:
 
-- `CI` in `.github/workflows/preview.yml`
+- `CI` in `.github/workflows/ci.yml`
 - `Release` in `.github/workflows/release.yml`
 
 Use cases:
