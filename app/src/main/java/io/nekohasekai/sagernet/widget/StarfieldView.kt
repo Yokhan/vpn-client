@@ -15,7 +15,8 @@ class StarfieldView @JvmOverloads constructor(
 
     private companion object {
         private const val STATIC_STAR_STRIDE = 3
-        private const val STARFIELD_TRAVEL_MULTIPLIER = 1.2f
+        private const val STARFIELD_START_OFFSET = -0.18f
+        private const val STARFIELD_TRAVEL_MULTIPLIER = 1.36f
         private const val STATIC_STAR_RADIUS_DP = 0.75f
         private const val FULL_PERCENT = 100f
         private const val MAX_ALPHA = 255
@@ -74,7 +75,10 @@ class StarfieldView @JvmOverloads constructor(
     )
 
     fun setConnected(connected: Boolean) {
-        if (running == connected) return
+        if (running == connected) {
+            if (connected) postInvalidateOnAnimation()
+            return
+        }
         running = connected
         if (connected) postInvalidateOnAnimation() else invalidate()
     }
@@ -107,7 +111,7 @@ class StarfieldView @JvmOverloads constructor(
         stars.forEach { star ->
             val phase = ((now - star.delayMs) % star.durationMs).toFloat() / star.durationMs
             val left = width * star.left / FULL_PERCENT
-            val top = height * STARFIELD_TRAVEL_MULTIPLIER * phase
+            val top = height * (STARFIELD_START_OFFSET + STARFIELD_TRAVEL_MULTIPLIER * phase)
             paint.alpha = (MAX_ALPHA * star.opacity).toInt()
             canvas.drawRoundRect(
                 left,

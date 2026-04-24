@@ -9,21 +9,21 @@
     <dimen name="buffit_card_stroke_width">1dp</dimen>
 
     <!-- Dashboard web parity: preview/dashboard.html -->
-    <dimen name="dashboard_space_glow_width">300dp</dimen>
-    <dimen name="dashboard_space_glow_height">150dp</dimen>
-    <dimen name="dashboard_space_glow_bottom_offset">96dp</dimen>
-    <dimen name="dashboard_orb_size">192dp</dimen>
-    <dimen name="dashboard_orb_ring_size">176dp</dimen>
-    <dimen name="dashboard_rocket_width">132dp</dimen>
-    <dimen name="dashboard_rocket_height">228dp</dimen>
-    <dimen name="dashboard_rocket_scene_width">192dp</dimen>
-    <dimen name="dashboard_rocket_scene_height">340dp</dimen>
-    <dimen name="dashboard_rocket_flame_width">22dp</dimen>
-    <dimen name="dashboard_rocket_flame_height">128dp</dimen>
-    <dimen name="dashboard_rocket_flame_bottom">-2dp</dimen>
-    <dimen name="dashboard_rocket_flame_left_offset">-12dp</dimen>
-    <dimen name="dashboard_rocket_flame_right_offset">12dp</dimen>
-    <dimen name="dashboard_rocket_y_offset">36dp</dimen>
+    <dimen name="dashboard_space_glow_width">260dp</dimen>
+    <dimen name="dashboard_space_glow_height">112dp</dimen>
+    <dimen name="dashboard_space_glow_bottom_offset">48dp</dimen>
+    <dimen name="dashboard_orb_size">208dp</dimen>
+    <dimen name="dashboard_orb_ring_size">192dp</dimen>
+    <dimen name="dashboard_rocket_width">168dp</dimen>
+    <dimen name="dashboard_rocket_height">290dp</dimen>
+    <dimen name="dashboard_rocket_scene_width">240dp</dimen>
+    <dimen name="dashboard_rocket_scene_height">420dp</dimen>
+    <dimen name="dashboard_rocket_flame_width">32dp</dimen>
+    <dimen name="dashboard_rocket_flame_height">170dp</dimen>
+    <dimen name="dashboard_rocket_flame_bottom">-6dp</dimen>
+    <dimen name="dashboard_rocket_flame_left_offset">-18dp</dimen>
+    <dimen name="dashboard_rocket_flame_right_offset">18dp</dimen>
+    <dimen name="dashboard_rocket_y_offset">14dp</dimen>
     <dimen name="dashboard_speed_panel_width">72dp</dimen>
     <dimen name="dashboard_wave_width">56dp</dimen>
     <dimen name="dashboard_wave_height">8dp</dimen>

@@ -164,4 +164,6 @@ Dashboard click wiring is now owned by `DashboardViewRenderer.Actions`.
 
 Dashboard host interactions now go through `DashboardHost`, including connection actions, configuration navigation, stats-bar protocol updates, and dashboard messages.
 
-Next step: fix the current XML dashboard visual regressions, then continue moving remaining dashboard data/action adapters out of `DashboardFragment`. Keep current `main` releasable while the rewrite grows behind explicit adapters.
+The current XML dashboard visual regressions have an interim fix: rocket/flame dimensions are restored closer to the verified mobile mock, the bottom green glow is reduced, starfield invalidation is made explicit while connected, profile-row ripple no longer paints a solid row background, and the bottom stats bar uses the bundled mono font with corrected runtime icons.
+
+Next step: verify the dashboard on a real Android device, then continue moving remaining dashboard data/action adapters out of `DashboardFragment`. Keep current `main` releasable while the rewrite grows behind explicit adapters.

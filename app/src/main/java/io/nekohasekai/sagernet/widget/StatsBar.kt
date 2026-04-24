@@ -103,6 +103,8 @@ class StatsBar @JvmOverloads constructor(
         statusHeading = findViewById(R.id.status_heading)
         protocolIcon = findViewById(R.id.protocol_icon)
         protocolHeading = findViewById(R.id.protocol_heading)
+        latencyIcon.text = "◷"
+        protocolIcon.text = "◇"
         super.setOnClickListener(l)
     }
 
