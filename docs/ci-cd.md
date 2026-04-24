@@ -130,16 +130,20 @@ Notes:
 - artifact name is `apk-<run_number>`
 - the APK path inside the artifact is under `app/build/outputs/apk/...`
 - if you already have an app installed with a different signing key, Android will reject the update
+- local git hooks do not trigger CI; manual CI dispatch is the source of signed test APKs
 
 ## Release Flow
 
 Recommended production flow:
 
 1. Merge the target branch into `main`.
-2. Create and push a release tag, for example `v1.6.4`.
-3. `Release` starts automatically.
-4. The workflow builds signed APKs.
-5. If publication is enabled, it creates or updates a GitHub Release in `Yokhan/YokhanVPN`.
+2. Bump `VERSION_NAME`, `PRE_VERSION_NAME`, and `VERSION_CODE` in `nb4a.properties`.
+3. Commit and push the version bump to `main`.
+4. Create and push a release tag that matches the version, for example `1.6.4`.
+5. `Release` starts automatically.
+6. The workflow builds signed APKs and publishes a GitHub Release in `Yokhan/YokhanVPN`.
+
+Do not reuse an existing release tag for new app code. Create a new version and tag instead, otherwise GitHub Releases and APK filenames become ambiguous.
 
 Manual release flow:
 
@@ -198,6 +202,13 @@ Trigger Release manually:
 
 ```bash
 gh workflow run "Release" -R Yokhan/YokhanVPN --ref main -f tag=v1.6.4 -f publish=true -f play=false -f draft=false
+```
+
+Prefer tag push for production releases:
+
+```bash
+git tag 1.6.4
+git push origin 1.6.4
 ```
 
 Watch a run:

@@ -17,7 +17,7 @@ Main changes relative to upstream:
 ## Current State
 
 - package: `com.buffitgates.vpnservice`
-- current version: `1.6.3`
+- current version: `1.6.4`
 - main Android app module: `app/`
 - native core wrapper: `libcore/`
 - metadata and versioning: `nb4a.properties`
@@ -75,9 +75,10 @@ Short version:
 1. Push branch changes.
 2. Run `CI` with `build_task=app:assembleOssRelease` and `signed=true` if you need an installable APK for testing.
 3. Download the artifact from the run.
-4. When ready, create or push a release tag and let `Release` publish APKs in `Yokhan/YokhanVPN`.
+4. When ready, bump `nb4a.properties`, merge to `main`, push a release tag, and let `Release` publish APKs in `Yokhan/YokhanVPN`.
 
 Full setup and operations are documented in [docs/ci-cd.md](docs/ci-cd.md).
+Current cleanup priorities are tracked in [docs/technical-debt.md](docs/technical-debt.md).
 
 ## Detaching From Matsuri
 
