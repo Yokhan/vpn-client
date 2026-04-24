@@ -4,7 +4,7 @@ This file tracks concrete cleanup work that affects build reliability, UI qualit
 
 ## Highest Priority
 
-- Dashboard UI state is still owned by `DashboardFragment`, but connection-state rendering is now split into small theme/apply methods. Next step: move orb animation and profile row rendering into custom helpers or views.
+- Dashboard UI state is still owned by `DashboardFragment`, but connection-state rendering, orbital motion, and profile row binding are now split into smaller units. Next step: move profile actions and remaining list ownership out of the fragment.
 - `StarfieldView` and `OrbMarksView` still carry copied web star/mark coordinates, but the runtime constants are now named and source-mapped to `preview/dashboard.html`.
 - Dashboard layout still has fixed spacing in secondary sections, but the central launch scene dimensions now live in `dimens.xml`.
 - CI and Release workflows duplicate libcore/bootstrap steps. Extract shared setup into a composite action or reusable workflow once the release process is stable.

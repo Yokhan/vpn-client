@@ -1,8 +1,5 @@
 package io.nekohasekai.sagernet.ui
 
-import android.animation.Animator
-import android.animation.ObjectAnimator
-import android.animation.PropertyValuesHolder
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Bundle
@@ -11,10 +8,6 @@ import android.text.format.Formatter
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
-import android.view.animation.AccelerateDecelerateInterpolator
-import android.view.animation.DecelerateInterpolator
-import android.widget.ImageButton
-import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
@@ -26,6 +19,7 @@ import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
+import io.nekohasekai.sagernet.databinding.ItemDashboardProfileBinding
 import io.nekohasekai.sagernet.databinding.LayoutDashboardBinding
 import io.nekohasekai.sagernet.widget.ListListener
 import kotlinx.coroutines.Dispatchers
@@ -47,14 +41,12 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     private var timerJob: Job? = null
     private var connectionStartTime = 0L
-
-    private var ringAnimator: ObjectAnimator? = null
-    private var flameLeftAnimator: ObjectAnimator? = null
-    private var flameRightAnimator: ObjectAnimator? = null
+    private var orbMotionController: DashboardOrbMotionController? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = LayoutDashboardBinding.bind(view)
+        orbMotionController = DashboardOrbMotionController(binding)
 
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
         toolbar.setTitle(R.string.app_name)
@@ -69,10 +61,8 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_configuration)
         }
 
-        binding.connectCircle.post {
-            if (currentState != BaseService.State.Connected) {
-                binding.rocketGroup.translationY = hiddenRocketTranslation()
-            }
+        if (currentState != BaseService.State.Connected) {
+            orbMotionController?.initializeDisconnected()
         }
 
         updateConnectionState(DataStore.serviceState)
@@ -88,7 +78,8 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     override fun onDestroyView() {
         timerJob?.cancel()
-        cancelLoopingAnimations()
+        orbMotionController?.release()
+        orbMotionController = null
         _binding = null
         super.onDestroyView()
     }
@@ -140,35 +131,28 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
         val inflater = LayoutInflater.from(requireContext())
         profiles.forEachIndexed { index, profile ->
-            val itemView = inflater.inflate(
-                R.layout.item_dashboard_profile, container, false
-            )
-
+            val itemBinding = ItemDashboardProfileBinding.inflate(inflater, container, false)
             val isActive = profile.id == activeId
-            val divider = itemView.findViewById<View>(R.id.profile_divider)
-            val activeBar = itemView.findViewById<View>(R.id.profile_active_bar)
-            val nameView = itemView.findViewById<TextView>(R.id.profile_name)
-            val protocolView = itemView.findViewById<TextView>(R.id.profile_protocol)
-            val editBtn = itemView.findViewById<ImageButton>(R.id.profile_edit)
-            val menuBtn = itemView.findViewById<ImageButton>(R.id.profile_menu)
 
-            divider.isVisible = index != 0
-            nameView.text = profile.displayName()
-            protocolView.text = profile.displayType()
+            itemBinding.profileDivider.isVisible = index != 0
+            itemBinding.profileName.text = profile.displayName()
+            itemBinding.profileProtocol.text = profile.displayType()
 
-            editBtn.setOnClickListener {
+            itemBinding.profileEdit.setOnClickListener {
                 // TODO: open profile editor
             }
-            menuBtn.setOnClickListener {
+            itemBinding.profileMenu.setOnClickListener {
                 // TODO: show profile menu
             }
 
-            itemView.setTag(R.id.profile_active_bar, isActive)
-            itemView.setTag(R.id.profile_name, activeBar)
-            itemView.setTag(R.id.profile_protocol, divider)
-            applyProfileRowTheme(itemView, isActive, currentState == BaseService.State.Connected)
+            itemBinding.root.setTag(R.id.profile_active_bar, isActive)
+            applyProfileRowTheme(
+                itemBinding,
+                isActive,
+                currentState == BaseService.State.Connected
+            )
 
-            container.addView(itemView)
+            container.addView(itemBinding.root)
         }
     }
 
@@ -187,7 +171,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         applyStatusTheme(binding, state, isConnected, theme)
         applyTestButtonTheme(binding, isConnected, theme)
         applyProfileContainerTheme(theme.divider)
-        updateOrbMotion(isConnected)
+        orbMotionController?.update(isConnected)
     }
 
     private fun dashboardTheme(isConnected: Boolean): DashboardTheme {
@@ -354,113 +338,22 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         timerJob = null
     }
 
-    private fun updateOrbMotion(isConnected: Boolean) {
-        val binding = _binding ?: return
-        if (binding.connectCircle.height == 0) {
-            binding.connectCircle.post { updateOrbMotion(isConnected) }
-            return
-        }
-
-        if (isConnected) {
-            startLoopingAnimations()
-            binding.rocketGroup.animate().cancel()
-            if (binding.rocketGroup.alpha == 0f) {
-                binding.rocketGroup.translationY = hiddenRocketTranslation()
-            }
-            binding.rocketGroup.animate()
-                .alpha(1f)
-                .translationY(0f)
-                .setDuration(700L)
-                .setInterpolator(DecelerateInterpolator())
-                .start()
-            binding.rocketFlameLeft.animate().alpha(1f).setDuration(240L).start()
-            binding.rocketFlameRight.animate().alpha(1f).setDuration(240L).start()
-        } else {
-            cancelLoopingAnimations()
-            binding.rocketGroup.animate().cancel()
-            binding.rocketGroup.animate()
-                .alpha(0f)
-                .translationY(hiddenRocketTranslation())
-                .setDuration(320L)
-                .setInterpolator(AccelerateDecelerateInterpolator())
-                .start()
-            binding.rocketFlameLeft.alpha = 0f
-            binding.rocketFlameRight.alpha = 0f
-        }
-    }
-
-    private fun startLoopingAnimations() {
-        if (ringAnimator == null) {
-            ringAnimator = ObjectAnimator.ofPropertyValuesHolder(
-                binding.connectRing,
-                PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.04f, 1f),
-                PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.04f, 1f),
-                PropertyValuesHolder.ofFloat(View.ALPHA, 0.8f, 1f, 0.8f),
-            ).apply {
-                duration = 1600L
-                interpolator = AccelerateDecelerateInterpolator()
-                repeatCount = ObjectAnimator.INFINITE
-            }
-        }
-        if (flameLeftAnimator == null) {
-            flameLeftAnimator = flameAnimator(binding.rocketFlameLeft)
-        }
-        if (flameRightAnimator == null) {
-            flameRightAnimator = flameAnimator(binding.rocketFlameRight)
-        }
-        if (ringAnimator?.isStarted != true) ringAnimator?.start()
-        if (flameLeftAnimator?.isStarted != true) flameLeftAnimator?.start()
-        if (flameRightAnimator?.isStarted != true) flameRightAnimator?.start()
-    }
-
-    private fun flameAnimator(view: View): ObjectAnimator {
-        return ObjectAnimator.ofPropertyValuesHolder(
-            view,
-            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.15f, 1f),
-            PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.06f, 1f),
-            PropertyValuesHolder.ofFloat(View.ALPHA, 0.82f, 1f, 0.82f),
-        ).apply {
-            duration = 420L
-            interpolator = AccelerateDecelerateInterpolator()
-            repeatCount = ObjectAnimator.INFINITE
-        }
-    }
-
-    private fun cancelLoopingAnimations() {
-        ringAnimator?.cancel()
-        ringAnimator = null
-        flameLeftAnimator?.cancel()
-        flameLeftAnimator = null
-        flameRightAnimator?.cancel()
-        flameRightAnimator = null
-
-        val binding = _binding ?: return
-        binding.connectRing.scaleX = 1f
-        binding.connectRing.scaleY = 1f
-        binding.connectRing.alpha = 1f
-        binding.rocketFlameLeft.scaleX = 1f
-        binding.rocketFlameLeft.scaleY = 1f
-        binding.rocketFlameRight.scaleX = 1f
-        binding.rocketFlameRight.scaleY = 1f
-    }
-
-    private fun hiddenRocketTranslation(): Float {
-        val rootHeight = binding.dashboardRoot.height
-        return if (rootHeight > 0) rootHeight * 0.7f else binding.connectCircle.height * 0.45f
-    }
-
     private fun applyProfileContainerTheme(dividerColor: Int) {
         val isConnected = currentState == BaseService.State.Connected
         for (index in 0 until binding.profilesContainer.childCount) {
             val itemView = binding.profilesContainer.getChildAt(index)
             val isActive = itemView.getTag(R.id.profile_active_bar) as? Boolean ?: false
-            val divider = itemView.getTag(R.id.profile_protocol) as? View
-            divider?.setBackgroundColor(dividerColor)
-            applyProfileRowTheme(itemView, isActive, isConnected)
+            val itemBinding = ItemDashboardProfileBinding.bind(itemView)
+            itemBinding.profileDivider.setBackgroundColor(dividerColor)
+            applyProfileRowTheme(itemBinding, isActive, isConnected)
         }
     }
 
-    private fun applyProfileRowTheme(itemView: View, isActive: Boolean, isConnected: Boolean) {
+    private fun applyProfileRowTheme(
+        itemBinding: ItemDashboardProfileBinding,
+        isActive: Boolean,
+        isConnected: Boolean,
+    ) {
         val primaryColor = colorOf(
             if (isConnected) R.color.dashboard_space_text_primary else R.color.dashboard_text_primary
         )
@@ -474,19 +367,13 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             if (isConnected) R.color.dashboard_green else R.color.dashboard_accent
         )
 
-        val activeBar = itemView.getTag(R.id.profile_name) as? View ?: return
-        val nameView = itemView.findViewById<TextView>(R.id.profile_name)
-        val protocolView = itemView.findViewById<TextView>(R.id.profile_protocol)
-        val editBtn = itemView.findViewById<ImageButton>(R.id.profile_edit)
-        val menuBtn = itemView.findViewById<ImageButton>(R.id.profile_menu)
-
-        activeBar.backgroundTintList = ColorStateList.valueOf(
+        itemBinding.profileActiveBar.backgroundTintList = ColorStateList.valueOf(
             if (isActive) activeColor else Color.TRANSPARENT
         )
-        nameView.setTextColor(primaryColor)
-        protocolView.setTextColor(tertiaryColor)
-        editBtn.imageTintList = ColorStateList.valueOf(actionColor)
-        menuBtn.imageTintList = ColorStateList.valueOf(actionColor)
+        itemBinding.profileName.setTextColor(primaryColor)
+        itemBinding.profileProtocol.setTextColor(tertiaryColor)
+        itemBinding.profileEdit.imageTintList = ColorStateList.valueOf(actionColor)
+        itemBinding.profileMenu.imageTintList = ColorStateList.valueOf(actionColor)
     }
 
     private fun themeCard(card: MaterialCardView, strokeColor: Int) {
