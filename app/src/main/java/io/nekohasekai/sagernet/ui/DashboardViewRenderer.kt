@@ -49,6 +49,18 @@ internal class DashboardViewRenderer(
         binding.currentProfileInfo.text = header.subtitle
     }
 
+    fun bindActions(actions: Actions) {
+        binding.connectCircle.setOnClickListener {
+            actions.onToggleConnection()
+        }
+        binding.testConnectionButton.setOnClickListener {
+            actions.onRunConnectionTest()
+        }
+        binding.addConfig.setOnClickListener {
+            actions.onOpenConfiguration()
+        }
+    }
+
     private fun dashboardTheme(isConnected: Boolean): DashboardTheme {
         return DashboardTheme(
             primary = colorOf(
@@ -206,6 +218,12 @@ internal class DashboardViewRenderer(
     data class ProfileHeader(
         val name: String?,
         val subtitle: String,
+    )
+
+    class Actions(
+        val onToggleConnection: () -> Unit,
+        val onRunConnectionTest: () -> Unit,
+        val onOpenConfiguration: () -> Unit,
     )
 
     private data class DashboardTheme(

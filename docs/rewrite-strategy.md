@@ -160,4 +160,6 @@ Profile list rendering now consumes explicit presentation items instead of datab
 
 Active profile header rendering is now owned by `DashboardViewRenderer` through an explicit presentation model.
 
-Next step: continue shrinking `DashboardFragment` by moving dashboard action wiring and stats-bar protocol updates behind explicit adapters. Keep current `main` releasable while the rewrite grows behind explicit adapters.
+Dashboard click wiring is now owned by `DashboardViewRenderer.Actions`.
+
+Next step: continue shrinking `DashboardFragment` by moving stats-bar protocol updates and host interactions behind explicit adapters. Keep current `main` releasable while the rewrite grows behind explicit adapters.

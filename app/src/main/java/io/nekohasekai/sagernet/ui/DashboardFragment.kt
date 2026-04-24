@@ -67,15 +67,15 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
         toolbar.setTitle(R.string.dashboard_title)
 
-        binding.connectCircle.setOnClickListener {
-            (activity as? MainActivity)?.toggleConnection()
-        }
-        binding.testConnectionButton.setOnClickListener {
-            (activity as? MainActivity)?.runConnectionTest()
-        }
-        binding.addConfig.setOnClickListener {
-            (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_configuration)
-        }
+        viewRenderer?.bindActions(
+            DashboardViewRenderer.Actions(
+                onToggleConnection = { (activity as? MainActivity)?.toggleConnection() },
+                onRunConnectionTest = { (activity as? MainActivity)?.runConnectionTest() },
+                onOpenConfiguration = {
+                    (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_configuration)
+                },
+            ),
+        )
 
         if (currentState != BaseService.State.Connected) {
             orbMotionController?.initializeDisconnected()
