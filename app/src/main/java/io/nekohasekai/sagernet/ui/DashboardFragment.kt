@@ -175,65 +175,106 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     fun updateConnectionState(state: BaseService.State) {
         currentState = state
         val binding = _binding ?: return
-        val ctx = context ?: return
+        context ?: return
         val isConnected = state == BaseService.State.Connected
+        val theme = dashboardTheme(isConnected)
 
-        val primaryColor = colorOf(
-            if (isConnected) R.color.dashboard_space_text_primary else R.color.dashboard_text_primary
-        )
-        val secondaryColor = colorOf(
-            if (isConnected) R.color.dashboard_space_text_secondary else R.color.dashboard_text_secondary
-        )
-        val tertiaryColor = colorOf(
-            if (isConnected) R.color.dashboard_space_text_secondary else R.color.dashboard_text_tertiary
-        )
-        val borderColor = colorOf(
-            if (isConnected) R.color.dashboard_card_border_on else R.color.dashboard_card_border_off
-        )
-        val dividerColor = colorOf(
-            if (isConnected) R.color.dashboard_divider_dark else R.color.dashboard_divider_light
-        )
-        val accentColor = colorOf(
-            if (isConnected) R.color.dashboard_green else R.color.dashboard_accent
-        )
+        applySpaceTheme(binding, isConnected, theme)
+        applyToolbarTheme(binding, theme)
+        applyCardsTheme(binding, theme)
+        applyTrafficTheme(binding, theme)
+        applyOrbTheme(binding, isConnected, theme)
+        applyStatusTheme(binding, state, isConnected, theme)
+        applyTestButtonTheme(binding, isConnected, theme)
+        applyProfileContainerTheme(theme.divider)
+        updateOrbMotion(isConnected)
+    }
 
-        binding.dashboardRoot.setBackgroundColor(
-            colorOf(if (isConnected) R.color.dashboard_space_bg else R.color.dashboard_bg_off)
+    private fun dashboardTheme(isConnected: Boolean): DashboardTheme {
+        return DashboardTheme(
+            primary = colorOf(
+                if (isConnected) R.color.dashboard_space_text_primary
+                else R.color.dashboard_text_primary
+            ),
+            secondary = colorOf(
+                if (isConnected) R.color.dashboard_space_text_secondary
+                else R.color.dashboard_text_secondary
+            ),
+            tertiary = colorOf(
+                if (isConnected) R.color.dashboard_space_text_secondary
+                else R.color.dashboard_text_tertiary
+            ),
+            border = colorOf(
+                if (isConnected) R.color.dashboard_card_border_on
+                else R.color.dashboard_card_border_off
+            ),
+            divider = colorOf(
+                if (isConnected) R.color.dashboard_divider_dark
+                else R.color.dashboard_divider_light
+            ),
+            accent = colorOf(
+                if (isConnected) R.color.dashboard_green
+                else R.color.dashboard_accent
+            ),
+            background = colorOf(
+                if (isConnected) R.color.dashboard_space_bg
+                else R.color.dashboard_bg_off
+            ),
         )
-        binding.dashboardSpaceBackground.animate().alpha(if (isConnected) 1f else 0f).setDuration(600L)
-            .start()
-        binding.dashboardSpaceGlow.animate().alpha(if (isConnected) 1f else 0f).setDuration(600L)
-            .start()
+    }
+
+    private fun applySpaceTheme(
+        binding: LayoutDashboardBinding,
+        isConnected: Boolean,
+        theme: DashboardTheme,
+    ) {
+        binding.dashboardRoot.setBackgroundColor(theme.background)
+        binding.dashboardSpaceBackground.animate().alpha(if (isConnected) 1f else 0f)
+            .setDuration(600L).start()
+        binding.dashboardSpaceGlow.animate().alpha(if (isConnected) 1f else 0f)
+            .setDuration(600L).start()
         binding.dashboardStars.setConnected(isConnected)
-        binding.dashboardStars.animate().alpha(if (isConnected) 1f else 0f).setDuration(800L)
-            .start()
+        binding.dashboardStars.animate().alpha(if (isConnected) 1f else 0f)
+            .setDuration(800L).start()
+    }
 
-        toolbar.setTitleTextColor(primaryColor)
-        toolbar.navigationIcon?.setTint(primaryColor)
-        binding.toolbarSysLabel.setTextColor(secondaryColor)
-        binding.toolbarSysDot.background.setTint(accentColor)
+    private fun applyToolbarTheme(binding: LayoutDashboardBinding, theme: DashboardTheme) {
+        toolbar.setTitleTextColor(theme.primary)
+        toolbar.navigationIcon?.setTint(theme.primary)
+        binding.toolbarSysLabel.setTextColor(theme.secondary)
+        binding.toolbarSysDot.background.setTint(theme.accent)
+    }
 
-        themeCard(binding.currentConfigCard, borderColor)
-        themeCard(binding.profilesCard, borderColor)
+    private fun applyCardsTheme(binding: LayoutDashboardBinding, theme: DashboardTheme) {
+        themeCard(binding.currentConfigCard, theme.border)
+        themeCard(binding.profilesCard, theme.border)
 
-        binding.currentConfigLabel.setTextColor(tertiaryColor)
-        binding.currentProfileName.setTextColor(primaryColor)
-        binding.currentProfileInfo.setTextColor(secondaryColor)
+        binding.currentConfigLabel.setTextColor(theme.tertiary)
+        binding.currentProfileName.setTextColor(theme.primary)
+        binding.currentProfileInfo.setTextColor(theme.secondary)
 
+        binding.signalBars.setColorFilter(theme.primary)
+        binding.signalStatusDot.background.setTint(theme.accent)
+    }
+
+    private fun applyTrafficTheme(binding: LayoutDashboardBinding, theme: DashboardTheme) {
+        binding.uploadSpeed.setTextColor(theme.primary)
+        binding.downloadSpeed.setTextColor(theme.primary)
+        binding.uploadArrow.setTextColor(theme.accent)
+        binding.downloadArrow.setTextColor(theme.accent)
+        binding.uploadWave.setColorFilter(theme.accent)
+        binding.downloadWave.setColorFilter(theme.accent)
+    }
+
+    private fun applyOrbTheme(
+        binding: LayoutDashboardBinding,
+        isConnected: Boolean,
+        theme: DashboardTheme,
+    ) {
         binding.signalBox.setBackgroundResource(
             if (isConnected) R.drawable.bg_dashboard_signal_box_on
             else R.drawable.bg_dashboard_signal_box_off
         )
-        binding.signalBars.setColorFilter(primaryColor)
-        binding.signalStatusDot.background.setTint(accentColor)
-
-        binding.uploadSpeed.setTextColor(primaryColor)
-        binding.downloadSpeed.setTextColor(primaryColor)
-        binding.uploadArrow.setTextColor(accentColor)
-        binding.downloadArrow.setTextColor(accentColor)
-        binding.uploadWave.setColorFilter(accentColor)
-        binding.downloadWave.setColorFilter(accentColor)
-
         binding.orbBackground.setBackgroundResource(
             if (isConnected) R.drawable.bg_dashboard_orb_on else R.drawable.bg_dashboard_orb_off
         )
@@ -243,8 +284,15 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         )
         binding.orbMarks.setConnected(isConnected)
         binding.connectCenterLabel.isVisible = !isConnected
-        binding.connectCenterLabel.setTextColor(secondaryColor)
+        binding.connectCenterLabel.setTextColor(theme.secondary)
+    }
 
+    private fun applyStatusTheme(
+        binding: LayoutDashboardBinding,
+        state: BaseService.State,
+        isConnected: Boolean,
+        theme: DashboardTheme,
+    ) {
         binding.connectLabel.text = getString(
             when (state) {
                 BaseService.State.Connected -> R.string.dashboard_connected_status
@@ -253,7 +301,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
                 else -> R.string.dashboard_tap_connect
             }
         )
-        binding.connectLabel.setTextColor(if (isConnected) primaryColor else tertiaryColor)
+        binding.connectLabel.setTextColor(if (isConnected) theme.primary else theme.tertiary)
         binding.connectLabel.gravity = if (isConnected) {
             Gravity.START or Gravity.CENTER_VERTICAL
         } else {
@@ -261,23 +309,26 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         }
 
         binding.connectionTimer.isVisible = isConnected
-        binding.connectionTimer.setTextColor(if (isConnected) primaryColor else tertiaryColor)
+        binding.connectionTimer.setTextColor(if (isConnected) theme.primary else theme.tertiary)
         if (isConnected) startTimer() else stopTimer()
+    }
 
+    private fun applyTestButtonTheme(
+        binding: LayoutDashboardBinding,
+        isConnected: Boolean,
+        theme: DashboardTheme,
+    ) {
         binding.testConnectionButton.isEnabled = isConnected
         binding.testConnectionButton.alpha = if (isConnected) 1f else 0.55f
         binding.testConnectionButton.background = ContextCompat.getDrawable(
-            ctx,
+            requireContext(),
             if (isConnected) R.drawable.bg_dashboard_test_button_on
             else R.drawable.bg_dashboard_test_button_off
         )
-        binding.testConnectionButton.setTextColor(secondaryColor)
+        binding.testConnectionButton.setTextColor(theme.secondary)
         binding.testConnectionButton.compoundDrawablesRelative.forEach { drawable ->
-            drawable?.setTint(secondaryColor)
+            drawable?.setTint(theme.secondary)
         }
-
-        applyProfileContainerTheme(dividerColor)
-        updateOrbMotion(isConnected)
     }
 
     fun updateSpeeds(txRate: Long, rxRate: Long) {
@@ -468,5 +519,15 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         val groupName: String,
         val serviceModeLabel: String,
         val profiles: List<ProxyEntity>,
+    )
+
+    private data class DashboardTheme(
+        val primary: Int,
+        val secondary: Int,
+        val tertiary: Int,
+        val border: Int,
+        val divider: Int,
+        val accent: Int,
+        val background: Int,
     )
 }
