@@ -204,6 +204,9 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             .start()
         binding.dashboardSpaceGlow.animate().alpha(if (isConnected) 1f else 0f).setDuration(600L)
             .start()
+        binding.dashboardStars.setConnected(isConnected)
+        binding.dashboardStars.animate().alpha(if (isConnected) 1f else 0f).setDuration(800L)
+            .start()
 
         toolbar.setTitleTextColor(primaryColor)
         toolbar.navigationIcon?.setTint(primaryColor)
@@ -238,6 +241,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             if (isConnected) R.drawable.bg_dashboard_orb_ring_on
             else R.drawable.bg_dashboard_orb_ring_off
         )
+        binding.orbMarks.setConnected(isConnected)
         binding.connectCenterLabel.isVisible = !isConnected
         binding.connectCenterLabel.setTextColor(secondaryColor)
 
@@ -390,7 +394,8 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     }
 
     private fun hiddenRocketTranslation(): Float {
-        return binding.connectCircle.height * 0.45f
+        val rootHeight = binding.dashboardRoot.height
+        return if (rootHeight > 0) rootHeight * 0.7f else binding.connectCircle.height * 0.45f
     }
 
     private fun applyProfileContainerTheme(dividerColor: Int) {

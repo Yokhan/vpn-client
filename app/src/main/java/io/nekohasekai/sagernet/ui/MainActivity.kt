@@ -319,6 +319,7 @@ class MainActivity : ThemedActivity(),
         if (fragment is DashboardFragment) {
             binding.stats.allowShow = true
             binding.fab.hide()
+            binding.fab.isVisible = false
             binding.fabProgress.isVisible = false
         } else if (fragment is ConfigurationFragment ||
             fragment is ConfigurationHubFragment ||
@@ -326,6 +327,7 @@ class MainActivity : ThemedActivity(),
             fragment is RouteHubFragment
         ) {
             binding.stats.allowShow = true
+            binding.fab.isVisible = true
             binding.fab.show()
         } else if (!DataStore.showBottomBar) {
             binding.stats.allowShow = false
