@@ -179,6 +179,7 @@ This means:
 - GitHub Actions may still show Node 20 deprecation warnings from third-party actions; these do not currently break builds
 - if no custom core repo variables are set, native source fetch still falls back to Matsuri repos
 - Play bundle build remains optional and separate from the standard APK path
+- the release publish job is allowed to run when the optional Play bundle job is skipped
 
 ## Minimal Admin Checklist
 
