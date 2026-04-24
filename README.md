@@ -1,10 +1,12 @@
 # YokhanVPN
 
-Android VPN client based on the NekoBox / sing-box stack, adapted for the Yokhan project and hardened for the actual user flow in this repo.
+Private Android VPN client for the Yokhan project. The current production tree is still based on the NekoBox / sing-box Android stack while the app is being migrated toward a cleaner Yokhan-owned architecture.
 
 ## What This Repo Is
 
 This repository is the Android client for the Yokhan VPN stack.
+
+Repository visibility is private. This is operational access control, not a license conversion for binaries built from the current GPL-derived code.
 
 Main changes relative to upstream:
 
@@ -80,6 +82,7 @@ Short version:
 Full setup and operations are documented in [docs/ci-cd.md](docs/ci-cd.md).
 Current cleanup priorities are tracked in [docs/technical-debt.md](docs/technical-debt.md).
 Source-closure constraints and the cleanup plan are tracked in [docs/source-closure-and-cleanup.md](docs/source-closure-and-cleanup.md).
+Rewrite architecture and language decisions are tracked in [docs/rewrite-strategy.md](docs/rewrite-strategy.md).
 
 ## Detaching From Matsuri
 

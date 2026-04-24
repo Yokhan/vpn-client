@@ -19,10 +19,11 @@ References:
 
 ## What Can Be Done Now
 
-- Make the GitHub repository private if the goal is operational privacy.
+- Repository visibility is private for operational privacy.
 - Keep release artifacts, source-offer, and license compliance explicit while APKs are distributed from this code.
 - Remove upstream branding from user-facing UI, package metadata, README marketing text, and generated release notes.
 - Keep legal attribution in `LICENSE`, `AUTHORS`, and source headers until code is replaced or relicensed.
+- Treat private visibility as access control only. It is not a proprietary license conversion for GPL-derived APKs.
 
 ## Production Cleanup Tracks
 
@@ -49,6 +50,7 @@ References:
 - Inventory GPL-derived files by feature area.
 - Mark files as `keep`, `rewrite`, `replace`, or `needs legal review`.
 - Rewrite high-value product UI first; defer low-value settings screens until needed.
+- Remove fork attribution only after the relevant code has been replaced or relicensed.
 
 ## Immediate Engineering Rules
 
