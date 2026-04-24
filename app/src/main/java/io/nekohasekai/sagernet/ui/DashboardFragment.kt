@@ -119,7 +119,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
                 )
             }
 
-            val binding = _binding ?: return@launch
+            if (_binding == null) return@launch
             latestProfiles = summary.profiles
             latestProfile = summary.profile
             latestProfileId = summary.profile?.id ?: 0L
@@ -127,20 +127,9 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             currentGroupIsSubscription = summary.isSubscriptionGroup
             val dashboardState = buildDashboardState()
 
-            binding.toolbarSysLabel.text = getString(R.string.dashboard_system_label)
-
-            binding.currentProfileName.text =
-                summary.profile?.let { dashboardState.activeProfileName }
-                    ?: getString(R.string.dashboard_no_profile)
-            binding.currentProfileInfo.text =
-                summary.profile?.let { dashboardState.activeProfileSubtitle } ?: buildString {
-                summary.profile?.displayType()?.takeIf { it.isNotBlank() }?.let {
-                    append(it)
-                    append(" · ")
-                }
-                append(summary.groupName)
-            }
-
+            viewRenderer?.renderProfileHeader(
+                summary.toDashboardProfileHeader(dashboardState),
+            )
             populateProfileList(summary.profiles, latestProfileId)
             (activity as? MainActivity)?.binding?.stats?.updateProtocol(
                 summary.profile?.displayType() ?: "--"
@@ -321,6 +310,15 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         val profiles: List<ProxyEntity>,
     )
 
+    private fun DashboardSummary.toDashboardProfileHeader(
+        dashboardState: DashboardState,
+    ): DashboardViewRenderer.ProfileHeader {
+        return DashboardViewRenderer.ProfileHeader(
+            name = profile?.let { dashboardState.activeProfileName },
+            subtitle = profile?.let { dashboardState.activeProfileSubtitle } ?: groupName,
+        )
+    }
+
     private fun List<ProxyEntity>.toDashboardProfileItems(
         activeId: Long,
     ): List<DashboardProfileListRenderer.Item> {
@@ -333,5 +331,4 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             )
         }
     }
-
 }

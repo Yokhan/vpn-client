@@ -42,6 +42,13 @@ internal class DashboardViewRenderer(
         )
     }
 
+    fun renderProfileHeader(header: ProfileHeader) {
+        binding.toolbarSysLabel.text = context.getString(R.string.dashboard_system_label)
+        binding.currentProfileName.text = header.name
+            ?: context.getString(R.string.dashboard_no_profile)
+        binding.currentProfileInfo.text = header.subtitle
+    }
+
     private fun dashboardTheme(isConnected: Boolean): DashboardTheme {
         return DashboardTheme(
             primary = colorOf(
@@ -194,6 +201,11 @@ internal class DashboardViewRenderer(
         val isConnected: Boolean,
         val isStarted: Boolean,
         val dividerColor: Int,
+    )
+
+    data class ProfileHeader(
+        val name: String?,
+        val subtitle: String,
     )
 
     private data class DashboardTheme(

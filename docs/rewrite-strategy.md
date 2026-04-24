@@ -158,4 +158,6 @@ The first Android renderer split is also in place: `DashboardViewRenderer` owns 
 
 Profile list rendering now consumes explicit presentation items instead of database entities.
 
-Next step: continue shrinking `DashboardFragment` by moving active profile header rendering behind an explicit adapter. Keep current `main` releasable while the rewrite grows behind explicit adapters.
+Active profile header rendering is now owned by `DashboardViewRenderer` through an explicit presentation model.
+
+Next step: continue shrinking `DashboardFragment` by moving dashboard action wiring and stats-bar protocol updates behind explicit adapters. Keep current `main` releasable while the rewrite grows behind explicit adapters.
