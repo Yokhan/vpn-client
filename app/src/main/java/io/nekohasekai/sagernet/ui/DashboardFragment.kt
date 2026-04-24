@@ -11,6 +11,8 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
+import com.yokhan.vpn.shared.domain.ConnectionStatus
+import com.yokhan.vpn.shared.domain.DashboardState
 import com.google.android.material.card.MaterialCardView
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.R
@@ -39,7 +41,11 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private val binding get() = _binding!!
 
     private var latestProfiles: List<ProxyEntity> = emptyList()
+    private var latestProfile: ProxyEntity? = null
     private var latestProfileId = 0L
+    private var latestGroupName = ""
+    private var latestTxRate = 0L
+    private var latestRxRate = 0L
     private var currentGroupIsSubscription = false
     private var currentState = BaseService.State.Idle
 
@@ -118,14 +124,19 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
             val binding = _binding ?: return@launch
             latestProfiles = summary.profiles
+            latestProfile = summary.profile
             latestProfileId = summary.profile?.id ?: 0L
+            latestGroupName = summary.groupName
             currentGroupIsSubscription = summary.isSubscriptionGroup
+            val dashboardState = buildDashboardState()
 
             binding.toolbarSysLabel.text = getString(R.string.dashboard_system_label)
 
             binding.currentProfileName.text =
-                summary.profile?.displayName() ?: getString(R.string.dashboard_no_profile)
-            binding.currentProfileInfo.text = buildString {
+                summary.profile?.let { dashboardState.activeProfileName }
+                    ?: getString(R.string.dashboard_no_profile)
+            binding.currentProfileInfo.text =
+                summary.profile?.let { dashboardState.activeProfileSubtitle } ?: buildString {
                 summary.profile?.displayType()?.takeIf { it.isNotBlank() }?.let {
                     append(it)
                     append(" · ")
@@ -154,8 +165,9 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         currentState = state
         val binding = _binding ?: return
         context ?: return
-        val isConnected = state == BaseService.State.Connected
-        val isStarted = state.started
+        val dashboardState = buildDashboardState()
+        val isConnected = dashboardState.connectionStatus == ConnectionStatus.Connected
+        val isStarted = dashboardState.shouldAnimateSpace
         val theme = dashboardTheme(isConnected)
 
         applySpaceTheme(binding, isStarted, theme)
@@ -163,8 +175,8 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         applyCardsTheme(binding, theme)
         applyTrafficTheme(binding, theme)
         applyOrbTheme(binding, isConnected, isStarted, theme)
-        applyStatusTheme(binding, state, isConnected, theme)
-        applyTestButtonTheme(binding, isConnected, theme)
+        applyStatusTheme(binding, state, dashboardState, isConnected, theme)
+        applyTestButtonTheme(binding, dashboardState.canRunConnectionTest, theme)
         profileListRenderer?.applyTheme(isConnected, theme.divider)
         orbMotionController?.update(isStarted)
     }
@@ -270,6 +282,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private fun applyStatusTheme(
         binding: LayoutDashboardBinding,
         state: BaseService.State,
+        dashboardState: DashboardState,
         isConnected: Boolean,
         theme: DashboardTheme,
     ) {
@@ -290,19 +303,20 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
         binding.connectionTimer.isVisible = isConnected
         binding.connectionTimer.setTextColor(if (isConnected) theme.primary else theme.tertiary)
+        binding.connectionTimer.text = dashboardState.timerLabel
         if (isConnected) startTimer() else stopTimer()
     }
 
     private fun applyTestButtonTheme(
         binding: LayoutDashboardBinding,
-        isConnected: Boolean,
+        canRunConnectionTest: Boolean,
         theme: DashboardTheme,
     ) {
-        binding.testConnectionButton.isEnabled = isConnected
-        binding.testConnectionButton.alpha = if (isConnected) 1f else 0.55f
+        binding.testConnectionButton.isEnabled = canRunConnectionTest
+        binding.testConnectionButton.alpha = if (canRunConnectionTest) 1f else 0.55f
         binding.testConnectionButton.background = ContextCompat.getDrawable(
             requireContext(),
-            if (isConnected) R.drawable.bg_dashboard_test_button_on
+            if (canRunConnectionTest) R.drawable.bg_dashboard_test_button_on
             else R.drawable.bg_dashboard_test_button_off
         )
         binding.testConnectionButton.setTextColor(theme.secondary)
@@ -313,6 +327,8 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     fun updateSpeeds(txRate: Long, rxRate: Long) {
         val binding = _binding ?: return
+        latestTxRate = txRate
+        latestRxRate = rxRate
         binding.uploadSpeed.text = formatSpeed(txRate)
         binding.downloadSpeed.text = formatSpeed(rxRate)
     }
@@ -323,7 +339,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         timerJob = viewLifecycleOwner.lifecycleScope.launch {
             while (isActive) {
                 val elapsed = SystemClock.elapsedRealtime() - connectionStartTime
-                _binding?.connectionTimer?.text = formatElapsed(elapsed)
+                _binding?.connectionTimer?.text = buildDashboardState(elapsed).timerLabel
                 delay(1000)
             }
         }
@@ -332,6 +348,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private fun stopTimer() {
         timerJob?.cancel()
         timerJob = null
+        connectionStartTime = 0L
     }
 
     private fun selectProfile(profile: ProxyEntity) {
@@ -420,20 +437,32 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         return ContextCompat.getColor(requireContext(), colorRes)
     }
 
-    private fun formatElapsed(ms: Long): String {
-        val totalSeconds = ms / 1000
-        val hours = totalSeconds / 3600
-        val minutes = (totalSeconds % 3600) / 60
-        val seconds = totalSeconds % 60
-        return String.format("%02d:%02d:%02d", hours, minutes, seconds)
-    }
-
     private fun formatSpeed(rate: Long): String {
         return if (rate <= 0L) {
             getString(R.string.dashboard_speed_idle)
         } else {
             getString(R.string.speed, Formatter.formatFileSize(requireContext(), rate))
         }
+    }
+
+    private fun buildDashboardState(
+        connectedForMillis: Long = if (
+            currentState == BaseService.State.Connected && connectionStartTime > 0L
+        ) {
+            (SystemClock.elapsedRealtime() - connectionStartTime).coerceAtLeast(0L)
+        } else {
+            0L
+        },
+    ): DashboardState {
+        return DashboardStateAdapter.from(
+            serviceState = currentState,
+            profile = latestProfile,
+            groupName = latestGroupName,
+            txRate = latestTxRate,
+            rxRate = latestRxRate,
+            connectedForMillis = connectedForMillis,
+            nowMillis = SystemClock.elapsedRealtime(),
+        )
     }
 
     private data class DashboardSummary(

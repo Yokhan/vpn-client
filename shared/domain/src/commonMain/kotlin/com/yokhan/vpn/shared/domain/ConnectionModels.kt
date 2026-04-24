@@ -22,6 +22,7 @@ data class ProfileSummary(
     val id: Long,
     val name: String,
     val protocol: VpnProtocol,
+    val protocolLabel: String = protocol.name.uppercase(),
     val subscriptionLabel: String? = null,
 )
 

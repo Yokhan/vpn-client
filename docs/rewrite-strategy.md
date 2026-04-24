@@ -150,6 +150,6 @@ No release from the rewrite branch unless:
 
 ## Immediate Next Step
 
-The first shared-domain KMP module now exists at `shared/domain/` and is checked in CI before Android APK builds.
+The first shared-domain KMP module now exists at `shared/domain/`, is checked in CI before Android APK builds, and is consumed by the Android dashboard through `DashboardStateAdapter`.
 
-Next step: connect Android dashboard rendering to the shared `DashboardState` contract through a thin adapter, then move only deterministic formatting/state rules out of the legacy fragment. Keep current `main` releasable while the rewrite grows behind explicit adapters.
+Next step: move speed and latency display into a shared value/unit contract without losing Android localization. Keep current `main` releasable while the rewrite grows behind explicit adapters.

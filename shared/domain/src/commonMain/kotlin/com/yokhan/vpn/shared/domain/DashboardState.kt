@@ -26,14 +26,13 @@ object DashboardStateMapper {
             downloadLabel = snapshot.traffic.downloadBytesPerSecond.toRateLabel(),
             latencyLabel = snapshot.traffic.latencyMs?.let { "${it} мс" } ?: "--",
             timerLabel = snapshot.connectedForMillis.toTimerLabel(),
-            shouldAnimateSpace = snapshot.status == ConnectionStatus.Connected,
+            shouldAnimateSpace = snapshot.isRunning,
             canRunConnectionTest = snapshot.status == ConnectionStatus.Connected,
             errorMessage = snapshot.errorMessage,
         )
     }
 
     private fun ProfileSummary.subtitle(): String {
-        val protocolLabel = protocol.name.uppercase()
         return subscriptionLabel?.let { "$protocolLabel · $it" } ?: protocolLabel
     }
 

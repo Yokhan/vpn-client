@@ -59,4 +59,49 @@ class DashboardStateMapperTest {
         assertFalse(state.shouldAnimateSpace)
         assertFalse(state.canRunConnectionTest)
     }
+
+    @Test
+    fun animatesWhileConnectingButDoesNotAllowConnectionTest() {
+        val state = DashboardStateMapper.from(
+            ConnectionSnapshot(
+                status = ConnectionStatus.Connecting,
+                activeProfile = ProfileSummary(
+                    id = 7,
+                    name = "Relay-igor",
+                    protocol = VpnProtocol.Vless,
+                ),
+                traffic = TrafficSnapshot(
+                    uploadBytesPerSecond = 0,
+                    downloadBytesPerSecond = 0,
+                    capturedAtMillis = 0,
+                ),
+            ),
+        )
+
+        assertTrue(state.shouldAnimateSpace)
+        assertFalse(state.canRunConnectionTest)
+    }
+
+    @Test
+    fun preservesProtocolLabelWhenProtocolEnumIsUnknown() {
+        val state = DashboardStateMapper.from(
+            ConnectionSnapshot(
+                status = ConnectionStatus.Disconnected,
+                activeProfile = ProfileSummary(
+                    id = 8,
+                    name = "Custom-profile",
+                    protocol = VpnProtocol.Unknown,
+                    protocolLabel = "TUIC",
+                    subscriptionLabel = "Manual",
+                ),
+                traffic = TrafficSnapshot(
+                    uploadBytesPerSecond = 0,
+                    downloadBytesPerSecond = 0,
+                    capturedAtMillis = 0,
+                ),
+            ),
+        )
+
+        assertEquals("TUIC · Manual", state.activeProfileSubtitle)
+    }
 }
