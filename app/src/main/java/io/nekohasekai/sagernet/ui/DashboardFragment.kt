@@ -58,9 +58,9 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             binding.profilesContainer,
             ::colorOf,
             DashboardProfileListRenderer.Actions(
-                onSelect = ::selectProfile,
-                onEdit = ::editProfile,
-                onMenu = ::showProfileMenu,
+                onSelect = ::selectProfileById,
+                onEdit = ::editProfileById,
+                onMenu = ::showProfileMenuById,
             ),
         )
 
@@ -152,8 +152,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     private fun populateProfileList(profiles: List<ProxyEntity>, activeId: Long) {
         profileListRenderer?.render(
-            profiles,
-            activeId,
+            profiles.toDashboardProfileItems(activeId),
             currentState == BaseService.State.Connected,
         )
     }
@@ -217,8 +216,16 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         }
     }
 
+    private fun selectProfileById(profileId: Long) {
+        latestProfiles.firstOrNull { it.id == profileId }?.let(::selectProfile)
+    }
+
     private fun editProfile(profile: ProxyEntity) {
         startActivity(profile.settingIntent(requireContext(), currentGroupIsSubscription))
+    }
+
+    private fun editProfileById(profileId: Long) {
+        latestProfiles.firstOrNull { it.id == profileId }?.let(::editProfile)
     }
 
     private fun showProfileMenu(anchor: View, profile: ProxyEntity) {
@@ -245,6 +252,12 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
         popup.setOnMenuItemClickListener { item -> handleProfileMenuItem(profile, item) }
         popup.show()
+    }
+
+    private fun showProfileMenuById(anchor: View, profileId: Long) {
+        latestProfiles.firstOrNull { it.id == profileId }?.let { profile ->
+            showProfileMenu(anchor, profile)
+        }
     }
 
     private fun handleProfileMenuItem(profile: ProxyEntity, item: MenuItem): Boolean {
@@ -307,5 +320,18 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         val isSubscriptionGroup: Boolean,
         val profiles: List<ProxyEntity>,
     )
+
+    private fun List<ProxyEntity>.toDashboardProfileItems(
+        activeId: Long,
+    ): List<DashboardProfileListRenderer.Item> {
+        return map { profile ->
+            DashboardProfileListRenderer.Item(
+                id = profile.id,
+                name = profile.displayName() ?: "",
+                protocol = profile.displayType(),
+                isActive = profile.id == activeId,
+            )
+        }
+    }
 
 }

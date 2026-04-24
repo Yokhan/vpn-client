@@ -156,4 +156,6 @@ Speed and latency now flow through shared value contracts while Android keeps lo
 
 The first Android renderer split is also in place: `DashboardViewRenderer` owns connection-state theme application, while `DashboardFragment` keeps lifecycle, data loading, timers, and user actions.
 
-Next step: continue shrinking `DashboardFragment` by moving profile header rendering and profile-list presentation models behind explicit adapters. Keep current `main` releasable while the rewrite grows behind explicit adapters.
+Profile list rendering now consumes explicit presentation items instead of database entities.
+
+Next step: continue shrinking `DashboardFragment` by moving active profile header rendering behind an explicit adapter. Keep current `main` releasable while the rewrite grows behind explicit adapters.

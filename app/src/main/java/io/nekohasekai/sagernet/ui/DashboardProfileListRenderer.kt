@@ -7,7 +7,6 @@ import android.view.View
 import android.widget.LinearLayout
 import androidx.core.view.isVisible
 import io.nekohasekai.sagernet.R
-import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.databinding.ItemDashboardProfileBinding
 
 internal class DashboardProfileListRenderer(
@@ -16,29 +15,28 @@ internal class DashboardProfileListRenderer(
     private val actions: Actions,
 ) {
 
-    fun render(profiles: List<ProxyEntity>, activeId: Long, isConnected: Boolean) {
+    fun render(items: List<Item>, isConnected: Boolean) {
         container.removeAllViews()
 
         val inflater = LayoutInflater.from(container.context)
-        profiles.forEachIndexed { index, profile ->
+        items.forEachIndexed { index, item ->
             val itemBinding = ItemDashboardProfileBinding.inflate(inflater, container, false)
-            val isActive = profile.id == activeId
 
             itemBinding.profileDivider.isVisible = index != 0
-            itemBinding.profileName.text = profile.displayName()
-            itemBinding.profileProtocol.text = profile.displayType()
+            itemBinding.profileName.text = item.name
+            itemBinding.profileProtocol.text = item.protocol
             itemBinding.profileItemRoot.setOnClickListener {
-                actions.onSelect(profile)
+                actions.onSelect(item.id)
             }
             itemBinding.profileEdit.setOnClickListener {
-                actions.onEdit(profile)
+                actions.onEdit(item.id)
             }
             itemBinding.profileMenu.setOnClickListener {
-                actions.onMenu(it, profile)
+                actions.onMenu(it, item.id)
             }
 
-            itemBinding.root.setTag(R.id.profile_active_bar, isActive)
-            applyRowTheme(itemBinding, isActive, isConnected)
+            itemBinding.root.setTag(R.id.profile_active_bar, item.isActive)
+            applyRowTheme(itemBinding, item.isActive, isConnected)
 
             container.addView(itemBinding.root)
         }
@@ -81,9 +79,16 @@ internal class DashboardProfileListRenderer(
         itemBinding.profileMenu.imageTintList = ColorStateList.valueOf(actionColor)
     }
 
-    data class Actions(
-        val onSelect: (ProxyEntity) -> Unit,
-        val onEdit: (ProxyEntity) -> Unit,
-        val onMenu: (View, ProxyEntity) -> Unit,
+    data class Item(
+        val id: Long,
+        val name: String,
+        val protocol: String,
+        val isActive: Boolean,
+    )
+
+    class Actions(
+        val onSelect: (Long) -> Unit,
+        val onEdit: (Long) -> Unit,
+        val onMenu: (View, Long) -> Unit,
     )
 }
