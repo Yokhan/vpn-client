@@ -69,11 +69,9 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
         viewRenderer?.bindActions(
             DashboardViewRenderer.Actions(
-                onToggleConnection = { (activity as? MainActivity)?.toggleConnection() },
-                onRunConnectionTest = { (activity as? MainActivity)?.runConnectionTest() },
-                onOpenConfiguration = {
-                    (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_configuration)
-                },
+                onToggleConnection = { dashboardHost()?.toggleDashboardConnection() },
+                onRunConnectionTest = { dashboardHost()?.runDashboardConnectionTest() },
+                onOpenConfiguration = { dashboardHost()?.openDashboardConfiguration() },
             ),
         )
 
@@ -131,7 +129,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
                 summary.toDashboardProfileHeader(dashboardState),
             )
             populateProfileList(summary.profiles, latestProfileId)
-            (activity as? MainActivity)?.binding?.stats?.updateProtocol(
+            dashboardHost()?.updateDashboardProtocol(
                 summary.profile?.displayType() ?: "--"
             )
 
@@ -263,7 +261,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             }
             true
         } catch (e: Exception) {
-            (activity as? MainActivity)?.snackbar(e.readableMessage)?.show()
+            dashboardHost()?.showDashboardMessage(e.readableMessage)
             true
         }
     }
@@ -274,9 +272,13 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     private fun exportProfile(link: String) {
         val success = SagerNet.trySetPrimaryClip(link)
-        (activity as? MainActivity)
-            ?.snackbar(if (success) R.string.action_export_msg else R.string.action_export_err)
-            ?.show()
+        dashboardHost()?.showDashboardMessage(
+            if (success) R.string.action_export_msg else R.string.action_export_err
+        )
+    }
+
+    private fun dashboardHost(): DashboardHost? {
+        return activity as? DashboardHost
     }
 
     private fun colorOf(colorRes: Int): Int {

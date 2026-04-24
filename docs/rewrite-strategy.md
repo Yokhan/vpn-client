@@ -162,4 +162,6 @@ Active profile header rendering is now owned by `DashboardViewRenderer` through 
 
 Dashboard click wiring is now owned by `DashboardViewRenderer.Actions`.
 
-Next step: continue shrinking `DashboardFragment` by moving stats-bar protocol updates and host interactions behind explicit adapters. Keep current `main` releasable while the rewrite grows behind explicit adapters.
+Dashboard host interactions now go through `DashboardHost`, including connection actions, configuration navigation, stats-bar protocol updates, and dashboard messages.
+
+Next step: fix the current XML dashboard visual regressions, then continue moving remaining dashboard data/action adapters out of `DashboardFragment`. Keep current `main` releasable while the rewrite grows behind explicit adapters.

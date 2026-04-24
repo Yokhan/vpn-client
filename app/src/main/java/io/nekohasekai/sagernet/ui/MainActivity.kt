@@ -56,6 +56,7 @@ import moe.matsuri.nb4a.utils.Util
 class MainActivity : ThemedActivity(),
     SagerConnection.Callback,
     OnPreferenceDataStoreChangeListener,
+    DashboardHost,
     NavigationView.OnNavigationItemSelectedListener {
 
     lateinit var binding: LayoutMainBinding
@@ -519,12 +520,36 @@ class MainActivity : ThemedActivity(),
         }
     }
 
+    override fun toggleDashboardConnection() {
+        toggleConnection()
+    }
+
     fun runConnectionTest() {
         if (DataStore.serviceState.connected) {
             binding.stats.testConnection()
         } else {
             snackbar(R.string.not_connected).show()
         }
+    }
+
+    override fun runDashboardConnectionTest() {
+        runConnectionTest()
+    }
+
+    override fun openDashboardConfiguration() {
+        displayFragmentWithId(R.id.nav_configuration)
+    }
+
+    override fun updateDashboardProtocol(protocol: String) {
+        binding.stats.updateProtocol(protocol)
+    }
+
+    override fun showDashboardMessage(message: CharSequence) {
+        snackbar(message).show()
+    }
+
+    override fun showDashboardMessage(messageRes: Int) {
+        snackbar(messageRes).show()
     }
 
 }
