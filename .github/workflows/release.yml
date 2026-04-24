@@ -147,7 +147,7 @@ jobs:
           echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
           export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
           ./run init action gradle
-          ./gradlew app:assembleOssRelease
+          ./gradlew :shared-domain:check app:assembleOssRelease
       - name: Collect artifacts
         shell: bash
         run: |
@@ -246,7 +246,7 @@ jobs:
           echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
           export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
           ./run init action gradle
-          ./gradlew bundlePlayRelease
+          ./gradlew :shared-domain:check bundlePlayRelease
       - uses: actions/upload-artifact@v4
         with:
           name: play-aab

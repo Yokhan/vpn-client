@@ -83,6 +83,7 @@ Full setup and operations are documented in [docs/ci-cd.md](docs/ci-cd.md).
 Current cleanup priorities are tracked in [docs/technical-debt.md](docs/technical-debt.md).
 Source-closure constraints and the cleanup plan are tracked in [docs/source-closure-and-cleanup.md](docs/source-closure-and-cleanup.md).
 Rewrite architecture and language decisions for Android, iOS, Windows, Kotlin Multiplatform, and Rust-owned hot paths are tracked in [docs/rewrite-strategy.md](docs/rewrite-strategy.md).
+Bundled asset notices are tracked in [docs/third-party-notices.md](docs/third-party-notices.md).
 
 ## Detaching From Matsuri
 
@@ -106,6 +107,7 @@ If these are not set, build scripts fall back to:
 ## Repo Layout
 
 - `app/` - Android client
+- `shared/domain/` - Kotlin Multiplatform shared domain models and dashboard state mapping
 - `libcore/` - Go mobile bridge and native bindings
 - `buildScript/` - build bootstrap and native build scripts
 - `.github/workflows/` - CI and release automation

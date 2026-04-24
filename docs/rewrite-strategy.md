@@ -150,4 +150,6 @@ No release from the rewrite branch unless:
 
 ## Immediate Next Step
 
-Create a rewrite branch with KMP package boundaries, a Compose dashboard prototype, and a thin adapter over the current Android runtime. Keep current `main` releasable while the rewrite grows behind a separate branch.
+The first shared-domain KMP module now exists at `shared/domain/` and is checked in CI before Android APK builds.
+
+Next step: connect Android dashboard rendering to the shared `DashboardState` contract through a thin adapter, then move only deterministic formatting/state rules out of the legacy fragment. Keep current `main` releasable while the rewrite grows behind explicit adapters.
