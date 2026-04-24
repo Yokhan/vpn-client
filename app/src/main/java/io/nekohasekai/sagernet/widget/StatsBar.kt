@@ -10,6 +10,7 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import com.yokhan.vpn.shared.domain.LatencyDisplay
 import com.google.android.material.bottomappbar.BottomAppBar
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.bg.BaseService
@@ -19,6 +20,7 @@ import io.nekohasekai.sagernet.ktx.app
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
+import io.nekohasekai.sagernet.ui.DashboardTelemetryFormatter
 import io.nekohasekai.sagernet.ui.MainActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -147,7 +149,10 @@ class StatsBar @JvmOverloads constructor(
     }
 
     fun updateLatency(ms: Int) {
-        latencyValue.text = context.getString(R.string.dashboard_latency_ms, ms)
+        latencyValue.text = DashboardTelemetryFormatter.latency(
+            context,
+            LatencyDisplay(ms.toLong()),
+        )
     }
 
     fun updateProtocol(name: String) {

@@ -3,7 +3,6 @@ package io.nekohasekai.sagernet.ui
 import android.graphics.Color
 import android.os.Bundle
 import android.os.SystemClock
-import android.text.format.Formatter
 import android.view.Gravity
 import android.view.MenuItem
 import android.view.View
@@ -329,8 +328,15 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         val binding = _binding ?: return
         latestTxRate = txRate
         latestRxRate = rxRate
-        binding.uploadSpeed.text = formatSpeed(txRate)
-        binding.downloadSpeed.text = formatSpeed(rxRate)
+        val dashboardState = buildDashboardState()
+        binding.uploadSpeed.text = DashboardTelemetryFormatter.speed(
+            requireContext(),
+            dashboardState.uploadRate,
+        )
+        binding.downloadSpeed.text = DashboardTelemetryFormatter.speed(
+            requireContext(),
+            dashboardState.downloadRate,
+        )
     }
 
     private fun startTimer() {
@@ -435,14 +441,6 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     private fun colorOf(colorRes: Int): Int {
         return ContextCompat.getColor(requireContext(), colorRes)
-    }
-
-    private fun formatSpeed(rate: Long): String {
-        return if (rate <= 0L) {
-            getString(R.string.dashboard_speed_idle)
-        } else {
-            getString(R.string.speed, Formatter.formatFileSize(requireContext(), rate))
-        }
     }
 
     private fun buildDashboardState(

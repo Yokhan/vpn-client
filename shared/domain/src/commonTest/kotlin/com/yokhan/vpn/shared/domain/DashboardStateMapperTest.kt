@@ -3,6 +3,7 @@ package com.yokhan.vpn.shared.domain
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class DashboardStateMapperTest {
@@ -30,6 +31,9 @@ class DashboardStateMapperTest {
         assertEquals(ConnectionStatus.Connected, state.connectionStatus)
         assertEquals("Bridge-igor", state.activeProfileName)
         assertEquals("VLESS · Подписка #1776115554141", state.activeProfileSubtitle)
+        assertEquals(RateDisplay(12_492), state.uploadRate)
+        assertEquals(RateDisplay(49_869), state.downloadRate)
+        assertEquals(LatencyDisplay(103), state.latency)
         assertEquals("12.2 KB/s", state.uploadLabel)
         assertEquals("48.7 KB/s", state.downloadLabel)
         assertEquals("103 мс", state.latencyLabel)
@@ -54,6 +58,9 @@ class DashboardStateMapperTest {
 
         assertEquals("Нет конфигурации", state.activeProfileName)
         assertEquals("Выберите профиль", state.activeProfileSubtitle)
+        assertEquals(RateDisplay(0), state.uploadRate)
+        assertEquals(RateDisplay(0), state.downloadRate)
+        assertEquals(LatencyDisplay(null), state.latency)
         assertEquals("0 B/s", state.uploadLabel)
         assertEquals("--", state.latencyLabel)
         assertFalse(state.shouldAnimateSpace)
@@ -103,5 +110,15 @@ class DashboardStateMapperTest {
         )
 
         assertEquals("TUIC · Manual", state.activeProfileSubtitle)
+    }
+
+    @Test
+    fun rejectsNegativeTelemetryValues() {
+        assertFailsWith<IllegalArgumentException> {
+            RateDisplay(-1)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            LatencyDisplay(-1)
+        }
     }
 }
