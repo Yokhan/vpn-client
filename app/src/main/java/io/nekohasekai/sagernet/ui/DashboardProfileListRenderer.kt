@@ -3,6 +3,7 @@ package io.nekohasekai.sagernet.ui
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.LinearLayout
 import androidx.core.view.isVisible
 import io.nekohasekai.sagernet.R
@@ -12,6 +13,7 @@ import io.nekohasekai.sagernet.databinding.ItemDashboardProfileBinding
 internal class DashboardProfileListRenderer(
     private val container: LinearLayout,
     private val colorOf: (Int) -> Int,
+    private val actions: Actions,
 ) {
 
     fun render(profiles: List<ProxyEntity>, activeId: Long, isConnected: Boolean) {
@@ -25,11 +27,14 @@ internal class DashboardProfileListRenderer(
             itemBinding.profileDivider.isVisible = index != 0
             itemBinding.profileName.text = profile.displayName()
             itemBinding.profileProtocol.text = profile.displayType()
+            itemBinding.profileItemRoot.setOnClickListener {
+                actions.onSelect(profile)
+            }
             itemBinding.profileEdit.setOnClickListener {
-                // TODO: open profile editor
+                actions.onEdit(profile)
             }
             itemBinding.profileMenu.setOnClickListener {
-                // TODO: show profile menu
+                actions.onMenu(it, profile)
             }
 
             itemBinding.root.setTag(R.id.profile_active_bar, isActive)
@@ -75,4 +80,10 @@ internal class DashboardProfileListRenderer(
         itemBinding.profileEdit.imageTintList = ColorStateList.valueOf(actionColor)
         itemBinding.profileMenu.imageTintList = ColorStateList.valueOf(actionColor)
     }
+
+    data class Actions(
+        val onSelect: (ProxyEntity) -> Unit,
+        val onEdit: (ProxyEntity) -> Unit,
+        val onMenu: (View, ProxyEntity) -> Unit,
+    )
 }

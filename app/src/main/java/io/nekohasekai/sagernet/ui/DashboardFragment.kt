@@ -5,20 +5,28 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.text.format.Formatter
 import android.view.Gravity
+import android.view.MenuItem
 import android.view.View
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.card.MaterialCardView
+import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.databinding.LayoutDashboardBinding
+import io.nekohasekai.sagernet.fmt.toUniversalLink
+import io.nekohasekai.sagernet.ktx.readableMessage
+import io.nekohasekai.sagernet.ktx.showAllowingStateLoss
 import io.nekohasekai.sagernet.widget.ListListener
+import io.nekohasekai.sagernet.widget.QRCodeDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -34,6 +42,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     private var latestProfiles: List<ProxyEntity> = emptyList()
     private var latestProfileId = 0L
+    private var currentGroupIsSubscription = false
     private var currentState = BaseService.State.Idle
 
     private var timerJob: Job? = null
@@ -45,7 +54,15 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         super.onViewCreated(view, savedInstanceState)
         _binding = LayoutDashboardBinding.bind(view)
         orbMotionController = DashboardOrbMotionController(binding)
-        profileListRenderer = DashboardProfileListRenderer(binding.profilesContainer, ::colorOf)
+        profileListRenderer = DashboardProfileListRenderer(
+            binding.profilesContainer,
+            ::colorOf,
+            DashboardProfileListRenderer.Actions(
+                onSelect = ::selectProfile,
+                onEdit = ::editProfile,
+                onMenu = ::showProfileMenu,
+            ),
+        )
 
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
         toolbar.setTitle(R.string.app_name)
@@ -89,7 +106,8 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             val summary = withContext(Dispatchers.IO) {
                 DataStore.ensureGroupsLoaded()
                 val groupId = DataStore.currentGroupId()
-                val group = DataStore.currentGroup().displayName()
+                val groupEntity = DataStore.currentGroup()
+                val group = groupEntity.displayName()
                 val profile = ProfileManager.getProfile(DataStore.selectedProxy)
                 val serviceMode = if (DataStore.serviceMode == Key.MODE_VPN) {
                     getString(R.string.service_mode_vpn)
@@ -97,12 +115,19 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
                     getString(R.string.service_mode_proxy)
                 }
                 val profiles = SagerDatabase.proxyDao.getByGroup(groupId)
-                DashboardSummary(profile, group, serviceMode, profiles)
+                DashboardSummary(
+                    profile,
+                    group,
+                    groupEntity.type == GroupType.SUBSCRIPTION,
+                    serviceMode,
+                    profiles,
+                )
             }
 
             val binding = _binding ?: return@launch
             latestProfiles = summary.profiles
             latestProfileId = summary.profile?.id ?: 0L
+            currentGroupIsSubscription = summary.isSubscriptionGroup
 
             binding.toolbarSysLabel.text = summary.serviceModeLabel.uppercase(Locale.getDefault())
 
@@ -138,17 +163,18 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         val binding = _binding ?: return
         context ?: return
         val isConnected = state == BaseService.State.Connected
+        val isStarted = state.started
         val theme = dashboardTheme(isConnected)
 
-        applySpaceTheme(binding, isConnected, theme)
+        applySpaceTheme(binding, isStarted, theme)
         applyToolbarTheme(binding, theme)
         applyCardsTheme(binding, theme)
         applyTrafficTheme(binding, theme)
-        applyOrbTheme(binding, isConnected, theme)
+        applyOrbTheme(binding, isConnected, isStarted, theme)
         applyStatusTheme(binding, state, isConnected, theme)
         applyTestButtonTheme(binding, isConnected, theme)
         profileListRenderer?.applyTheme(isConnected, theme.divider)
-        orbMotionController?.update(isConnected)
+        orbMotionController?.update(isStarted)
     }
 
     private fun dashboardTheme(isConnected: Boolean): DashboardTheme {
@@ -186,16 +212,16 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     private fun applySpaceTheme(
         binding: LayoutDashboardBinding,
-        isConnected: Boolean,
+        isStarted: Boolean,
         theme: DashboardTheme,
     ) {
         binding.dashboardRoot.setBackgroundColor(theme.background)
-        binding.dashboardSpaceBackground.animate().alpha(if (isConnected) 1f else 0f)
+        binding.dashboardSpaceBackground.animate().alpha(if (isStarted) 1f else 0f)
             .setDuration(600L).start()
-        binding.dashboardSpaceGlow.animate().alpha(if (isConnected) 1f else 0f)
+        binding.dashboardSpaceGlow.animate().alpha(if (isStarted) 1f else 0f)
             .setDuration(600L).start()
-        binding.dashboardStars.setConnected(isConnected)
-        binding.dashboardStars.animate().alpha(if (isConnected) 1f else 0f)
+        binding.dashboardStars.setConnected(isStarted)
+        binding.dashboardStars.animate().alpha(if (isStarted) 1f else 0f)
             .setDuration(800L).start()
     }
 
@@ -230,6 +256,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private fun applyOrbTheme(
         binding: LayoutDashboardBinding,
         isConnected: Boolean,
+        isStarted: Boolean,
         theme: DashboardTheme,
     ) {
         binding.signalBox.setBackgroundResource(
@@ -243,8 +270,8 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             if (isConnected) R.drawable.bg_dashboard_orb_ring_on
             else R.drawable.bg_dashboard_orb_ring_off
         )
-        binding.orbMarks.setConnected(isConnected)
-        binding.connectCenterLabel.isVisible = !isConnected
+        binding.orbMarks.setConnected(isStarted)
+        binding.connectCenterLabel.isVisible = !isStarted
         binding.connectCenterLabel.setTextColor(theme.secondary)
     }
 
@@ -315,6 +342,83 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         timerJob = null
     }
 
+    private fun selectProfile(profile: ProxyEntity) {
+        if (profile.id == latestProfileId) return
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val previous = DataStore.selectedProxy
+            DataStore.selectedProxy = profile.id
+            DataStore.currentProfile = profile.id
+            ProfileManager.postUpdate(previous, true)
+            ProfileManager.postUpdate(profile.id, true)
+            if (DataStore.serviceState.canStop) {
+                SagerNet.reloadService()
+            }
+            withContext(Dispatchers.Main) {
+                if (_binding != null) refreshDashboard()
+            }
+        }
+    }
+
+    private fun editProfile(profile: ProxyEntity) {
+        startActivity(profile.settingIntent(requireContext(), currentGroupIsSubscription))
+    }
+
+    private fun showProfileMenu(anchor: View, profile: ProxyEntity) {
+        val popup = PopupMenu(requireContext(), anchor)
+        popup.menuInflater.inflate(R.menu.profile_share_menu, popup.menu)
+
+        if (!profile.haveStandardLink()) {
+            popup.menu.findItem(R.id.action_group_qr).subMenu?.removeItem(R.id.action_standard_qr)
+            popup.menu.findItem(R.id.action_group_clipboard).subMenu?.removeItem(
+                R.id.action_standard_clipboard
+            )
+        }
+        if (!profile.haveLink()) {
+            popup.menu.removeItem(R.id.action_group_qr)
+            popup.menu.removeItem(R.id.action_group_clipboard)
+        }
+        if (profile.nekoBean != null) {
+            popup.menu.removeItem(R.id.action_group_configuration)
+        } else {
+            popup.menu.findItem(R.id.action_group_configuration).subMenu?.removeItem(
+                R.id.action_config_export_file
+            )
+        }
+
+        popup.setOnMenuItemClickListener { item -> handleProfileMenuItem(profile, item) }
+        popup.show()
+    }
+
+    private fun handleProfileMenuItem(profile: ProxyEntity, item: MenuItem): Boolean {
+        return try {
+            val name = profile.displayName() ?: ""
+            when (item.itemId) {
+                R.id.action_standard_qr -> showProfileQr(profile.toStdLink(), name)
+                R.id.action_standard_clipboard -> exportProfile(profile.toStdLink())
+                R.id.action_universal_qr -> showProfileQr(profile.requireBean().toUniversalLink(), name)
+                R.id.action_universal_clipboard -> exportProfile(
+                    profile.requireBean().toUniversalLink()
+                )
+                R.id.action_config_export_clipboard -> exportProfile(profile.exportConfig().first)
+            }
+            true
+        } catch (e: Exception) {
+            (activity as? MainActivity)?.snackbar(e.readableMessage)?.show()
+            true
+        }
+    }
+
+    private fun showProfileQr(link: String, name: String) {
+        QRCodeDialog(link, name).showAllowingStateLoss(parentFragmentManager)
+    }
+
+    private fun exportProfile(link: String) {
+        val success = SagerNet.trySetPrimaryClip(link)
+        (activity as? MainActivity)
+            ?.snackbar(if (success) R.string.action_export_msg else R.string.action_export_err)
+            ?.show()
+    }
+
     private fun themeCard(card: MaterialCardView, strokeColor: Int) {
         card.setCardBackgroundColor(Color.TRANSPARENT)
         card.strokeColor = strokeColor
@@ -343,6 +447,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private data class DashboardSummary(
         val profile: ProxyEntity?,
         val groupName: String,
+        val isSubscriptionGroup: Boolean,
         val serviceModeLabel: String,
         val profiles: List<ProxyEntity>,
     )

@@ -43,12 +43,8 @@ internal class DashboardOrbMotionController(
     }
 
     private fun stopLoopingAnimations() {
-        ringAnimator?.cancel()
-        ringAnimator = null
-        flameLeftAnimator?.cancel()
-        flameLeftAnimator = null
-        flameRightAnimator?.cancel()
-        flameRightAnimator = null
+        stopRingAnimation()
+        stopFlameAnimations()
 
         binding.connectRing.scaleX = 1f
         binding.connectRing.scaleY = 1f
@@ -57,6 +53,18 @@ internal class DashboardOrbMotionController(
         binding.rocketFlameLeft.scaleY = 1f
         binding.rocketFlameRight.scaleX = 1f
         binding.rocketFlameRight.scaleY = 1f
+    }
+
+    private fun stopRingAnimation() {
+        ringAnimator?.cancel()
+        ringAnimator = null
+    }
+
+    private fun stopFlameAnimations() {
+        flameLeftAnimator?.cancel()
+        flameLeftAnimator = null
+        flameRightAnimator?.cancel()
+        flameRightAnimator = null
     }
 
     private fun showRocket() {
@@ -76,16 +84,21 @@ internal class DashboardOrbMotionController(
     }
 
     private fun hideRocket() {
-        stopLoopingAnimations()
+        stopRingAnimation()
         binding.rocketGroup.animate().cancel()
         binding.rocketGroup.animate()
             .alpha(0f)
-            .translationY(hiddenRocketTranslation())
-            .setDuration(320L)
+            .translationY(-hiddenRocketTranslation())
+            .setDuration(800L)
             .setInterpolator(AccelerateDecelerateInterpolator())
+            .withEndAction {
+                stopFlameAnimations()
+                if (isReleased) return@withEndAction
+                binding.rocketGroup.translationY = hiddenRocketTranslation()
+                binding.rocketFlameLeft.alpha = 0f
+                binding.rocketFlameRight.alpha = 0f
+            }
             .start()
-        binding.rocketFlameLeft.alpha = 0f
-        binding.rocketFlameRight.alpha = 0f
     }
 
     private fun startLoopingAnimations() {
