@@ -17,7 +17,7 @@ Main changes relative to upstream:
 ## Current State
 
 - package: `com.buffitgates.vpnservice`
-- current version: `1.6.4`
+- current version: `1.6.6`
 - main Android app module: `app/`
 - native core wrapper: `libcore/`
 - metadata and versioning: `nb4a.properties`
@@ -79,6 +79,7 @@ Short version:
 
 Full setup and operations are documented in [docs/ci-cd.md](docs/ci-cd.md).
 Current cleanup priorities are tracked in [docs/technical-debt.md](docs/technical-debt.md).
+Source-closure constraints and the cleanup plan are tracked in [docs/source-closure-and-cleanup.md](docs/source-closure-and-cleanup.md).
 
 ## Detaching From Matsuri
 

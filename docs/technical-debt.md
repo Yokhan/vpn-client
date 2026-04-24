@@ -4,11 +4,12 @@ This file tracks concrete cleanup work that affects build reliability, UI qualit
 
 ## Highest Priority
 
-- Dashboard UI state is still owned by `DashboardFragment`, but connection-state rendering, orbital motion, and profile list rendering are now split into smaller units. Next step: wire real profile edit/menu actions through renderer callbacks instead of TODO listeners.
+- Dashboard UI state is still owned by `DashboardFragment`, but connection-state rendering, orbital motion, and profile list rendering are now split into smaller units. Profile select/edit/menu actions are wired; next step is device-verified visual parity, not another blind refactor.
 - `StarfieldView` and `OrbMarksView` still carry copied web star/mark coordinates, but the runtime constants are now named and source-mapped to `preview/dashboard.html`.
 - Dashboard layout still has fixed spacing in secondary sections, but the central launch scene dimensions now live in `dimens.xml`.
 - CI and Release workflows duplicate libcore/bootstrap steps. Extract shared setup into a composite action or reusable workflow once the release process is stable.
 - Native core source defaults still fall back to `MatsuriDayo/*`. Full detachment requires Yokhan-owned forks or explicit `CORE_*_GIT_URL` repository variables.
+- Closed-source transition and upstream cleanup constraints are tracked in `docs/source-closure-and-cleanup.md`.
 
 ## Process Rules
 

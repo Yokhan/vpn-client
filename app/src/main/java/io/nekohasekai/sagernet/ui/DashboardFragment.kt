@@ -13,7 +13,6 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.card.MaterialCardView
 import io.nekohasekai.sagernet.GroupType
-import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.BaseService
@@ -33,7 +32,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Locale
 
 class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
@@ -65,7 +63,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         )
 
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
-        toolbar.setTitle(R.string.app_name)
+        toolbar.setTitle(R.string.dashboard_title)
 
         binding.connectCircle.setOnClickListener {
             (activity as? MainActivity)?.toggleConnection()
@@ -109,17 +107,11 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
                 val groupEntity = DataStore.currentGroup()
                 val group = groupEntity.displayName()
                 val profile = ProfileManager.getProfile(DataStore.selectedProxy)
-                val serviceMode = if (DataStore.serviceMode == Key.MODE_VPN) {
-                    getString(R.string.service_mode_vpn)
-                } else {
-                    getString(R.string.service_mode_proxy)
-                }
                 val profiles = SagerDatabase.proxyDao.getByGroup(groupId)
                 DashboardSummary(
                     profile,
                     group,
                     groupEntity.type == GroupType.SUBSCRIPTION,
-                    serviceMode,
                     profiles,
                 )
             }
@@ -129,7 +121,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             latestProfileId = summary.profile?.id ?: 0L
             currentGroupIsSubscription = summary.isSubscriptionGroup
 
-            binding.toolbarSysLabel.text = summary.serviceModeLabel.uppercase(Locale.getDefault())
+            binding.toolbarSysLabel.text = getString(R.string.dashboard_system_label)
 
             binding.currentProfileName.text =
                 summary.profile?.displayName() ?: getString(R.string.dashboard_no_profile)
@@ -448,7 +440,6 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         val profile: ProxyEntity?,
         val groupName: String,
         val isSubscriptionGroup: Boolean,
-        val serviceModeLabel: String,
         val profiles: List<ProxyEntity>,
     )
 

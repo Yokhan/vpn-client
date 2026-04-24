@@ -41,6 +41,7 @@
     <string name="dashboard_latency_ms">%d МС</string>
     <string name="dashboard_orb_idle">ПУСК</string>
     <string name="dashboard_status_label">СТАТУС</string>
+    <string name="dashboard_system_label">СИСТЕМА · 01</string>
     <string name="configuration_hub_title">Profiles &amp; Import</string>
     <string name="configuration_hub_current_profile">Selected profile</string>
     <string name="configuration_hub_current_group">Active group</string>
