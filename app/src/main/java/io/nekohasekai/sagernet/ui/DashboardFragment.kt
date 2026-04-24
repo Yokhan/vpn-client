@@ -1,12 +1,10 @@
 package io.nekohasekai.sagernet.ui
 
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Bundle
 import android.os.SystemClock
 import android.text.format.Formatter
 import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.View
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
@@ -19,7 +17,6 @@ import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
-import io.nekohasekai.sagernet.databinding.ItemDashboardProfileBinding
 import io.nekohasekai.sagernet.databinding.LayoutDashboardBinding
 import io.nekohasekai.sagernet.widget.ListListener
 import kotlinx.coroutines.Dispatchers
@@ -42,11 +39,13 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private var timerJob: Job? = null
     private var connectionStartTime = 0L
     private var orbMotionController: DashboardOrbMotionController? = null
+    private var profileListRenderer: DashboardProfileListRenderer? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = LayoutDashboardBinding.bind(view)
         orbMotionController = DashboardOrbMotionController(binding)
+        profileListRenderer = DashboardProfileListRenderer(binding.profilesContainer, ::colorOf)
 
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
         toolbar.setTitle(R.string.app_name)
@@ -80,6 +79,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         timerJob?.cancel()
         orbMotionController?.release()
         orbMotionController = null
+        profileListRenderer = null
         _binding = null
         super.onDestroyView()
     }
@@ -126,34 +126,11 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     }
 
     private fun populateProfileList(profiles: List<ProxyEntity>, activeId: Long) {
-        val container = binding.profilesContainer
-        container.removeAllViews()
-
-        val inflater = LayoutInflater.from(requireContext())
-        profiles.forEachIndexed { index, profile ->
-            val itemBinding = ItemDashboardProfileBinding.inflate(inflater, container, false)
-            val isActive = profile.id == activeId
-
-            itemBinding.profileDivider.isVisible = index != 0
-            itemBinding.profileName.text = profile.displayName()
-            itemBinding.profileProtocol.text = profile.displayType()
-
-            itemBinding.profileEdit.setOnClickListener {
-                // TODO: open profile editor
-            }
-            itemBinding.profileMenu.setOnClickListener {
-                // TODO: show profile menu
-            }
-
-            itemBinding.root.setTag(R.id.profile_active_bar, isActive)
-            applyProfileRowTheme(
-                itemBinding,
-                isActive,
-                currentState == BaseService.State.Connected
-            )
-
-            container.addView(itemBinding.root)
-        }
+        profileListRenderer?.render(
+            profiles,
+            activeId,
+            currentState == BaseService.State.Connected,
+        )
     }
 
     fun updateConnectionState(state: BaseService.State) {
@@ -170,7 +147,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         applyOrbTheme(binding, isConnected, theme)
         applyStatusTheme(binding, state, isConnected, theme)
         applyTestButtonTheme(binding, isConnected, theme)
-        applyProfileContainerTheme(theme.divider)
+        profileListRenderer?.applyTheme(isConnected, theme.divider)
         orbMotionController?.update(isConnected)
     }
 
@@ -336,44 +313,6 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private fun stopTimer() {
         timerJob?.cancel()
         timerJob = null
-    }
-
-    private fun applyProfileContainerTheme(dividerColor: Int) {
-        val isConnected = currentState == BaseService.State.Connected
-        for (index in 0 until binding.profilesContainer.childCount) {
-            val itemView = binding.profilesContainer.getChildAt(index)
-            val isActive = itemView.getTag(R.id.profile_active_bar) as? Boolean ?: false
-            val itemBinding = ItemDashboardProfileBinding.bind(itemView)
-            itemBinding.profileDivider.setBackgroundColor(dividerColor)
-            applyProfileRowTheme(itemBinding, isActive, isConnected)
-        }
-    }
-
-    private fun applyProfileRowTheme(
-        itemBinding: ItemDashboardProfileBinding,
-        isActive: Boolean,
-        isConnected: Boolean,
-    ) {
-        val primaryColor = colorOf(
-            if (isConnected) R.color.dashboard_space_text_primary else R.color.dashboard_text_primary
-        )
-        val tertiaryColor = colorOf(
-            if (isConnected) R.color.dashboard_space_text_secondary else R.color.dashboard_text_tertiary
-        )
-        val actionColor = colorOf(
-            if (isConnected) R.color.dashboard_space_text_secondary else R.color.dashboard_text_quaternary
-        )
-        val activeColor = colorOf(
-            if (isConnected) R.color.dashboard_green else R.color.dashboard_accent
-        )
-
-        itemBinding.profileActiveBar.backgroundTintList = ColorStateList.valueOf(
-            if (isActive) activeColor else Color.TRANSPARENT
-        )
-        itemBinding.profileName.setTextColor(primaryColor)
-        itemBinding.profileProtocol.setTextColor(tertiaryColor)
-        itemBinding.profileEdit.imageTintList = ColorStateList.valueOf(actionColor)
-        itemBinding.profileMenu.imageTintList = ColorStateList.valueOf(actionColor)
     }
 
     private fun themeCard(card: MaterialCardView, strokeColor: Int) {
