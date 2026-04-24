@@ -154,4 +154,6 @@ The first shared-domain KMP module now exists at `shared/domain/`, is checked in
 
 Speed and latency now flow through shared value contracts while Android keeps localized string rendering.
 
-Next step: split the dashboard renderer from `DashboardFragment` so fragment lifecycle code and view-application code stop living in the same class. Keep current `main` releasable while the rewrite grows behind explicit adapters.
+The first Android renderer split is also in place: `DashboardViewRenderer` owns connection-state theme application, while `DashboardFragment` keeps lifecycle, data loading, timers, and user actions.
+
+Next step: continue shrinking `DashboardFragment` by moving profile header rendering and profile-list presentation models behind explicit adapters. Keep current `main` releasable while the rewrite grows behind explicit adapters.

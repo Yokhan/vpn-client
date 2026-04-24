@@ -1,18 +1,13 @@
 package io.nekohasekai.sagernet.ui
 
-import android.graphics.Color
 import android.os.Bundle
 import android.os.SystemClock
-import android.view.Gravity
 import android.view.MenuItem
 import android.view.View
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
-import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
-import com.yokhan.vpn.shared.domain.ConnectionStatus
 import com.yokhan.vpn.shared.domain.DashboardState
-import com.google.android.material.card.MaterialCardView
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -52,11 +47,13 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private var connectionStartTime = 0L
     private var orbMotionController: DashboardOrbMotionController? = null
     private var profileListRenderer: DashboardProfileListRenderer? = null
+    private var viewRenderer: DashboardViewRenderer? = null
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = LayoutDashboardBinding.bind(view)
         orbMotionController = DashboardOrbMotionController(binding)
+        viewRenderer = DashboardViewRenderer(requireContext(), binding, toolbar)
         profileListRenderer = DashboardProfileListRenderer(
             binding.profilesContainer,
             ::colorOf,
@@ -100,6 +97,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         orbMotionController?.release()
         orbMotionController = null
         profileListRenderer = null
+        viewRenderer = null
         _binding = null
         super.onDestroyView()
     }
@@ -162,166 +160,11 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     fun updateConnectionState(state: BaseService.State) {
         currentState = state
-        val binding = _binding ?: return
-        context ?: return
         val dashboardState = buildDashboardState()
-        val isConnected = dashboardState.connectionStatus == ConnectionStatus.Connected
-        val isStarted = dashboardState.shouldAnimateSpace
-        val theme = dashboardTheme(isConnected)
-
-        applySpaceTheme(binding, isStarted, theme)
-        applyToolbarTheme(binding, theme)
-        applyCardsTheme(binding, theme)
-        applyTrafficTheme(binding, theme)
-        applyOrbTheme(binding, isConnected, isStarted, theme)
-        applyStatusTheme(binding, state, dashboardState, isConnected, theme)
-        applyTestButtonTheme(binding, dashboardState.canRunConnectionTest, theme)
-        profileListRenderer?.applyTheme(isConnected, theme.divider)
-        orbMotionController?.update(isStarted)
-    }
-
-    private fun dashboardTheme(isConnected: Boolean): DashboardTheme {
-        return DashboardTheme(
-            primary = colorOf(
-                if (isConnected) R.color.dashboard_space_text_primary
-                else R.color.dashboard_text_primary
-            ),
-            secondary = colorOf(
-                if (isConnected) R.color.dashboard_space_text_secondary
-                else R.color.dashboard_text_secondary
-            ),
-            tertiary = colorOf(
-                if (isConnected) R.color.dashboard_space_text_secondary
-                else R.color.dashboard_text_tertiary
-            ),
-            border = colorOf(
-                if (isConnected) R.color.dashboard_card_border_on
-                else R.color.dashboard_card_border_off
-            ),
-            divider = colorOf(
-                if (isConnected) R.color.dashboard_divider_dark
-                else R.color.dashboard_divider_light
-            ),
-            accent = colorOf(
-                if (isConnected) R.color.dashboard_green
-                else R.color.dashboard_accent
-            ),
-            background = colorOf(
-                if (isConnected) R.color.dashboard_space_bg
-                else R.color.dashboard_bg_off
-            ),
-        )
-    }
-
-    private fun applySpaceTheme(
-        binding: LayoutDashboardBinding,
-        isStarted: Boolean,
-        theme: DashboardTheme,
-    ) {
-        binding.dashboardRoot.setBackgroundColor(theme.background)
-        binding.dashboardSpaceBackground.animate().alpha(if (isStarted) 1f else 0f)
-            .setDuration(600L).start()
-        binding.dashboardSpaceGlow.animate().alpha(if (isStarted) 1f else 0f)
-            .setDuration(600L).start()
-        binding.dashboardStars.setConnected(isStarted)
-        binding.dashboardStars.animate().alpha(if (isStarted) 1f else 0f)
-            .setDuration(800L).start()
-    }
-
-    private fun applyToolbarTheme(binding: LayoutDashboardBinding, theme: DashboardTheme) {
-        toolbar.setTitleTextColor(theme.primary)
-        toolbar.navigationIcon?.setTint(theme.primary)
-        binding.toolbarSysLabel.setTextColor(theme.secondary)
-        binding.toolbarSysDot.background.setTint(theme.accent)
-    }
-
-    private fun applyCardsTheme(binding: LayoutDashboardBinding, theme: DashboardTheme) {
-        themeCard(binding.currentConfigCard, theme.border)
-        themeCard(binding.profilesCard, theme.border)
-
-        binding.currentConfigLabel.setTextColor(theme.tertiary)
-        binding.currentProfileName.setTextColor(theme.primary)
-        binding.currentProfileInfo.setTextColor(theme.secondary)
-
-        binding.signalBars.setColorFilter(theme.primary)
-        binding.signalStatusDot.background.setTint(theme.accent)
-    }
-
-    private fun applyTrafficTheme(binding: LayoutDashboardBinding, theme: DashboardTheme) {
-        binding.uploadSpeed.setTextColor(theme.primary)
-        binding.downloadSpeed.setTextColor(theme.primary)
-        binding.uploadArrow.setTextColor(theme.accent)
-        binding.downloadArrow.setTextColor(theme.accent)
-        binding.uploadWave.setColorFilter(theme.accent)
-        binding.downloadWave.setColorFilter(theme.accent)
-    }
-
-    private fun applyOrbTheme(
-        binding: LayoutDashboardBinding,
-        isConnected: Boolean,
-        isStarted: Boolean,
-        theme: DashboardTheme,
-    ) {
-        binding.signalBox.setBackgroundResource(
-            if (isConnected) R.drawable.bg_dashboard_signal_box_on
-            else R.drawable.bg_dashboard_signal_box_off
-        )
-        binding.orbBackground.setBackgroundResource(
-            if (isConnected) R.drawable.bg_dashboard_orb_on else R.drawable.bg_dashboard_orb_off
-        )
-        binding.connectRing.setBackgroundResource(
-            if (isConnected) R.drawable.bg_dashboard_orb_ring_on
-            else R.drawable.bg_dashboard_orb_ring_off
-        )
-        binding.orbMarks.setConnected(isStarted)
-        binding.connectCenterLabel.isVisible = !isStarted
-        binding.connectCenterLabel.setTextColor(theme.secondary)
-    }
-
-    private fun applyStatusTheme(
-        binding: LayoutDashboardBinding,
-        state: BaseService.State,
-        dashboardState: DashboardState,
-        isConnected: Boolean,
-        theme: DashboardTheme,
-    ) {
-        binding.connectLabel.text = getString(
-            when (state) {
-                BaseService.State.Connected -> R.string.dashboard_connected_status
-                BaseService.State.Connecting -> R.string.dashboard_state_connecting
-                BaseService.State.Stopping -> R.string.dashboard_state_stopping
-                else -> R.string.dashboard_tap_connect
-            }
-        )
-        binding.connectLabel.setTextColor(if (isConnected) theme.primary else theme.tertiary)
-        binding.connectLabel.gravity = if (isConnected) {
-            Gravity.START or Gravity.CENTER_VERTICAL
-        } else {
-            Gravity.CENTER
-        }
-
-        binding.connectionTimer.isVisible = isConnected
-        binding.connectionTimer.setTextColor(if (isConnected) theme.primary else theme.tertiary)
-        binding.connectionTimer.text = dashboardState.timerLabel
-        if (isConnected) startTimer() else stopTimer()
-    }
-
-    private fun applyTestButtonTheme(
-        binding: LayoutDashboardBinding,
-        canRunConnectionTest: Boolean,
-        theme: DashboardTheme,
-    ) {
-        binding.testConnectionButton.isEnabled = canRunConnectionTest
-        binding.testConnectionButton.alpha = if (canRunConnectionTest) 1f else 0.55f
-        binding.testConnectionButton.background = ContextCompat.getDrawable(
-            requireContext(),
-            if (canRunConnectionTest) R.drawable.bg_dashboard_test_button_on
-            else R.drawable.bg_dashboard_test_button_off
-        )
-        binding.testConnectionButton.setTextColor(theme.secondary)
-        binding.testConnectionButton.compoundDrawablesRelative.forEach { drawable ->
-            drawable?.setTint(theme.secondary)
-        }
+        val renderResult = viewRenderer?.renderConnectionState(state, dashboardState) ?: return
+        profileListRenderer?.applyTheme(renderResult.isConnected, renderResult.dividerColor)
+        orbMotionController?.update(renderResult.isStarted)
+        if (renderResult.isConnected) startTimer() else stopTimer()
     }
 
     fun updateSpeeds(txRate: Long, rxRate: Long) {
@@ -434,11 +277,6 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             ?.show()
     }
 
-    private fun themeCard(card: MaterialCardView, strokeColor: Int) {
-        card.setCardBackgroundColor(Color.TRANSPARENT)
-        card.strokeColor = strokeColor
-    }
-
     private fun colorOf(colorRes: Int): Int {
         return ContextCompat.getColor(requireContext(), colorRes)
     }
@@ -470,13 +308,4 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         val profiles: List<ProxyEntity>,
     )
 
-    private data class DashboardTheme(
-        val primary: Int,
-        val secondary: Int,
-        val tertiary: Int,
-        val border: Int,
-        val divider: Int,
-        val accent: Int,
-        val background: Int,
-    )
 }
