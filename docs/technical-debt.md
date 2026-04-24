@@ -5,8 +5,8 @@ This file tracks concrete cleanup work that affects build reliability, UI qualit
 ## Highest Priority
 
 - Dashboard UI state is too concentrated in `DashboardFragment`. Move visual state transitions into small view methods or custom views so layout, data loading, and animation state are not mixed in one class.
-- `StarfieldView` and `OrbMarksView` currently hardcode design constants copied from `preview/dashboard.html`. Extract these into named constants and keep the source mapping in comments or docs.
-- Dashboard layout uses many fixed `dp` values. Move repeated dimensions into `dimens.xml` so Android and web parity changes can be audited in one place.
+- `StarfieldView` and `OrbMarksView` still carry copied web star/mark coordinates, but the runtime constants are now named and source-mapped to `preview/dashboard.html`.
+- Dashboard layout still has fixed spacing in secondary sections, but the central launch scene dimensions now live in `dimens.xml`.
 - CI and Release workflows duplicate libcore/bootstrap steps. Extract shared setup into a composite action or reusable workflow once the release process is stable.
 - Native core source defaults still fall back to `MatsuriDayo/*`. Full detachment requires Yokhan-owned forks or explicit `CORE_*_GIT_URL` repository variables.
 

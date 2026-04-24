@@ -18,8 +18,8 @@
 
     <View
         android:id="@+id/dashboard_space_glow"
-        android:layout_width="360dp"
-        android:layout_height="220dp"
+        android:layout_width="@dimen/dashboard_space_glow_width"
+        android:layout_height="@dimen/dashboard_space_glow_height"
         android:layout_gravity="bottom|center_horizontal"
         android:alpha="0"
         android:background="@drawable/bg_dashboard_space_glow" />
@@ -179,8 +179,8 @@
 
                         <FrameLayout
                             android:id="@+id/signal_box"
-                            android:layout_width="44dp"
-                            android:layout_height="44dp"
+                            android:layout_width="@dimen/dashboard_signal_box_size"
+                            android:layout_height="@dimen/dashboard_signal_box_size"
                             android:layout_marginTop="4dp"
                             android:background="@drawable/bg_dashboard_signal_box_off"
                             app:layout_constraintBottom_toBottomOf="parent"
@@ -189,8 +189,8 @@
 
                             <ImageView
                                 android:id="@+id/signal_bars"
-                                android:layout_width="20dp"
-                                android:layout_height="14dp"
+                                android:layout_width="@dimen/dashboard_signal_bars_width"
+                                android:layout_height="@dimen/dashboard_signal_bars_height"
                                 android:layout_gravity="center"
                                 android:contentDescription="@null"
                                 android:src="@drawable/ic_dashboard_signal_bars"
@@ -221,7 +221,7 @@
 
                     <LinearLayout
                         android:id="@+id/upload_container"
-                        android:layout_width="72dp"
+                        android:layout_width="@dimen/dashboard_speed_panel_width"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         app:layout_constraintBottom_toBottomOf="@id/connect_circle"
@@ -267,8 +267,8 @@
 
                         <ImageView
                             android:id="@+id/upload_wave"
-                            android:layout_width="56dp"
-                            android:layout_height="8dp"
+                            android:layout_width="@dimen/dashboard_wave_width"
+                            android:layout_height="@dimen/dashboard_wave_height"
                             android:layout_marginTop="4dp"
                             android:alpha="0.25"
                             android:contentDescription="@null"
@@ -278,8 +278,8 @@
 
                     <FrameLayout
                         android:id="@+id/connect_circle"
-                        android:layout_width="192dp"
-                        android:layout_height="192dp"
+                        android:layout_width="@dimen/dashboard_orb_size"
+                        android:layout_height="@dimen/dashboard_orb_size"
                         android:clickable="true"
                         android:clipChildren="false"
                         android:clipToPadding="false"
@@ -303,8 +303,8 @@
 
                         <View
                             android:id="@+id/connect_ring"
-                            android:layout_width="176dp"
-                            android:layout_height="176dp"
+                            android:layout_width="@dimen/dashboard_orb_ring_size"
+                            android:layout_height="@dimen/dashboard_orb_ring_size"
                             android:layout_gravity="center"
                             android:background="@drawable/bg_dashboard_orb_ring_off" />
 
@@ -321,8 +321,8 @@
 
                         <FrameLayout
                             android:id="@+id/rocket_group"
-                            android:layout_width="192dp"
-                            android:layout_height="192dp"
+                            android:layout_width="@dimen/dashboard_rocket_scene_size"
+                            android:layout_height="@dimen/dashboard_rocket_scene_size"
                             android:layout_gravity="center"
                             android:clipChildren="false"
                             android:clipToPadding="false"
@@ -330,41 +330,41 @@
 
                             <ImageView
                                 android:id="@+id/rocket_flame_left"
-                                android:layout_width="22dp"
-                                android:layout_height="86dp"
+                                android:layout_width="@dimen/dashboard_rocket_flame_width"
+                                android:layout_height="@dimen/dashboard_rocket_flame_height"
                                 android:layout_gravity="bottom|center_horizontal"
-                                android:layout_marginBottom="-24dp"
+                                android:layout_marginBottom="@dimen/dashboard_rocket_flame_bottom"
                                 android:alpha="0"
                                 android:contentDescription="@null"
                                 android:src="@drawable/ic_rocket_flame"
-                                android:translationX="-9dp" />
+                                android:translationX="@dimen/dashboard_rocket_flame_left_offset" />
 
                             <ImageView
                                 android:id="@+id/rocket_flame_right"
-                                android:layout_width="22dp"
-                                android:layout_height="86dp"
+                                android:layout_width="@dimen/dashboard_rocket_flame_width"
+                                android:layout_height="@dimen/dashboard_rocket_flame_height"
                                 android:layout_gravity="bottom|center_horizontal"
-                                android:layout_marginBottom="-24dp"
+                                android:layout_marginBottom="@dimen/dashboard_rocket_flame_bottom"
                                 android:alpha="0"
                                 android:contentDescription="@null"
                                 android:src="@drawable/ic_rocket_flame"
-                                android:translationX="8dp" />
+                                android:translationX="@dimen/dashboard_rocket_flame_right_offset" />
 
                             <ImageView
                                 android:id="@+id/connect_icon"
-                                android:layout_width="132dp"
-                                android:layout_height="132dp"
+                                android:layout_width="@dimen/dashboard_rocket_size"
+                                android:layout_height="@dimen/dashboard_rocket_size"
                                 android:layout_gravity="center"
                                 android:contentDescription="@string/dashboard_connect_action"
                                 android:scaleType="fitCenter"
                                 android:src="@drawable/ic_rocket"
-                                android:translationY="-4dp" />
+                                android:translationY="@dimen/dashboard_rocket_y_offset" />
                         </FrameLayout>
                     </FrameLayout>
 
                     <LinearLayout
                         android:id="@+id/download_container"
-                        android:layout_width="72dp"
+                        android:layout_width="@dimen/dashboard_speed_panel_width"
                         android:layout_height="wrap_content"
                         android:gravity="end"
                         android:orientation="vertical"
@@ -411,8 +411,8 @@
 
                         <ImageView
                             android:id="@+id/download_wave"
-                            android:layout_width="56dp"
-                            android:layout_height="8dp"
+                            android:layout_width="@dimen/dashboard_wave_width"
+                            android:layout_height="@dimen/dashboard_wave_height"
                             android:layout_marginTop="4dp"
                             android:alpha="0.25"
                             android:contentDescription="@null"

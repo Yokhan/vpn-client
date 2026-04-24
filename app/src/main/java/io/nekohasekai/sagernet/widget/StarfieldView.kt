@@ -13,6 +13,14 @@ class StarfieldView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
 ) : View(context, attrs) {
 
+    private companion object {
+        private const val STATIC_STAR_STRIDE = 3
+        private const val STARFIELD_TRAVEL_MULTIPLIER = 1.2f
+        private const val STATIC_STAR_RADIUS_DP = 0.75f
+        private const val FULL_PERCENT = 100f
+        private const val MAX_ALPHA = 255
+    }
+
     private data class StarSpec(
         val left: Float,
         val widthDp: Float,
@@ -28,6 +36,7 @@ class StarfieldView @JvmOverloads constructor(
     }
     private var running = false
 
+    // Source mapping: preview/dashboard.html, .space-bg static star layer.
     private val staticStars = floatArrayOf(
         3f, 8f, 0.5f, 13f, 24f, 0.3f, 19f, 68f, 0.4f, 27f, 15f, 0.45f,
         32f, 44f, 0.35f, 38f, 82f, 0.5f, 46f, 21f, 0.3f, 54f, 58f, 0.45f,
@@ -35,6 +44,7 @@ class StarfieldView @JvmOverloads constructor(
         91f, 48f, 0.4f, 96f, 86f, 0.35f
     )
 
+    // Source mapping: preview/dashboard.html, .stars dot and streak elements.
     private val stars = listOf(
         StarSpec(2f, 2f, 2f, 0.5f, 9000L, -3000L),
         StarSpec(7f, 1f, 1f, 0.4f, 14000L, -11000L),
@@ -81,14 +91,14 @@ class StarfieldView @JvmOverloads constructor(
     private fun drawStaticStars(canvas: Canvas) {
         var index = 0
         while (index < staticStars.size) {
-            paint.alpha = (255 * staticStars[index + 2]).toInt()
+            paint.alpha = (MAX_ALPHA * staticStars[index + 2]).toInt()
             canvas.drawCircle(
-                width * staticStars[index] / 100f,
-                height * staticStars[index + 1] / 100f,
-                0.75f * density,
+                width * staticStars[index] / FULL_PERCENT,
+                height * staticStars[index + 1] / FULL_PERCENT,
+                STATIC_STAR_RADIUS_DP * density,
                 paint
             )
-            index += 3
+            index += STATIC_STAR_STRIDE
         }
     }
 
@@ -96,9 +106,9 @@ class StarfieldView @JvmOverloads constructor(
         val now = SystemClock.uptimeMillis()
         stars.forEach { star ->
             val phase = ((now - star.delayMs) % star.durationMs).toFloat() / star.durationMs
-            val left = width * star.left / 100f
-            val top = height * 1.2f * phase
-            paint.alpha = (255 * star.opacity).toInt()
+            val left = width * star.left / FULL_PERCENT
+            val top = height * STARFIELD_TRAVEL_MULTIPLIER * phase
+            paint.alpha = (MAX_ALPHA * star.opacity).toInt()
             canvas.drawRoundRect(
                 left,
                 top,

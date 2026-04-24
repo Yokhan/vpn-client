@@ -8,7 +8,27 @@
     <dimen name="buffit_card_margin">8dp</dimen>
     <dimen name="buffit_card_stroke_width">1dp</dimen>
 
-    <!-- Dashboard connect circle -->
+    <!-- Dashboard web parity: preview/dashboard.html -->
+    <dimen name="dashboard_space_glow_width">360dp</dimen>
+    <dimen name="dashboard_space_glow_height">220dp</dimen>
+    <dimen name="dashboard_orb_size">192dp</dimen>
+    <dimen name="dashboard_orb_ring_size">176dp</dimen>
+    <dimen name="dashboard_rocket_size">132dp</dimen>
+    <dimen name="dashboard_rocket_scene_size">192dp</dimen>
+    <dimen name="dashboard_rocket_flame_width">22dp</dimen>
+    <dimen name="dashboard_rocket_flame_height">86dp</dimen>
+    <dimen name="dashboard_rocket_flame_bottom">-24dp</dimen>
+    <dimen name="dashboard_rocket_flame_left_offset">-9dp</dimen>
+    <dimen name="dashboard_rocket_flame_right_offset">8dp</dimen>
+    <dimen name="dashboard_rocket_y_offset">-4dp</dimen>
+    <dimen name="dashboard_speed_panel_width">72dp</dimen>
+    <dimen name="dashboard_wave_width">56dp</dimen>
+    <dimen name="dashboard_wave_height">8dp</dimen>
+    <dimen name="dashboard_signal_box_size">44dp</dimen>
+    <dimen name="dashboard_signal_bars_width">20dp</dimen>
+    <dimen name="dashboard_signal_bars_height">14dp</dimen>
+
+    <!-- Legacy connect circle tokens kept for older layouts. -->
     <dimen name="connect_ring_size">180dp</dimen>
     <dimen name="connect_ring_stroke">3dp</dimen>
     <dimen name="connect_icon_size">128dp</dimen>
