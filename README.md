@@ -82,7 +82,7 @@ Short version:
 Full setup and operations are documented in [docs/ci-cd.md](docs/ci-cd.md).
 Current cleanup priorities are tracked in [docs/technical-debt.md](docs/technical-debt.md).
 Source-closure constraints and the cleanup plan are tracked in [docs/source-closure-and-cleanup.md](docs/source-closure-and-cleanup.md).
-Rewrite architecture and language decisions are tracked in [docs/rewrite-strategy.md](docs/rewrite-strategy.md).
+Rewrite architecture and language decisions for Android, iOS, Windows, Kotlin Multiplatform, and Rust-owned hot paths are tracked in [docs/rewrite-strategy.md](docs/rewrite-strategy.md).
 
 ## Detaching From Matsuri
 

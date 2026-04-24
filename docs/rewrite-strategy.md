@@ -4,35 +4,70 @@ The current app should be treated as a legacy transition base. The goal is a fas
 
 ## Decision
 
-Use Kotlin as the primary Android app language and move the new UI to Jetpack Compose. Do not rewrite the Android shell in Flutter or React Native for this product.
+Use Kotlin Multiplatform for shared product logic, platform-native VPN runtimes for each operating system, and a Rust-owned performance core where it provides measurable benefit. Do not rewrite the VPN product as a Flutter or React Native app.
 
 Rationale:
 
-- Kotlin is the native Android path and fits VPN service, notification, background, storage, and permission work with the least integration overhead.
-- Compose gives a clean way to replace the XML/Fragment dashboard and settings flows without carrying the current view hierarchy debt forward.
-- Flutter can build attractive UI quickly, but the VPN/service/native boundary would move complexity into platform channels and make Android-specific behavior harder to debug.
+- Kotlin Multiplatform lets the product share domain logic across Android, iOS, Windows, and later macOS/Linux without forcing one runtime model onto all platforms.
+- Compose Multiplatform is viable for shared UI on Android and desktop. iOS can use either Compose Multiplatform for product screens or SwiftUI where native feel and NetworkExtension integration are more important.
+- Flutter can build attractive UI quickly, but the VPN/service/native boundary would move complexity into platform channels and make Android/iOS/Windows tunnel behavior harder to debug.
 - React Native is a poor fit for a VPN-heavy app with persistent services, native networking, and strict lifecycle behavior.
-- Rust is useful for new owned core libraries, parsing, policy, or crypto-adjacent utilities, but not as the main Android UI layer.
-- Go should remain only where it is already the practical boundary for sing-box/libcore integration.
+- Rust is the right candidate for owned hot-path code: config parsing, policy evaluation, routing rules, diagnostics, crypto-adjacent utilities, and cross-platform controller logic. Bind it into Kotlin/Swift/Windows through generated FFI instead of hand-written JNI everywhere.
+- Go should remain only where it is already the practical boundary for sing-box/libcore integration during the migration.
+
+Official references used for this decision:
+
+- Kotlin Multiplatform official docs: https://kotlinlang.org/docs/multiplatform/ios-android-app-development.html
+- Android Developers KMP guidance: https://developer.android.com/kotlin/multiplatform
+- Compose Multiplatform FAQ: https://kotlinlang.org/docs/multiplatform/faq.html
+- UniFFI Swift bindings: https://mozilla.github.io/uniffi-rs/0.28/swift/overview.html
 
 ## Target Architecture
 
-Create a clean app shell and keep the existing fork behind explicit adapters until it is replaced.
+Create a clean multiplatform product shell and keep the existing fork behind explicit adapters until it is replaced.
 
 Modules or package boundaries:
 
-- `app-shell`: Android entry points, Compose navigation, permissions, notifications, and top-level lifecycle.
-- `design-system`: Yokhan tokens, typography, animation primitives, dashboard components, and reusable controls.
-- `vpn-domain`: pure Kotlin models, use cases, state machines, and interfaces for profile selection, connection state, traffic stats, and diagnostics.
-- `vpn-runtime`: implementation adapter over the current service/libcore stack.
-- `profiles-data`: repositories, migrations, subscription import, export, and profile persistence.
+- `shared-domain`: Kotlin Multiplatform models, use cases, state machines, validation, profile selection, connection state, telemetry contracts, and diagnostics contracts.
+- `shared-ui`: Compose Multiplatform design system, tokens, typography, animation primitives, dashboard components, and reusable controls.
+- `core-rust`: owned high-performance Rust library for config parsing, policy/routing evaluation, diagnostics, and deterministic state transitions.
+- `android-app`: Android entry points, `VpnService`, notification/service lifecycle, permissions, and Android-specific storage.
+- `ios-app`: Swift/SwiftUI shell, NetworkExtension integration, keychain/app group storage, and iOS lifecycle.
+- `windows-app`: Windows shell, installer/update path, tray/service integration, TUN/Wintun adapter, and OS-specific permissions.
+- `runtime-adapters`: Android/iOS/Windows implementations over sing-box or the chosen tunnel core.
+- `profiles-data`: multiplatform repositories, migrations, subscription import/export, and profile persistence interfaces.
 - `legacy-bridge`: temporary wrappers around existing GPL-derived classes. New code must depend on interfaces, not directly on legacy classes.
 
 Dependency rule:
 
-`app-shell -> design-system -> vpn-domain -> interfaces`
+`platform app -> shared-ui -> shared-domain -> interfaces`
 
-Implementations such as `vpn-runtime`, `profiles-data`, and `legacy-bridge` bind at composition/root level. UI code must not import legacy service/database classes directly.
+Implementations such as `runtime-adapters`, `profiles-data`, `core-rust`, and `legacy-bridge` bind at composition/root level. UI code must not import legacy service/database classes directly.
+
+## Platform Targets
+
+Android:
+
+- Keep current app releasable while the new shell grows.
+- Replace XML/Fragment dashboard with Compose.
+- Keep `VpnService` native to Android; do not abstract it into a fake cross-platform layer.
+
+iOS:
+
+- Build a separate iOS shell around shared domain/UI where possible.
+- VPN runtime must use Apple's NetworkExtension model. Treat this as a first-class platform adapter, not a port of Android service code.
+- Keychain and app group storage are platform-specific.
+
+Windows:
+
+- Build a desktop shell from shared UI/domain where it is stable enough.
+- Tunnel/runtime adapter must own Windows service/tray integration and TUN/Wintun lifecycle.
+- Installer, auto-update, and logs are Windows-specific product surfaces.
+
+Shared:
+
+- Profile model, subscription parsing, policy evaluation, diagnostics, telemetry formatting, connection state machine, and dashboard state mapping.
+- No Android classes, SwiftUI classes, Windows APIs, or GPL-derived classes in shared domain.
 
 ## Migration Plan
 
@@ -42,10 +77,11 @@ Implementations such as `vpn-runtime`, `profiles-data`, and `legacy-bridge` bind
 - Keep CI/release working for current users.
 - Do not delete attribution or license files while legacy code ships.
 
-2. Start a new owned app shell.
+2. Start a new owned multiplatform shell.
 
-- Use a Yokhan-owned package namespace for new code.
-- Add Compose with a small dashboard route first.
+- Use Yokhan-owned namespaces for new code.
+- Add Kotlin Multiplatform modules for shared domain and shared UI.
+- Add Compose with a small dashboard route first on Android and desktop.
 - Keep the current service and profile store behind adapters.
 
 3. Rebuild the dashboard cleanly.
@@ -54,9 +90,11 @@ Implementations such as `vpn-runtime`, `profiles-data`, and `legacy-bridge` bind
 - Replace XML layout, custom view motion, and fragment glue with one screen state model.
 - Acceptance gate: rocket/flames/stars/speed/timer/profile actions must match device screenshots before release.
 
-4. Extract domain interfaces.
+4. Extract domain interfaces and Rust FFI seams.
 
 - Define `VpnController`, `ProfileRepository`, `TrafficStatsSource`, `ConnectionTester`, and `ReleaseDiagnostics`.
+- Define which APIs are Kotlin-only and which move to Rust.
+- Generate bindings instead of maintaining platform FFI manually.
 - Add test fixtures for disconnected, connecting, connected, error, and no-profile states.
 - Make selectors and menu actions testable without Android view IDs.
 
@@ -80,6 +118,10 @@ Baseline before each migration step:
 - memory after 60 seconds connected
 - APK size by ABI
 - database calls on main thread
+- CPU wakeups and polling intervals while connected
+- battery drain during 30 minutes idle connected
+- tunnel restart latency
+- Rust/Kotlin/adapter boundary overhead for hot paths
 
 Primary fixes:
 
@@ -89,6 +131,9 @@ Primary fixes:
 - Use one connection state stream rather than scattered observers.
 - Keep animation assets pre-sized and avoid scaling transparent canvases at runtime.
 - Remove duplicate settings/profile transformations.
+- Move deterministic hot-path parsing/policy work into Rust only after benchmarks prove it beats simple Kotlin.
+- Prefer push/state-stream updates over timers and polling.
+- Keep background services quiet: no unnecessary wake locks, no busy loops, no repeated DB reads for unchanged state.
 
 ## Release Gates
 
@@ -100,7 +145,9 @@ No release from the rewrite branch unless:
 - dashboard screenshot is checked on a real Android device
 - profile select, edit, menu, connect, disconnect, test connection, timer, speed, stars, rocket, and flames are verified
 - GPL/compliance notes are updated for any removed or replaced legacy code
+- performance baseline is captured and compared against the previous release
+- iOS/Windows plans are not allowed to import Android-only assumptions into shared code
 
 ## Immediate Next Step
 
-Create a rewrite branch with the new package boundaries and a Compose dashboard prototype that reads from adapters. Keep current `main` releasable while the rewrite grows behind a separate branch.
+Create a rewrite branch with KMP package boundaries, a Compose dashboard prototype, and a thin adapter over the current Android runtime. Keep current `main` releasable while the rewrite grows behind a separate branch.
