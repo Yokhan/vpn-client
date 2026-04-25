@@ -66,6 +66,12 @@ preview/desktop/build/compose/binaries/main/app
 This launches a local Compose Desktop preview of the dashboard shell. It is for UI iteration only: it does not start the Android VPN service, does not install an APK, and does not replace phone testing.
 
 The desktop preview uses the same shared dashboard Compose layout, rocket/flame PNGs, and bundled fonts as the Android Compose route.
+It renders the dashboard in an iPhone 15 Pro Max viewport (`430x932 dp`) and has a `Save phone screenshot` button.
+Screenshots are written to:
+
+```text
+preview/desktop/build/screenshots
+```
 
 Android Studio setup for this repo is documented in [docs/android-studio.md](docs/android-studio.md).
 

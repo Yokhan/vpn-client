@@ -69,3 +69,5 @@ cmd /c gradlew.bat :desktop-preview:createDistributable --no-daemon
 The built app is written under `preview/desktop/build/compose/binaries/main/app`.
 
 The desktop preview uses the same shared Compose dashboard layout, rocket/flame PNG assets, and bundled fonts as the Android Compose route. It is faster for visual iteration on Windows, but final release checks still require a signed APK on the phone because Android density, status bars, touch behavior, and VPN lifecycle remain platform-specific.
+
+The preview viewport is fixed to iPhone 15 Pro Max logical size (`430x932 dp`). Use `Save phone screenshot` to write PNG references to `preview/desktop/build/screenshots`.
