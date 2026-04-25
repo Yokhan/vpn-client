@@ -315,10 +315,7 @@ private fun DashboardToolbar(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = labels.system,
                 color = colors.secondary,
@@ -327,11 +324,13 @@ private fun DashboardToolbar(
                 fontWeight = FontWeight.Medium,
                 lineHeight = 12.sp,
             )
-            CenteredMarker(
-                shape = CircleShape,
-                color = colors.accent,
-                boxSize = 12,
-                markerSize = 5,
+            Box(
+                Modifier
+                    .padding(start = 2.dp)
+                    .offset(y = (-1).dp)
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent)
             )
         }
     }
@@ -830,43 +829,23 @@ private fun SectionLabel(
     modifier: Modifier = Modifier,
 ) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        CenteredMarker(
-            shape = RoundedCornerShape(1.dp),
-            color = colors.tertiary,
-            boxSize = fontSize + 2,
-            markerSize = 6,
+        Box(
+            Modifier
+                .offset(y = (-1).dp)
+                .size(6.dp)
+                .clip(RoundedCornerShape(1.dp))
+                .background(colors.tertiary)
         )
         Text(
             text = text,
             color = colors.tertiary,
             fontFamily = typography.mono,
             fontSize = fontSize.sp,
-            lineHeight = fontSize.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.6.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 2.dp),
-        )
-    }
-}
-
-@Composable
-private fun CenteredMarker(
-    shape: androidx.compose.ui.graphics.Shape,
-    color: Color,
-    boxSize: Int,
-    markerSize: Int,
-) {
-    Box(
-        modifier = Modifier.size(boxSize.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            Modifier
-                .size(markerSize.dp)
-                .clip(shape)
-                .background(color)
+            modifier = Modifier.padding(start = 4.dp),
         )
     }
 }
