@@ -523,20 +523,33 @@ private fun ConnectionTestButton(
     ) {
         Row(
             modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(colors.primary.copy(alpha = if (state.canRunConnectionTest) 0.045f else 0.025f))
-            .border(1.dp, colors.border, RoundedCornerShape(20.dp))
-            .clickable(enabled = state.canRunConnectionTest, onClick = actions.onRunConnectionTest)
-            .alpha(if (state.canRunConnectionTest) 1f else 0.55f)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+                .clip(RoundedCornerShape(20.dp))
+                .background(colors.primary.copy(alpha = if (state.canRunConnectionTest) 0.045f else 0.025f))
+                .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+                .clickable(enabled = state.canRunConnectionTest, onClick = actions.onRunConnectionTest)
+                .alpha(if (state.canRunConnectionTest) 1f else 0.55f)
+                .padding(horizontal = 14.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("⊙", color = colors.secondary, fontFamily = typography.mono, fontSize = 14.sp)
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .border(1.dp, colors.secondary, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    Modifier
+                        .size(3.dp)
+                        .clip(CircleShape)
+                        .background(colors.secondary)
+                )
+            }
             Text(
                 text = labels.checkConnection,
                 color = colors.secondary,
                 fontFamily = typography.text,
                 fontSize = 10.sp,
+                lineHeight = 10.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 8.dp),
             )
@@ -709,19 +722,25 @@ private fun RowScope.StatsSegment(
 ) {
     Column(
         modifier = Modifier
-            .height(42.dp)
             .padding(horizontal = 6.dp)
             .weight(1f),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(icon, color = colors.tertiary, fontFamily = typography.mono, fontSize = 12.sp)
+            Text(
+                text = icon,
+                color = colors.tertiary,
+                fontFamily = typography.mono,
+                fontSize = 12.sp,
+                lineHeight = 12.sp,
+            )
             Text(
                 text = value,
                 color = colors.primary,
                 fontFamily = typography.mono,
                 fontSize = 10.sp,
+                lineHeight = 12.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 modifier = Modifier.padding(start = 4.dp),
@@ -732,8 +751,8 @@ private fun RowScope.StatsSegment(
             color = colors.tertiary,
             fontFamily = typography.mono,
             fontSize = 10.sp,
+            lineHeight = 12.sp,
             maxLines = 1,
-            modifier = Modifier.padding(top = 2.dp),
         )
     }
 }
