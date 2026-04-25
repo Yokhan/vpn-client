@@ -260,9 +260,6 @@ private fun PreviewControlPanel(
         TuningSlider("Right flame X", tuning.rightFlameX, -4f..28f) {
             onTuningChange(tuning.copy(rightFlameX = it))
         }
-        TuningSlider("Test button width %", (tuning.testButtonWidthFraction * 100).roundToInt(), 38f..72f) {
-            onTuningChange(tuning.copy(testButtonWidthFraction = it / 100f))
-        }
         TuningSlider("Bottom stats pad", tuning.statsBarBottomPadding, 8f..34f) {
             onTuningChange(tuning.copy(statsBarBottomPadding = it))
         }

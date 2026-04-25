@@ -90,15 +90,14 @@ data class DashboardUiActions(
 data class DashboardUiTuning(
     val contentBottomPadding: Int = 104,
     val testButtonTopPadding: Int = 12,
-    val testButtonWidthFraction: Float = 0.5f,
     val statsBarBottomPadding: Int = 16,
     val rocketWidth: Int = 132,
     val rocketHeight: Int = 228,
     val flameWidth: Int = 22,
     val flameHeight: Int = 75,
-    val leftFlameX: Int = -8,
+    val leftFlameX: Int = -10,
     val rightFlameX: Int = 8,
-    val flameY: Int = 124,
+    val flameY: Int = 117,
 )
 
 @Immutable
@@ -498,27 +497,32 @@ private fun ConnectionTestButton(
     actions: DashboardUiActions,
     tuning: DashboardUiTuning,
 ) {
-    Row(
+    Box(
         modifier = Modifier
             .padding(top = tuning.testButtonTopPadding.dp)
+            .fillMaxWidth(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
             .background(colors.primary.copy(alpha = if (state.canRunConnectionTest) 0.045f else 0.025f))
             .border(1.dp, colors.border, RoundedCornerShape(20.dp))
             .clickable(enabled = state.canRunConnectionTest, onClick = actions.onRunConnectionTest)
             .alpha(if (state.canRunConnectionTest) 1f else 0.55f)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .alignCenterHorizontally(tuning.testButtonWidthFraction),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("⊙", color = colors.secondary, fontFamily = typography.mono, fontSize = 14.sp)
-        Text(
-            text = labels.checkConnection,
-            color = colors.secondary,
-            fontFamily = typography.text,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 8.dp),
-        )
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("⊙", color = colors.secondary, fontFamily = typography.mono, fontSize = 14.sp)
+            Text(
+                text = labels.checkConnection,
+                color = colors.secondary,
+                fontFamily = typography.text,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
     }
 }
 
@@ -923,6 +927,3 @@ private val DashboardSpaceColors = DashboardColors(
     accent = DashboardGreen,
     orbCenter = Color(0xFF1C1C34),
 )
-
-private fun Modifier.alignCenterHorizontally(widthFraction: Float): Modifier =
-    this.then(Modifier.fillMaxWidth(widthFraction))
