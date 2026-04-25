@@ -1,5 +1,6 @@
 package com.yokhan.vpn.shared.ui.dashboard
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -36,7 +37,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -66,6 +71,9 @@ import nb4a.shared_ui.generated.resources.ic_dashboard_spaceship_flame
 import nb4a.shared_ui.generated.resources.jetbrains_mono_regular
 import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.resources.painterResource
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Immutable
 data class DashboardProfileUiItem(
@@ -155,8 +163,16 @@ fun YokhanDashboardScreen(
     tuning: DashboardUiTuning = DashboardUiTuning(),
 ) {
     val connected = state.connectionStatus == ConnectionStatus.Connected
-    val running = state.shouldAnimateSpace
-    val colors = if (running) DashboardSpaceColors else DashboardLightColors
+    var visualSpaceActive by remember { mutableStateOf(state.shouldAnimateSpace) }
+    LaunchedEffect(state.connectionStatus, state.shouldAnimateSpace) {
+        if (state.shouldAnimateSpace || state.connectionStatus == ConnectionStatus.Disconnecting) {
+            visualSpaceActive = true
+        } else if (visualSpaceActive) {
+            delay(1400)
+            visualSpaceActive = false
+        }
+    }
+    val colors = if (visualSpaceActive) DashboardSpaceColors else DashboardLightColors
     val typography = dashboardTypography()
 
     Box(
@@ -164,7 +180,7 @@ fun YokhanDashboardScreen(
             .fillMaxSize()
             .background(colors.background)
     ) {
-        if (running) {
+        if (visualSpaceActive) {
             Starfield(modifier = Modifier.fillMaxSize())
         }
 
@@ -176,7 +192,7 @@ fun YokhanDashboardScreen(
         ) {
             DashboardToolbar(colors, labels, typography, actions)
             CurrentConfigCard(state, colors, labels, typography)
-            LaunchPanel(state, connected, running, colors, labels, typography, actions, tuning)
+            LaunchPanel(state, connected, visualSpaceActive, colors, labels, typography, actions, tuning)
             ConnectionStatusRow(state, connected, colors, labels, typography)
             ConnectionTestButton(state, colors, labels, typography, actions, tuning)
             ProfilesCard(profiles, colors, labels, typography, actions)
@@ -248,18 +264,21 @@ private fun DashboardToolbar(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             Text(
                 text = labels.system,
                 color = colors.secondary,
                 fontFamily = typography.mono,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
+                lineHeight = 12.sp,
             )
             Box(
                 Modifier
-                    .padding(start = 6.dp)
-                    .size(6.dp)
+                    .size(5.dp)
                     .clip(CircleShape)
                     .background(colors.accent)
             )
@@ -331,7 +350,7 @@ private fun LaunchPanel(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         SpeedPanel(labels.upload, state.uploadLabel, "↑", colors, typography, false)
-        OrbScene(connected, running, colors, labels, typography, actions.onToggleConnection, tuning)
+        OrbScene(state.connectionStatus, connected, running, colors, labels, typography, actions.onToggleConnection, tuning)
         SpeedPanel(labels.download, state.downloadLabel, "↓", colors, typography, true)
     }
 }
@@ -389,6 +408,7 @@ private fun SpeedPanel(
 
 @Composable
 private fun OrbScene(
+    connectionStatus: ConnectionStatus,
     connected: Boolean,
     running: Boolean,
     colors: DashboardColors,
@@ -408,8 +428,8 @@ private fun OrbScene(
         label = "ring-scale",
     )
     val flameScale by infinite.animateFloat(
-        initialValue = 0.96f,
-        targetValue = if (connected) 1.12f else 0.96f,
+        initialValue = 1f,
+        targetValue = if (connected) 1.15f else 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(420, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse,
@@ -445,9 +465,7 @@ private fun OrbScene(
                 letterSpacing = 1.2.sp,
             )
         }
-        if (running) {
-            DashboardRocket(flameScale, tuning)
-        }
+        DashboardRocket(connectionStatus, running, flameScale, tuning)
     }
 }
 
@@ -647,26 +665,37 @@ private fun DashboardStatsBar(
     tuning: DashboardUiTuning,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-            .border(1.dp, colors.border.copy(alpha = 0.8f))
-            .background(Color.Transparent)
-            .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = tuning.statsBarBottomPadding.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
     ) {
-        StatsSegment("◷", state.latencyLabel, labels.latency, colors, typography)
-        StatsDivider(colors)
-        StatsSegment(
-            "●",
-            if (connected) labels.connected else labels.disconnected,
-            labels.status,
-            colors.copy(primary = if (connected) DashboardGreen else DashboardRed),
-            typography,
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(colors.divider)
         )
-        StatsDivider(colors)
-        StatsSegment("◇", state.activeProfileProtocol.name.uppercase(), labels.protocol, colors, typography)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.Transparent)
+                .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = tuning.statsBarBottomPadding.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StatsSegment("◷", state.latencyLabel, labels.latency, colors, typography)
+            StatsDivider(colors)
+            StatsSegment(
+                "●",
+                if (connected) labels.connected else labels.disconnected,
+                labels.status,
+                colors.copy(primary = if (connected) DashboardGreen else DashboardRed),
+                typography,
+            )
+            StatsDivider(colors)
+            StatsSegment("◇", state.activeProfileProtocol.name.uppercase(), labels.protocol, colors, typography)
+        }
     }
 }
 
@@ -822,42 +851,87 @@ private fun Starfield(modifier: Modifier = Modifier) {
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(9000, easing = LinearEasing),
+            animation = tween(16000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
         label = "stars",
     )
     Canvas(modifier) {
-        val fixedStars = listOf(
-            Triple(0.03f, 0.08f, 0.5f),
-            Triple(0.19f, 0.68f, 0.4f),
-            Triple(0.32f, 0.44f, 0.35f),
-            Triple(0.54f, 0.58f, 0.45f),
-            Triple(0.76f, 0.72f, 0.35f),
-            Triple(0.91f, 0.48f, 0.4f),
-        )
-        fixedStars.forEach { (x, y, alpha) ->
+        staticStars.forEach { star ->
             drawCircle(
-                color = Color.White.copy(alpha = alpha),
-                radius = 0.9.dp.toPx(),
-                center = Offset(size.width * x, size.height * y),
+                color = Color.White.copy(alpha = star.alpha),
+                radius = star.radius.dp.toPx(),
+                center = Offset(size.width * star.x, size.height * star.y),
             )
         }
-        repeat(8) { index ->
-            val x = size.width * ((index * 0.13f + 0.11f) % 1f)
-            val y = size.height * ((phase + index * 0.17f) % 1f)
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.35f),
-                topLeft = Offset(x, y),
-                size = Size(1.2.dp.toPx(), 14.dp.toPx()),
-                cornerRadius = CornerRadius(1.dp.toPx()),
-            )
+        val elapsed = phase * 16f
+        movingStars.forEach { star ->
+            val progress = ((elapsed + star.initialOffsetSeconds) / star.durationSeconds) % 1f
+            val y = size.height * progress * 1.2f
+            if (star.streak) {
+                drawRoundRect(
+                    color = Color.White.copy(alpha = star.alpha),
+                    topLeft = Offset(size.width * star.x, y),
+                    size = Size(star.width.dp.toPx(), star.height.dp.toPx()),
+                    cornerRadius = CornerRadius(1.dp.toPx()),
+                )
+            } else {
+                drawCircle(
+                    color = Color.White.copy(alpha = star.alpha),
+                    radius = (star.width / 2f).dp.toPx(),
+                    center = Offset(size.width * star.x, y),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun DashboardRocket(flameScale: Float, tuning: DashboardUiTuning) {
+private fun DashboardRocket(
+    connectionStatus: ConnectionStatus,
+    running: Boolean,
+    flameScale: Float,
+    tuning: DashboardUiTuning,
+) {
+    val initiallyVisible = connectionStatus == ConnectionStatus.Connecting ||
+        connectionStatus == ConnectionStatus.Connected ||
+        connectionStatus == ConnectionStatus.Disconnecting ||
+        running
+    var visible by remember { mutableStateOf(initiallyVisible) }
+    val yOffset = remember { Animatable(if (initiallyVisible) 0f else 1.15f) }
+    val alpha = remember { Animatable(if (initiallyVisible) 1f else 0f) }
+
+    LaunchedEffect(connectionStatus, running) {
+        val shouldDock = connectionStatus == ConnectionStatus.Connecting ||
+            connectionStatus == ConnectionStatus.Connected ||
+            running
+        if (shouldDock) {
+            visible = true
+            if (yOffset.value < -1f || alpha.value == 0f) {
+                yOffset.snapTo(1.15f)
+            }
+            coroutineScope {
+                launch { alpha.animateTo(1f, tween(400, easing = LinearEasing)) }
+                launch { yOffset.animateTo(0f, tween(1400, easing = LinearEasing)) }
+            }
+        } else if (visible) {
+            coroutineScope {
+                launch { alpha.animateTo(0f, tween(800, easing = LinearEasing)) }
+                launch { yOffset.animateTo(-1.25f, tween(1400, easing = LinearEasing)) }
+            }
+            visible = false
+            yOffset.snapTo(1.15f)
+        }
+    }
+
+    if (!visible) return
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .offset(y = (tuning.rocketHeight * yOffset.value).dp)
+            .alpha(alpha.value),
+    ) {
     Image(
         painter = painterResource(Res.drawable.ic_dashboard_spaceship),
         contentDescription = null,
@@ -873,6 +947,7 @@ private fun DashboardRocket(flameScale: Float, tuning: DashboardUiTuning) {
             .offset(x = tuning.leftFlameX.dp, y = tuning.flameY.dp)
             .graphicsLayer {
                 scaleY = flameScale
+                scaleX = 1f + (flameScale - 1f) * 0.4f
                 transformOrigin = TransformOrigin(0.5f, 0f)
             },
     )
@@ -885,10 +960,97 @@ private fun DashboardRocket(flameScale: Float, tuning: DashboardUiTuning) {
             .offset(x = tuning.rightFlameX.dp, y = tuning.flameY.dp)
             .graphicsLayer {
                 scaleY = flameScale
+                scaleX = 1f + (flameScale - 1f) * 0.4f
                 transformOrigin = TransformOrigin(0.5f, 0f)
             },
     )
+    }
 }
+
+@Immutable
+private data class StaticStar(
+    val x: Float,
+    val y: Float,
+    val radius: Float,
+    val alpha: Float,
+)
+
+@Immutable
+private data class MovingStar(
+    val x: Float,
+    val width: Float,
+    val height: Float,
+    val alpha: Float,
+    val durationSeconds: Float,
+    val initialOffsetSeconds: Float,
+    val streak: Boolean,
+)
+
+private val staticStars = listOf(
+    StaticStar(0.03f, 0.08f, 1f, 0.5f),
+    StaticStar(0.07f, 0.42f, 1f, 0.4f),
+    StaticStar(0.12f, 0.18f, 1.5f, 0.7f),
+    StaticStar(0.15f, 0.65f, 1f, 0.3f),
+    StaticStar(0.18f, 0.88f, 1f, 0.5f),
+    StaticStar(0.22f, 0.05f, 1f, 0.4f),
+    StaticStar(0.25f, 0.35f, 1.5f, 0.6f),
+    StaticStar(0.28f, 0.72f, 1f, 0.3f),
+    StaticStar(0.33f, 0.15f, 1f, 0.5f),
+    StaticStar(0.36f, 0.55f, 1f, 0.4f),
+    StaticStar(0.40f, 0.82f, 1.5f, 0.6f),
+    StaticStar(0.44f, 0.28f, 1f, 0.3f),
+    StaticStar(0.48f, 0.48f, 1f, 0.5f),
+    StaticStar(0.52f, 0.12f, 1f, 0.4f),
+    StaticStar(0.55f, 0.62f, 1.5f, 0.7f),
+    StaticStar(0.58f, 0.90f, 1f, 0.3f),
+    StaticStar(0.62f, 0.22f, 1f, 0.5f),
+    StaticStar(0.65f, 0.50f, 1f, 0.4f),
+    StaticStar(0.68f, 0.78f, 1.5f, 0.6f),
+    StaticStar(0.72f, 0.06f, 1f, 0.3f),
+    StaticStar(0.75f, 0.38f, 1f, 0.5f),
+    StaticStar(0.78f, 0.68f, 1f, 0.4f),
+    StaticStar(0.82f, 0.92f, 1.5f, 0.7f),
+    StaticStar(0.85f, 0.25f, 1f, 0.3f),
+    StaticStar(0.88f, 0.52f, 1f, 0.5f),
+    StaticStar(0.91f, 0.75f, 1f, 0.4f),
+    StaticStar(0.94f, 0.10f, 1.5f, 0.6f),
+    StaticStar(0.97f, 0.45f, 1f, 0.3f),
+    StaticStar(0.05f, 0.95f, 1f, 0.5f),
+    StaticStar(0.45f, 0.03f, 1f, 0.4f),
+    StaticStar(0.60f, 0.40f, 1f, 0.3f),
+    StaticStar(0.35f, 0.95f, 1.5f, 0.6f),
+    StaticStar(0.80f, 0.15f, 1f, 0.5f),
+    StaticStar(0.50f, 0.75f, 1f, 0.4f),
+    StaticStar(0.10f, 0.30f, 1f, 0.3f),
+)
+
+private val movingStars = listOf(
+    MovingStar(0.02f, 2f, 2f, 0.5f, 9f, 3f, false),
+    MovingStar(0.07f, 1f, 1f, 0.4f, 14f, 11f, false),
+    MovingStar(0.12f, 3f, 3f, 0.7f, 8f, 1f, false),
+    MovingStar(0.17f, 1f, 1f, 0.3f, 16f, 7f, false),
+    MovingStar(0.22f, 2f, 2f, 0.6f, 11f, 9f, false),
+    MovingStar(0.28f, 1f, 1f, 0.5f, 13f, 4f, false),
+    MovingStar(0.33f, 2f, 2f, 0.4f, 10f, 6f, false),
+    MovingStar(0.39f, 1f, 1f, 0.6f, 15f, 12f, false),
+    MovingStar(0.45f, 3f, 3f, 0.7f, 9.5f, 2f, false),
+    MovingStar(0.51f, 1f, 1f, 0.35f, 12f, 8f, false),
+    MovingStar(0.57f, 2f, 2f, 0.5f, 14.5f, 10f, false),
+    MovingStar(0.63f, 1f, 1f, 0.4f, 10.5f, 5f, false),
+    MovingStar(0.69f, 2f, 2f, 0.6f, 8.5f, 7f, false),
+    MovingStar(0.75f, 1f, 1f, 0.3f, 16f, 13f, false),
+    MovingStar(0.81f, 3f, 3f, 0.65f, 11.5f, 3f, false),
+    MovingStar(0.87f, 1f, 1f, 0.45f, 13.5f, 9f, false),
+    MovingStar(0.93f, 2f, 2f, 0.5f, 9f, 6f, false),
+    MovingStar(0.11f, 1f, 12f, 0.4f, 2.8f, 1.2f, true),
+    MovingStar(0.23f, 2f, 18f, 0.35f, 2.2f, 0.5f, true),
+    MovingStar(0.41f, 1f, 10f, 0.5f, 3f, 2.1f, true),
+    MovingStar(0.55f, 1f, 15f, 0.3f, 2.5f, 1.8f, true),
+    MovingStar(0.68f, 2f, 20f, 0.4f, 2f, 0.3f, true),
+    MovingStar(0.82f, 1f, 8f, 0.45f, 3.2f, 2.5f, true),
+    MovingStar(0.47f, 1f, 14f, 0.35f, 2.6f, 1.4f, true),
+    MovingStar(0.88f, 1f, 10f, 0.3f, 2.4f, 0.8f, true),
+)
 
 @Immutable
 private data class DashboardColors(
@@ -923,7 +1085,7 @@ private val DashboardSpaceColors = DashboardColors(
     secondary = Color(0xFF8888A0),
     tertiary = Color(0xFF8888A0),
     border = Color(0x1AFFFFFF),
-    divider = Color(0x1AFFFFFF),
+    divider = Color(0x12FFFFFF),
     accent = DashboardGreen,
     orbCenter = Color(0xFF1C1C34),
 )
