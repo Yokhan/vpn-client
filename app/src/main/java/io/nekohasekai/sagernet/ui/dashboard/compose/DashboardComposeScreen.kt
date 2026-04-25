@@ -1,24 +1,14 @@
 package io.nekohasekai.sagernet.ui.dashboard.compose
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.yokhan.vpn.shared.domain.ConnectionStatus
 import com.yokhan.vpn.shared.domain.DashboardState
 import com.yokhan.vpn.shared.domain.LatencyDisplay
 import com.yokhan.vpn.shared.domain.RateDisplay
 import com.yokhan.vpn.shared.domain.VpnProtocol
-import com.yokhan.vpn.shared.ui.dashboard.DashboardTypography
 import com.yokhan.vpn.shared.ui.dashboard.DashboardUiActions
 import com.yokhan.vpn.shared.ui.dashboard.DashboardUiLabels
 import com.yokhan.vpn.shared.ui.dashboard.YokhanDashboardScreen
@@ -40,8 +30,6 @@ fun DashboardComposeScreen(
         labels = dashboardLabels(),
         actions = actions,
         modifier = modifier,
-        typography = dashboardTypography(),
-        rocketContent = { flameScale -> AndroidDashboardRocket(flameScale) },
     )
 }
 
@@ -66,42 +54,6 @@ private fun dashboardLabels(): DashboardUiLabels {
         latency = stringResource(R.string.dashboard_latency_label),
         status = stringResource(R.string.dashboard_status_label),
         protocol = stringResource(R.string.dashboard_protocol_label),
-    )
-}
-
-@Composable
-private fun dashboardTypography(): DashboardTypography {
-    return DashboardTypography(
-        text = FontFamily(Font(R.font.golos_text)),
-        mono = FontFamily(Font(R.font.jetbrains_mono)),
-    )
-}
-
-@Composable
-private fun AndroidDashboardRocket(flameScale: Float) {
-    Image(
-        painter = painterResource(R.drawable.ic_dashboard_spaceship_flame),
-        contentDescription = null,
-        contentScale = ContentScale.Fit,
-        modifier = Modifier
-            .size(width = 22.dp, height = 98.dp)
-            .offset(x = (-10).dp, y = 116.dp)
-            .scale(scaleX = 1f, scaleY = flameScale),
-    )
-    Image(
-        painter = painterResource(R.drawable.ic_dashboard_spaceship_flame),
-        contentDescription = null,
-        contentScale = ContentScale.Fit,
-        modifier = Modifier
-            .size(width = 22.dp, height = 98.dp)
-            .offset(x = 8.dp, y = 116.dp)
-            .scale(scaleX = 1f, scaleY = flameScale),
-    )
-    Image(
-        painter = painterResource(R.drawable.ic_dashboard_spaceship),
-        contentDescription = stringResource(R.string.dashboard_connect_action),
-        contentScale = ContentScale.Fit,
-        modifier = Modifier.size(width = 132.dp, height = 228.dp),
     )
 }
 

@@ -32,7 +32,6 @@ import com.yokhan.vpn.shared.domain.LatencyDisplay
 import com.yokhan.vpn.shared.domain.RateDisplay
 import com.yokhan.vpn.shared.domain.VpnProtocol
 import com.yokhan.vpn.shared.ui.dashboard.DashboardProfileUiItem
-import com.yokhan.vpn.shared.ui.dashboard.DashboardTypography
 import com.yokhan.vpn.shared.ui.dashboard.DashboardUiActions
 import com.yokhan.vpn.shared.ui.dashboard.DashboardUiLabels
 import com.yokhan.vpn.shared.ui.dashboard.YokhanDashboardScreen
@@ -69,10 +68,6 @@ private fun DashboardPreviewApp() {
             profiles = profiles,
             labels = DashboardUiLabels.Russian,
             actions = DashboardUiActions(onToggleConnection = { connected = !connected }),
-            typography = DashboardTypography(
-                text = FontFamily.SansSerif,
-                mono = FontFamily.Monospace,
-            ),
             modifier = Modifier
                 .width(412.dp)
                 .fillMaxHeight(),
@@ -102,7 +97,7 @@ private fun PreviewControlPanel(
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "This window uses the same shared Compose dashboard layout as Android. The rocket asset still differs until PNG/fonts move to shared resources.",
+            text = "This window uses the same shared Compose dashboard layout, rocket PNGs, flame PNG, and fonts as the Android Compose route.",
             color = Color(0xFFB7B7C8),
             fontSize = 14.sp,
         )

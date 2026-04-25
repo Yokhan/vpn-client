@@ -24,6 +24,7 @@ kotlin {
             implementation(project(":shared-domain"))
             implementation(compose.foundation)
             implementation(compose.material3)
+            implementation(compose.components.resources)
             implementation(compose.ui)
         }
     }

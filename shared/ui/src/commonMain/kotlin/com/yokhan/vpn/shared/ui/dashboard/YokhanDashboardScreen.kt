@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,9 +42,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,6 +52,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yokhan.vpn.shared.domain.ConnectionStatus
 import com.yokhan.vpn.shared.domain.DashboardState
+import nb4a.shared_ui.generated.resources.Res
+import nb4a.shared_ui.generated.resources.golos_text
+import nb4a.shared_ui.generated.resources.ic_dashboard_spaceship
+import nb4a.shared_ui.generated.resources.ic_dashboard_spaceship_flame
+import nb4a.shared_ui.generated.resources.jetbrains_mono_regular
+import org.jetbrains.compose.resources.Font
+import org.jetbrains.compose.resources.painterResource
 
 @Immutable
 data class DashboardProfileUiItem(
@@ -116,12 +124,6 @@ data class DashboardUiLabels(
     }
 }
 
-@Immutable
-data class DashboardTypography(
-    val text: FontFamily = FontFamily.Default,
-    val mono: FontFamily = FontFamily.Monospace,
-)
-
 @Composable
 fun YokhanDashboardScreen(
     state: DashboardState,
@@ -129,17 +131,11 @@ fun YokhanDashboardScreen(
     labels: DashboardUiLabels,
     actions: DashboardUiActions,
     modifier: Modifier = Modifier,
-    typography: DashboardTypography = DashboardTypography(),
-    rocketContent: @Composable (Float) -> Unit = { flameScale ->
-        DashboardVectorRocket(
-            flameScale = flameScale,
-            modifier = Modifier.size(width = 132.dp, height = 320.dp),
-        )
-    },
 ) {
     val connected = state.connectionStatus == ConnectionStatus.Connected
     val running = state.shouldAnimateSpace
     val colors = if (running) DashboardSpaceColors else DashboardLightColors
+    val typography = dashboardTypography()
 
     Box(
         modifier = modifier
@@ -158,7 +154,7 @@ fun YokhanDashboardScreen(
         ) {
             DashboardToolbar(colors, labels, typography, actions)
             CurrentConfigCard(state, colors, labels, typography)
-            LaunchPanel(state, connected, running, colors, labels, typography, actions, rocketContent)
+            LaunchPanel(state, connected, running, colors, labels, typography, actions)
             ConnectionStatusRow(state, connected, colors, labels, typography)
             ConnectionTestButton(state, colors, labels, typography, actions)
             ProfilesCard(profiles, colors, labels, typography, actions)
@@ -174,6 +170,20 @@ fun YokhanDashboardScreen(
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
+}
+
+@Immutable
+private data class DashboardTypography(
+    val text: FontFamily,
+    val mono: FontFamily,
+)
+
+@Composable
+private fun dashboardTypography(): DashboardTypography {
+    return DashboardTypography(
+        text = FontFamily(Font(Res.font.golos_text)),
+        mono = FontFamily(Font(Res.font.jetbrains_mono_regular)),
+    )
 }
 
 @Composable
@@ -288,7 +298,6 @@ private fun LaunchPanel(
     labels: DashboardUiLabels,
     typography: DashboardTypography,
     actions: DashboardUiActions,
-    rocketContent: @Composable (Float) -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -298,7 +307,7 @@ private fun LaunchPanel(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         SpeedPanel(labels.upload, state.uploadLabel, "↑", colors, typography, false)
-        OrbScene(connected, running, colors, labels, typography, actions.onToggleConnection, rocketContent)
+        OrbScene(connected, running, colors, labels, typography, actions.onToggleConnection)
         SpeedPanel(labels.download, state.downloadLabel, "↓", colors, typography, true)
     }
 }
@@ -362,7 +371,6 @@ private fun OrbScene(
     labels: DashboardUiLabels,
     typography: DashboardTypography,
     onClick: () -> Unit,
-    rocketContent: @Composable (Float) -> Unit,
 ) {
     val infinite = rememberInfiniteTransition(label = "dashboard-orb")
     val ringScale by infinite.animateFloat(
@@ -413,7 +421,7 @@ private fun OrbScene(
             )
         }
         if (running) {
-            rocketContent(flameScale)
+            DashboardRocket(flameScale)
         }
     }
 }
@@ -815,68 +823,31 @@ private fun Starfield(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun DashboardVectorRocket(flameScale: Float, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val cx = size.width / 2f
-        val bodyTop = 46.dp.toPx()
-        val bodyBottom = 218.dp.toPx()
-        val bodyWidth = 34.dp.toPx()
-        val wingWidth = 56.dp.toPx()
-        val orange = DashboardAccent
-
-        drawRoundRect(
-            brush = Brush.verticalGradient(listOf(Color.White, Color(0xFFD9D9DE))),
-            topLeft = Offset(cx - bodyWidth / 2f, bodyTop),
-            size = Size(bodyWidth, bodyBottom - bodyTop),
-            cornerRadius = CornerRadius(20.dp.toPx(), 20.dp.toPx()),
-        )
-        drawPath(
-            path = Path().apply {
-                moveTo(cx - bodyWidth / 2f, 120.dp.toPx())
-                lineTo(cx - wingWidth, 210.dp.toPx())
-                lineTo(cx - bodyWidth / 2f, 205.dp.toPx())
-                close()
-            },
-            brush = Brush.verticalGradient(listOf(Color.White, Color(0xFFD0D0D6))),
-        )
-        drawPath(
-            path = Path().apply {
-                moveTo(cx + bodyWidth / 2f, 120.dp.toPx())
-                lineTo(cx + wingWidth, 210.dp.toPx())
-                lineTo(cx + bodyWidth / 2f, 205.dp.toPx())
-                close()
-            },
-            brush = Brush.verticalGradient(listOf(Color.White, Color(0xFFD0D0D6))),
-        )
-        drawRoundRect(
-            brush = Brush.verticalGradient(listOf(Color(0xFF3A3A3A), Color(0xFF111111))),
-            topLeft = Offset(cx - 22.dp.toPx(), 206.dp.toPx()),
-            size = Size(44.dp.toPx(), 32.dp.toPx()),
-            cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx()),
-        )
-        drawOval(
-            brush = Brush.verticalGradient(listOf(Color.White, Color(0xFFFFC36E), Color(0xFFFF6A00), Color.Transparent)),
-            topLeft = Offset(cx - 24.dp.toPx(), 232.dp.toPx()),
-            size = Size(18.dp.toPx(), 88.dp.toPx() * flameScale),
-        )
-        drawOval(
-            brush = Brush.verticalGradient(listOf(Color.White, Color(0xFFFFC36E), Color(0xFFFF6A00), Color.Transparent)),
-            topLeft = Offset(cx + 6.dp.toPx(), 232.dp.toPx()),
-            size = Size(18.dp.toPx(), 88.dp.toPx() * flameScale),
-        )
-        repeat(3) { index ->
-            drawRect(
-                color = orange,
-                topLeft = Offset(cx - 46.dp.toPx() + index * 7.dp.toPx(), 186.dp.toPx()),
-                size = Size(4.dp.toPx(), 12.dp.toPx()),
-            )
-            drawRect(
-                color = orange,
-                topLeft = Offset(cx + 30.dp.toPx() + index * 7.dp.toPx(), 186.dp.toPx()),
-                size = Size(4.dp.toPx(), 12.dp.toPx()),
-            )
-        }
-    }
+private fun DashboardRocket(flameScale: Float) {
+    Image(
+        painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier
+            .size(width = 22.dp, height = 98.dp)
+            .offset(x = (-10).dp, y = 116.dp)
+            .scale(scaleX = 1f, scaleY = flameScale),
+    )
+    Image(
+        painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier
+            .size(width = 22.dp, height = 98.dp)
+            .offset(x = 8.dp, y = 116.dp)
+            .scale(scaleX = 1f, scaleY = flameScale),
+    )
+    Image(
+        painter = painterResource(Res.drawable.ic_dashboard_spaceship),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier.size(width = 132.dp, height = 228.dp),
+    )
 }
 
 @Immutable

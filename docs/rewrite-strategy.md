@@ -172,6 +172,6 @@ The Android Compose route is now wired behind `BuildConfig.ENABLE_COMPOSE_DASHBO
 
 A Windows-runnable Compose Desktop preview now exists at `preview/desktop/`. It uses shared-domain dashboard state and the shared dashboard Compose screen from `shared/ui`, so layout, transparency, stars, profile rows, status controls, and animation direction are no longer duplicated between Android and desktop preview.
 
-The Android Compose adapter now only supplies Android strings, fonts, real rocket/flame PNG resources, and callbacks. The desktop preview uses the same shared layout with a vector rocket fallback until image/font assets move into shared Compose resources.
+The Android Compose adapter now only supplies Android strings and callbacks. The desktop preview and Android Compose route both consume shared Compose UI resources for the bundled fonts, rocket PNG, and flame PNG.
 
-Next step: move the rocket/flame PNGs and bundled fonts into shared Compose resources so the desktop preview and Android test route use identical assets, not only identical layout code. Keep current `main` releasable while the rewrite grows behind explicit adapters.
+Next step: use the desktop preview for fast visual iteration, then validate the same Compose route on a real Android device before making it the default. Keep current `main` releasable while the rewrite grows behind explicit adapters.

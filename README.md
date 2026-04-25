@@ -51,7 +51,21 @@ Desktop UI preview on Windows:
 cmd /c gradlew.bat :desktop-preview:run --no-daemon
 ```
 
+Build a local Windows desktop app for the preview:
+
+```powershell
+cmd /c gradlew.bat :desktop-preview:createDistributable --no-daemon
+```
+
+Output path:
+
+```text
+preview/desktop/build/compose/binaries/main/app
+```
+
 This launches a local Compose Desktop preview of the dashboard shell. It is for UI iteration only: it does not start the Android VPN service, does not install an APK, and does not replace phone testing.
+
+The desktop preview uses the same shared dashboard Compose layout, rocket/flame PNGs, and bundled fonts as the Android Compose route.
 
 Android Studio setup for this repo is documented in [docs/android-studio.md](docs/android-studio.md).
 
