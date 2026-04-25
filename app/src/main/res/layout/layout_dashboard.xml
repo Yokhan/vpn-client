@@ -26,6 +26,7 @@
         android:translationY="@dimen/dashboard_space_glow_bottom_offset" />
 
     <LinearLayout
+        android:id="@+id/dashboard_xml_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipChildren="false"
@@ -568,4 +569,10 @@
         android:layout_height="match_parent"
         android:alpha="0"
         android:importantForAccessibility="no" />
+
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/dashboard_compose_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
 </FrameLayout>

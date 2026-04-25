@@ -3,6 +3,8 @@ package io.nekohasekai.sagernet.ui
 import androidx.annotation.StringRes
 
 interface DashboardHost {
+    fun openDashboardMenu()
+
     fun toggleDashboardConnection()
 
     fun runDashboardConnectionTest()

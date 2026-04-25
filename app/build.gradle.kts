@@ -10,6 +10,10 @@ plugins {
 
 setupApp()
 
+val composeDashboardEnabled =
+    providers.gradleProperty("yokhanComposeDashboard").orNull == "true" ||
+        System.getenv("YOKHAN_COMPOSE_DASHBOARD") == "1"
+
 android {
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -17,6 +21,9 @@ android {
     ksp {
         arg("room.incremental", "true")
         arg("room.schemaLocation", "$projectDir/schemas")
+    }
+    defaultConfig {
+        buildConfigField("boolean", "ENABLE_COMPOSE_DASHBOARD", composeDashboardEnabled.toString())
     }
     bundle {
         language {

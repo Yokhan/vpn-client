@@ -5,9 +5,12 @@ import android.os.SystemClock
 import android.view.MenuItem
 import android.view.View
 import androidx.appcompat.widget.PopupMenu
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import com.yokhan.vpn.shared.domain.DashboardState
+import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -20,6 +23,9 @@ import io.nekohasekai.sagernet.databinding.LayoutDashboardBinding
 import io.nekohasekai.sagernet.fmt.toUniversalLink
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.showAllowingStateLoss
+import io.nekohasekai.sagernet.ui.dashboard.compose.DashboardComposeActions
+import io.nekohasekai.sagernet.ui.dashboard.compose.DashboardComposeScreen
+import io.nekohasekai.sagernet.ui.dashboard.compose.DashboardProfileUiItem
 import io.nekohasekai.sagernet.widget.ListListener
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import kotlinx.coroutines.Dispatchers
@@ -48,34 +54,18 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private var orbMotionController: DashboardOrbMotionController? = null
     private var profileListRenderer: DashboardProfileListRenderer? = null
     private var viewRenderer: DashboardViewRenderer? = null
+    private val useComposeDashboard: Boolean
+        get() = BuildConfig.ENABLE_COMPOSE_DASHBOARD
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         _binding = LayoutDashboardBinding.bind(view)
-        orbMotionController = DashboardOrbMotionController(binding)
-        viewRenderer = DashboardViewRenderer(requireContext(), binding, toolbar)
-        profileListRenderer = DashboardProfileListRenderer(
-            binding.profilesContainer,
-            ::colorOf,
-            DashboardProfileListRenderer.Actions(
-                onSelect = ::selectProfileById,
-                onEdit = ::editProfileById,
-                onMenu = ::showProfileMenuById,
-            ),
-        )
+        configureDashboardMode()
 
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
         toolbar.setTitle(R.string.dashboard_title)
 
-        viewRenderer?.bindActions(
-            DashboardViewRenderer.Actions(
-                onToggleConnection = { dashboardHost()?.toggleDashboardConnection() },
-                onRunConnectionTest = { dashboardHost()?.runDashboardConnectionTest() },
-                onOpenConfiguration = { dashboardHost()?.openDashboardConfiguration() },
-            ),
-        )
-
-        if (currentState != BaseService.State.Connected) {
+        if (!useComposeDashboard && currentState != BaseService.State.Connected) {
             orbMotionController?.initializeDisconnected()
         }
 
@@ -98,6 +88,39 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         viewRenderer = null
         _binding = null
         super.onDestroyView()
+    }
+
+    private fun configureDashboardMode() {
+        binding.dashboardXmlContent.isVisible = !useComposeDashboard
+        binding.dashboardStars.isVisible = !useComposeDashboard
+        binding.dashboardComposeContent.isVisible = useComposeDashboard
+
+        if (useComposeDashboard) {
+            binding.dashboardComposeContent.setViewCompositionStrategy(
+                ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+            )
+            renderComposeDashboard()
+            return
+        }
+
+        orbMotionController = DashboardOrbMotionController(binding)
+        viewRenderer = DashboardViewRenderer(requireContext(), binding, toolbar)
+        profileListRenderer = DashboardProfileListRenderer(
+            binding.profilesContainer,
+            ::colorOf,
+            DashboardProfileListRenderer.Actions(
+                onSelect = ::selectProfileById,
+                onEdit = ::editProfileById,
+                onMenu = ::showProfileMenuById,
+            ),
+        )
+        viewRenderer?.bindActions(
+            DashboardViewRenderer.Actions(
+                onToggleConnection = { dashboardHost()?.toggleDashboardConnection() },
+                onRunConnectionTest = { dashboardHost()?.runDashboardConnectionTest() },
+                onOpenConfiguration = { dashboardHost()?.openDashboardConfiguration() },
+            ),
+        )
     }
 
     fun refreshDashboard() {
@@ -125,10 +148,14 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             currentGroupIsSubscription = summary.isSubscriptionGroup
             val dashboardState = buildDashboardState()
 
-            viewRenderer?.renderProfileHeader(
-                summary.toDashboardProfileHeader(dashboardState),
-            )
-            populateProfileList(summary.profiles, latestProfileId)
+            if (useComposeDashboard) {
+                renderComposeDashboard(dashboardState)
+            } else {
+                viewRenderer?.renderProfileHeader(
+                    summary.toDashboardProfileHeader(dashboardState),
+                )
+                populateProfileList(summary.profiles, latestProfileId)
+            }
             dashboardHost()?.updateDashboardProtocol(
                 summary.profile?.displayType() ?: "--"
             )
@@ -147,6 +174,15 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     fun updateConnectionState(state: BaseService.State) {
         currentState = state
         val dashboardState = buildDashboardState()
+        if (useComposeDashboard) {
+            renderComposeDashboard(dashboardState)
+            if (dashboardState.connectionStatus == com.yokhan.vpn.shared.domain.ConnectionStatus.Connected) {
+                startTimer()
+            } else {
+                stopTimer()
+            }
+            return
+        }
         val renderResult = viewRenderer?.renderConnectionState(state, dashboardState) ?: return
         profileListRenderer?.applyTheme(renderResult.isConnected, renderResult.dividerColor)
         orbMotionController?.update(renderResult.isStarted)
@@ -158,6 +194,10 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         latestTxRate = txRate
         latestRxRate = rxRate
         val dashboardState = buildDashboardState()
+        if (useComposeDashboard) {
+            renderComposeDashboard(dashboardState)
+            return
+        }
         binding.uploadSpeed.text = DashboardTelemetryFormatter.speed(
             requireContext(),
             dashboardState.uploadRate,
@@ -175,6 +215,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             while (isActive) {
                 val elapsed = SystemClock.elapsedRealtime() - connectionStartTime
                 _binding?.connectionTimer?.text = buildDashboardState(elapsed).timerLabel
+                if (useComposeDashboard) renderComposeDashboard(buildDashboardState(elapsed))
                 delay(1000)
             }
         }
@@ -191,13 +232,17 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         latestProfileId = profile.id
         latestProfile = profile
         val dashboardState = buildDashboardState()
-        viewRenderer?.renderProfileHeader(
-            DashboardViewRenderer.ProfileHeader(
-                name = dashboardState.activeProfileName,
-                subtitle = dashboardState.activeProfileSubtitle,
+        if (useComposeDashboard) {
+            renderComposeDashboard(dashboardState)
+        } else {
+            viewRenderer?.renderProfileHeader(
+                DashboardViewRenderer.ProfileHeader(
+                    name = dashboardState.activeProfileName,
+                    subtitle = dashboardState.activeProfileSubtitle,
+                )
             )
-        )
-        populateProfileList(latestProfiles, latestProfileId)
+            populateProfileList(latestProfiles, latestProfileId)
+        }
         dashboardHost()?.updateDashboardProtocol(profile.displayType())
 
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
@@ -293,6 +338,31 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         return activity as? DashboardHost
     }
 
+    private fun renderComposeDashboard(
+        dashboardState: DashboardState = buildDashboardState(),
+    ) {
+        val binding = _binding ?: return
+        if (!useComposeDashboard) return
+
+        binding.dashboardComposeContent.setContent {
+            DashboardComposeScreen(
+                state = dashboardState,
+                profiles = latestProfiles.toDashboardComposeProfileItems(latestProfileId),
+                actions = DashboardComposeActions(
+                    onMenuClick = { dashboardHost()?.openDashboardMenu() },
+                    onToggleConnection = { dashboardHost()?.toggleDashboardConnection() },
+                    onRunConnectionTest = { dashboardHost()?.runDashboardConnectionTest() },
+                    onAddProfile = { dashboardHost()?.openDashboardConfiguration() },
+                    onSelectProfile = ::selectProfileById,
+                    onEditProfile = ::editProfileById,
+                    onOpenProfileMenu = { profileId ->
+                        showProfileMenuById(binding.dashboardComposeContent, profileId)
+                    },
+                ),
+            )
+        }
+    }
+
     private fun colorOf(colorRes: Int): Int {
         return ContextCompat.getColor(requireContext(), colorRes)
     }
@@ -338,6 +408,19 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     ): List<DashboardProfileListRenderer.Item> {
         return map { profile ->
             DashboardProfileListRenderer.Item(
+                id = profile.id,
+                name = profile.displayName() ?: "",
+                protocol = profile.displayType(),
+                isActive = profile.id == activeId,
+            )
+        }
+    }
+
+    private fun List<ProxyEntity>.toDashboardComposeProfileItems(
+        activeId: Long,
+    ): List<DashboardProfileUiItem> {
+        return map { profile ->
+            DashboardProfileUiItem(
                 id = profile.id,
                 name = profile.displayName() ?: "",
                 protocol = profile.displayType(),

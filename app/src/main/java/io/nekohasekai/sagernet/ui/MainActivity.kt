@@ -532,6 +532,10 @@ class MainActivity : ThemedActivity(),
         }
     }
 
+    override fun openDashboardMenu() {
+        binding.drawerLayout.openDrawer(GravityCompat.START)
+    }
+
     override fun toggleDashboardConnection() {
         toggleConnection()
     }
