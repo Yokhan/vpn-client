@@ -101,6 +101,7 @@ jobs:
       - libcore
     env:
       BUILD_PLUGIN: none
+      YOKHAN_COMPOSE_DASHBOARD: "1"
       CORE_SING_BOX_REPO: ${{ vars.CORE_SING_BOX_REPO }}
       CORE_SING_BOX_GIT_URL: ${{ vars.CORE_SING_BOX_GIT_URL }}
       CORE_LIBNEKO_REPO: ${{ vars.CORE_LIBNEKO_REPO }}
@@ -197,6 +198,7 @@ jobs:
       - prepare
       - libcore
     env:
+      YOKHAN_COMPOSE_DASHBOARD: "1"
       CORE_SING_BOX_REPO: ${{ vars.CORE_SING_BOX_REPO }}
       CORE_SING_BOX_GIT_URL: ${{ vars.CORE_SING_BOX_GIT_URL }}
       CORE_LIBNEKO_REPO: ${{ vars.CORE_LIBNEKO_REPO }}

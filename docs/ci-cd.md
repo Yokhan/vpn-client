@@ -56,6 +56,7 @@ What it does:
 
 - prepares release metadata
 - builds signed OSS release APKs
+- builds the Android dashboard with the shared Compose UI enabled
 - optionally builds Play bundle
 - optionally publishes a GitHub Release in `Yokhan/YokhanVPN`
 
@@ -131,6 +132,7 @@ Notes:
 
 - artifact name is `apk-<run_number>`
 - the APK path inside the artifact is under `app/build/outputs/apk/...`
+- the Android dashboard uses the shared Compose UI by default; set `-PyokhanComposeDashboard=false` or `YOKHAN_COMPOSE_DASHBOARD=0` only for legacy XML fallback debugging
 - if you already have an app installed with a different signing key, Android will reject the update
 - local git hooks do not trigger CI; manual CI dispatch is the source of signed test APKs
 
