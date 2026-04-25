@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -172,7 +173,7 @@ fun YokhanDashboardScreen(
             visualSpaceActive = false
         }
     }
-    val colors = if (visualSpaceActive) DashboardSpaceColors else DashboardLightColors
+    val colors = if (state.shouldAnimateSpace) DashboardSpaceColors else DashboardLightColors
     val typography = dashboardTypography()
 
     Box(
@@ -276,11 +277,11 @@ private fun DashboardToolbar(
                 fontWeight = FontWeight.Medium,
                 lineHeight = 12.sp,
             )
-            Box(
-                Modifier
-                    .size(5.dp)
-                    .clip(CircleShape)
-                    .background(colors.accent)
+            CenteredMarker(
+                shape = CircleShape,
+                color = colors.accent,
+                boxSize = 12,
+                markerSize = 5,
             )
         }
     }
@@ -523,12 +524,20 @@ private fun ConnectionTestButton(
     ) {
         Row(
             modifier = Modifier
+                .shadow(8.dp, RoundedCornerShape(20.dp), clip = false)
                 .clip(RoundedCornerShape(20.dp))
-                .background(colors.primary.copy(alpha = if (state.canRunConnectionTest) 0.045f else 0.025f))
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            colors.primary.copy(alpha = if (state.canRunConnectionTest) 0.07f else 0.035f),
+                            colors.background.copy(alpha = 0.18f),
+                        )
+                    )
+                )
                 .border(1.dp, colors.border, RoundedCornerShape(20.dp))
                 .clickable(enabled = state.canRunConnectionTest, onClick = actions.onRunConnectionTest)
                 .alpha(if (state.canRunConnectionTest) 1f else 0.55f)
-                .padding(horizontal = 14.dp, vertical = 9.dp),
+                .padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -771,22 +780,43 @@ private fun SectionLabel(
     modifier: Modifier = Modifier,
 ) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier
-                .size(6.dp)
-                .clip(RoundedCornerShape(1.dp))
-                .background(colors.tertiary)
+        CenteredMarker(
+            shape = RoundedCornerShape(1.dp),
+            color = colors.tertiary,
+            boxSize = fontSize + 2,
+            markerSize = 6,
         )
         Text(
             text = text,
             color = colors.tertiary,
             fontFamily = typography.mono,
             fontSize = fontSize.sp,
+            lineHeight = fontSize.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.6.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 4.dp),
+            modifier = Modifier.padding(start = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun CenteredMarker(
+    shape: androidx.compose.ui.graphics.Shape,
+    color: Color,
+    boxSize: Int,
+    markerSize: Int,
+) {
+    Box(
+        modifier = Modifier.size(boxSize.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .size(markerSize.dp)
+                .clip(shape)
+                .background(color)
         )
     }
 }
