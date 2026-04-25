@@ -44,7 +44,6 @@ import io.nekohasekai.sagernet.fmt.PluginEntry
 import io.nekohasekai.sagernet.group.GroupInterfaceAdapter
 import io.nekohasekai.sagernet.group.GroupUpdater
 import io.nekohasekai.sagernet.ktx.alert
-import io.nekohasekai.sagernet.ktx.isPlay
 import io.nekohasekai.sagernet.ktx.isPreview
 import io.nekohasekai.sagernet.ktx.launchCustomTab
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
@@ -61,6 +60,8 @@ class MainActivity : ThemedActivity(),
 
     lateinit var binding: LayoutMainBinding
     lateinit var navigation: NavigationView
+    private val useComposeDashboard: Boolean
+        get() = BuildConfig.ENABLE_COMPOSE_DASHBOARD
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -123,8 +124,9 @@ class MainActivity : ThemedActivity(),
 
     fun refreshNavMenu(clashApi: Boolean) {
         if (::navigation.isInitialized) {
-            navigation.menu.findItem(R.id.nav_traffic)?.isVisible = clashApi
-            navigation.menu.findItem(R.id.nav_tuiguang)?.isVisible = !isPlay
+            navigation.menu.findItem(R.id.nav_traffic)?.isVisible = !useComposeDashboard && clashApi
+            navigation.menu.findItem(R.id.nav_faq)?.isVisible = false
+            navigation.menu.findItem(R.id.nav_tuiguang)?.isVisible = false
         }
     }
 
@@ -317,22 +319,7 @@ class MainActivity : ThemedActivity(),
                 FragmentManager.POP_BACK_STACK_INCLUSIVE
             )
         }
-        if (fragment is DashboardFragment) {
-            binding.stats.allowShow = true
-            hideLegacyConnectButton()
-        } else if (fragment is ConfigurationFragment ||
-            fragment is ConfigurationHubFragment ||
-            fragment is GroupHubFragment ||
-            fragment is RouteHubFragment
-        ) {
-            binding.stats.allowShow = true
-            binding.fab.isVisible = true
-            binding.fab.show()
-        } else if (!DataStore.showBottomBar) {
-            binding.stats.allowShow = false
-            binding.stats.performHide()
-            binding.fab.hide()
-        }
+        applyLegacyServiceChrome(fragment)
         supportFragmentManager.beginTransaction().apply {
             replace(R.id.fragment_holder, fragment)
             if (addToBackStack) addToBackStack(fragment::class.java.name)
@@ -340,8 +327,45 @@ class MainActivity : ThemedActivity(),
         binding.drawerLayout.closeDrawers()
     }
 
+    private fun applyLegacyServiceChrome(fragment: ToolbarFragment) {
+        if (useComposeDashboard) {
+            hideLegacyServiceChrome()
+            return
+        }
+
+        val showStats = fragment is DashboardFragment ||
+            fragment is ConfigurationFragment ||
+            fragment is ConfigurationHubFragment ||
+            fragment is GroupHubFragment ||
+            fragment is RouteHubFragment ||
+            DataStore.showBottomBar
+        val showFab = showStats && fragment !is DashboardFragment
+
+        binding.stats.allowShow = showStats
+        binding.stats.isVisible = showStats
+        if (showStats) {
+            binding.stats.performShow()
+        } else {
+            binding.stats.performHide()
+        }
+
+        if (showFab) {
+            binding.fab.isVisible = true
+            binding.fab.show()
+        } else {
+            hideLegacyConnectButton()
+        }
+    }
+
     private fun isDashboardVisible(): Boolean {
         return supportFragmentManager.findFragmentById(R.id.fragment_holder) is DashboardFragment
+    }
+
+    private fun hideLegacyServiceChrome() {
+        binding.stats.allowShow = false
+        binding.stats.performHide()
+        binding.stats.isVisible = false
+        hideLegacyConnectButton()
     }
 
     private fun hideLegacyConnectButton() {
@@ -541,6 +565,10 @@ class MainActivity : ThemedActivity(),
     }
 
     fun runConnectionTest() {
+        if (useComposeDashboard) {
+            currentDashboardFragment()?.runConnectionTest()
+            return
+        }
         if (DataStore.serviceState.connected) {
             binding.stats.testConnection()
         } else {
@@ -549,7 +577,11 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun runDashboardConnectionTest() {
-        runConnectionTest()
+        currentDashboardFragment()?.runConnectionTest() ?: runConnectionTest()
+    }
+
+    private fun currentDashboardFragment(): DashboardFragment? {
+        return supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment
     }
 
     override fun openDashboardConfiguration() {

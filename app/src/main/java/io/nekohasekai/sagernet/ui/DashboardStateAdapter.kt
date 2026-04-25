@@ -17,6 +17,7 @@ internal object DashboardStateAdapter {
         groupName: String,
         txRate: Long,
         rxRate: Long,
+        latencyMs: Long?,
         connectedForMillis: Long,
         nowMillis: Long,
     ): DashboardState {
@@ -27,6 +28,7 @@ internal object DashboardStateAdapter {
                 traffic = TrafficSnapshot(
                     uploadBytesPerSecond = txRate.coerceAtLeast(0L),
                     downloadBytesPerSecond = rxRate.coerceAtLeast(0L),
+                    latencyMs = latencyMs?.coerceAtLeast(0L),
                     capturedAtMillis = nowMillis.coerceAtLeast(0L),
                 ),
                 connectedForMillis = connectedForMillis.coerceAtLeast(0L),

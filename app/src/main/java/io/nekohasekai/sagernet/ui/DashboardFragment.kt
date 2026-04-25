@@ -5,6 +5,7 @@ import android.os.SystemClock
 import android.view.MenuItem
 import android.view.View
 import androidx.appcompat.widget.PopupMenu
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
@@ -46,14 +47,18 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private var latestGroupName = ""
     private var latestTxRate = 0L
     private var latestRxRate = 0L
+    private var latestLatencyMs: Long? = null
     private var currentGroupIsSubscription = false
     private var currentState = BaseService.State.Idle
 
     private var timerJob: Job? = null
+    private var connectionTestJob: Job? = null
     private var connectionStartTime = 0L
     private var orbMotionController: DashboardOrbMotionController? = null
     private var profileListRenderer: DashboardProfileListRenderer? = null
     private var viewRenderer: DashboardViewRenderer? = null
+    private val composeModel = mutableStateOf<DashboardComposeModel?>(null)
+    private var composeContentInstalled = false
     private val useComposeDashboard: Boolean
         get() = BuildConfig.ENABLE_COMPOSE_DASHBOARD
 
@@ -82,10 +87,13 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     override fun onDestroyView() {
         timerJob?.cancel()
+        connectionTestJob?.cancel()
         orbMotionController?.release()
         orbMotionController = null
         profileListRenderer = null
         viewRenderer = null
+        composeContentInstalled = false
+        composeModel.value = null
         _binding = null
         super.onDestroyView()
     }
@@ -173,6 +181,9 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     fun updateConnectionState(state: BaseService.State) {
         currentState = state
+        if (!state.connected) {
+            latestLatencyMs = null
+        }
         val dashboardState = buildDashboardState()
         if (useComposeDashboard) {
             renderComposeDashboard(dashboardState)
@@ -231,6 +242,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         if (profile.id == latestProfileId) return
         latestProfileId = profile.id
         latestProfile = profile
+        latestLatencyMs = null
         val dashboardState = buildDashboardState()
         if (useComposeDashboard) {
             renderComposeDashboard(dashboardState)
@@ -334,6 +346,28 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         )
     }
 
+    fun runConnectionTest() {
+        if (!DataStore.serviceState.connected) {
+            dashboardHost()?.showDashboardMessage(R.string.not_connected)
+            return
+        }
+        if (connectionTestJob?.isActive == true) return
+
+        connectionTestJob = viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val elapsed = withContext(Dispatchers.IO) {
+                    (requireActivity() as MainActivity).urlTest()
+                }
+                latestLatencyMs = elapsed.toLong()
+                renderComposeDashboard()
+            } catch (e: Exception) {
+                dashboardHost()?.showDashboardMessage(
+                    getString(R.string.connection_test_error, e.readableMessage)
+                )
+            }
+        }
+    }
+
     private fun dashboardHost(): DashboardHost? {
         return activity as? DashboardHost
     }
@@ -344,23 +378,33 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         val binding = _binding ?: return
         if (!useComposeDashboard) return
 
-        binding.dashboardComposeContent.setContent {
-            DashboardComposeScreen(
-                state = dashboardState,
-                profiles = latestProfiles.toDashboardComposeProfileItems(latestProfileId),
-                actions = DashboardComposeActions(
-                    onMenuClick = { dashboardHost()?.openDashboardMenu() },
-                    onToggleConnection = { dashboardHost()?.toggleDashboardConnection() },
-                    onRunConnectionTest = { dashboardHost()?.runDashboardConnectionTest() },
-                    onAddProfile = { dashboardHost()?.openDashboardConfiguration() },
-                    onSelectProfile = ::selectProfileById,
-                    onEditProfile = ::editProfileById,
-                    onOpenProfileMenu = { profileId ->
-                        showProfileMenuById(binding.dashboardComposeContent, profileId)
-                    },
-                ),
-            )
+        if (!composeContentInstalled) {
+            composeContentInstalled = true
+            binding.dashboardComposeContent.setContent {
+                val model = composeModel.value ?: return@setContent
+                DashboardComposeScreen(
+                    state = model.state,
+                    profiles = model.profiles,
+                    actions = DashboardComposeActions(
+                        onMenuClick = { dashboardHost()?.openDashboardMenu() },
+                        onToggleConnection = { dashboardHost()?.toggleDashboardConnection() },
+                        onRunConnectionTest = ::runConnectionTest,
+                        onAddProfile = { dashboardHost()?.openDashboardConfiguration() },
+                        onSelectProfile = ::selectProfileById,
+                        onEditProfile = ::editProfileById,
+                        onOpenProfileMenu = { profileId ->
+                            _binding?.dashboardComposeContent?.let { anchor ->
+                                showProfileMenuById(anchor, profileId)
+                            }
+                        },
+                    ),
+                )
+            }
         }
+        composeModel.value = DashboardComposeModel(
+            state = dashboardState,
+            profiles = latestProfiles.toDashboardComposeProfileItems(latestProfileId),
+        )
     }
 
     private fun colorOf(colorRes: Int): Int {
@@ -382,6 +426,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
             groupName = latestGroupName,
             txRate = latestTxRate,
             rxRate = latestRxRate,
+            latencyMs = latestLatencyMs,
             connectedForMillis = connectedForMillis,
             nowMillis = SystemClock.elapsedRealtime(),
         )
@@ -392,6 +437,11 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         val groupName: String,
         val isSubscriptionGroup: Boolean,
         val profiles: List<ProxyEntity>,
+    )
+
+    private data class DashboardComposeModel(
+        val state: DashboardState,
+        val profiles: List<DashboardProfileUiItem>,
     )
 
     private fun DashboardSummary.toDashboardProfileHeader(
