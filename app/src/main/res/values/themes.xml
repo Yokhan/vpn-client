@@ -4,33 +4,33 @@
         <item name="actionBarStyle">@style/Widget.MaterialComponents.ActionBar.Solid</item>
         <item name="actionModeCloseDrawable">@drawable/ic_navigation_close</item>
         <item name="colorButtonNormal">?colorAccent</item>
-        <item name="android:navigationBarColor">?colorPrimaryDark</item>
+        <item name="android:navigationBarColor">@color/dashboard_bg_off</item>
         <!-- YokhanVPN Design System tokens -->
-        <item name="android:colorBackground">@color/buffit_main</item>
-        <item name="android:windowBackground">@color/buffit_main</item>
-        <item name="colorSurface">@color/buffit_main</item>
+        <item name="android:colorBackground">@color/dashboard_bg_off</item>
+        <item name="android:windowBackground">@color/dashboard_bg_off</item>
+        <item name="colorSurface">@color/dashboard_bg_off</item>
         <item name="elevationOverlayEnabled">false</item>
-        <item name="colorPrimary">@color/buffit_contrast</item>
-        <item name="colorPrimaryDark">@color/buffit_main_dark</item>
-        <item name="colorAccent">@color/buffit_green</item>
+        <item name="colorPrimary">@color/dashboard_text_primary</item>
+        <item name="colorPrimaryDark">@color/dashboard_bg_off</item>
+        <item name="colorAccent">@color/dashboard_accent</item>
 
-        <item name="colorMaterial100">@color/buffit_workout_bg</item>
-        <item name="colorMaterial300">@color/buffit_workout_bar</item>
+        <item name="colorMaterial100">@color/dashboard_bg_off</item>
+        <item name="colorMaterial300">@color/dashboard_divider_light</item>
 
         <item name="accentOrTextSecondary">?colorAccent</item>
         <item name="accentOrTextPrimary">?colorAccent</item>
         <item name="primaryOrTextSecondary">?colorPrimary</item>
         <item name="primaryOrTextPrimary">?colorPrimary</item>
 
-        <item name="fabColorBackground">@color/buffit_contrast</item>
-        <item name="selectedColorPrimary">@color/buffit_contrast</item>
-        <item name="itemShapeFillColor">@color/buffit_workout_bg</item>
+        <item name="fabColorBackground">@color/dashboard_text_primary</item>
+        <item name="selectedColorPrimary">@color/dashboard_text_primary</item>
+        <item name="itemShapeFillColor">@color/dashboard_divider_light</item>
         <item name="actionBarTheme">@style/ThemeOverlay.AppCompat.DayNight.ActionBar</item>
         <item name="tabTextColor">#99000000</item>
-        <item name="tabSelectedTextColor">@color/buffit_contrast</item>
-        <item name="tabIndicatorColor">@color/buffit_contrast</item>
-        <item name="tabRippleColor">@color/buffit_contrast</item>
-        <item name="whiteOrTextPrimary">@color/buffit_contrast</item>
+        <item name="tabSelectedTextColor">@color/dashboard_text_primary</item>
+        <item name="tabIndicatorColor">@color/dashboard_accent</item>
+        <item name="tabRippleColor">@color/dashboard_accent</item>
+        <item name="whiteOrTextPrimary">@color/dashboard_text_primary</item>
 
         <item name="windowActionModeOverlay">true</item>
 
@@ -63,33 +63,33 @@
         <item name="actionBarStyle">@style/Widget.MaterialComponents.ActionBar.Solid</item>
         <item name="actionModeCloseDrawable">@drawable/ic_navigation_close</item>
         <item name="colorButtonNormal">?colorAccent</item>
-        <item name="android:navigationBarColor">?colorPrimaryDark</item>
+        <item name="android:navigationBarColor">@color/dashboard_bg_off</item>
         <!-- YokhanVPN Design System tokens -->
-        <item name="android:colorBackground">@color/buffit_main</item>
-        <item name="android:windowBackground">@color/buffit_main</item>
-        <item name="colorSurface">@color/buffit_main</item>
+        <item name="android:colorBackground">@color/dashboard_bg_off</item>
+        <item name="android:windowBackground">@color/dashboard_bg_off</item>
+        <item name="colorSurface">@color/dashboard_bg_off</item>
         <item name="elevationOverlayEnabled">false</item>
-        <item name="colorPrimary">@color/buffit_contrast</item>
-        <item name="colorPrimaryDark">@color/buffit_main_dark</item>
-        <item name="colorAccent">@color/buffit_green</item>
+        <item name="colorPrimary">@color/dashboard_text_primary</item>
+        <item name="colorPrimaryDark">@color/dashboard_bg_off</item>
+        <item name="colorAccent">@color/dashboard_accent</item>
 
-        <item name="colorMaterial100">@color/buffit_workout_bg</item>
-        <item name="colorMaterial300">@color/buffit_workout_bar</item>
+        <item name="colorMaterial100">@color/dashboard_bg_off</item>
+        <item name="colorMaterial300">@color/dashboard_divider_light</item>
 
         <item name="accentOrTextSecondary">?colorAccent</item>
         <item name="accentOrTextPrimary">?colorAccent</item>
         <item name="primaryOrTextSecondary">?colorPrimary</item>
         <item name="primaryOrTextPrimary">?colorPrimary</item>
 
-        <item name="fabColorBackground">@color/buffit_contrast</item>
-        <item name="selectedColorPrimary">@color/buffit_contrast</item>
-        <item name="itemShapeFillColor">@color/buffit_workout_bg</item>
+        <item name="fabColorBackground">@color/dashboard_text_primary</item>
+        <item name="selectedColorPrimary">@color/dashboard_text_primary</item>
+        <item name="itemShapeFillColor">@color/dashboard_divider_light</item>
         <item name="actionBarTheme">@style/ThemeOverlay.AppCompat.DayNight.ActionBar</item>
         <item name="tabTextColor">#99000000</item>
-        <item name="tabSelectedTextColor">@color/buffit_contrast</item>
-        <item name="tabIndicatorColor">@color/buffit_contrast</item>
-        <item name="tabRippleColor">@color/buffit_contrast</item>
-        <item name="whiteOrTextPrimary">@color/buffit_contrast</item>
+        <item name="tabSelectedTextColor">@color/dashboard_text_primary</item>
+        <item name="tabIndicatorColor">@color/dashboard_accent</item>
+        <item name="tabRippleColor">@color/dashboard_accent</item>
+        <item name="whiteOrTextPrimary">@color/dashboard_text_primary</item>
 
         <item name="windowActionModeOverlay">true</item>
 
@@ -201,6 +201,14 @@
         <item name="android:fontFamily">@font/golos_text</item>
         <item name="fontFamily">@font/golos_text</item>
         <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="TextAppearance.Yokhan.Navigation" parent="TextAppearance.MaterialComponents.Body2">
+        <item name="android:fontFamily">@font/jetbrains_mono</item>
+        <item name="fontFamily">@font/jetbrains_mono</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.02</item>
     </style>
 
     <!-- BUFF IT Card Style (applied globally via materialCardViewStyle) -->

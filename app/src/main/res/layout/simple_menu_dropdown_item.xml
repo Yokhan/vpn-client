@@ -17,9 +17,13 @@
     style="?android:attr/spinnerDropDownItemStyle"
     android:layout_width="match_parent"
     android:layout_height="48dp"
+    android:background="@color/dashboard_bg_off"
     android:ellipsize="marquee"
+    android:fontFamily="@font/jetbrains_mono"
     android:gravity="center"
     android:minWidth="112dp"
     android:paddingEnd="16dp"
     android:paddingStart="16dp"
-    android:singleLine="true" />
+    android:singleLine="true"
+    android:textColor="@color/dashboard_text_primary"
+    android:textSize="13sp" />

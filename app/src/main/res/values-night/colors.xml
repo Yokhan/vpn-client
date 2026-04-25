@@ -4,15 +4,15 @@
     <color name="preference_simple_menu_background">#1A1A2E</color>
 
     <!-- YokhanVPN dark theme overrides -->
-    <color name="buffit_contrast">#E0E0E0</color>
-    <color name="buffit_auth_title">#E0E0E0</color>
-    <color name="buffit_workout_bar">#2A2A3E</color>
-    <color name="buffit_workout_bg">#1A1A2E</color>
-    <color name="buffit_main">#1A1A2E</color>
-    <color name="buffit_main_dark">#121212</color>
-    <color name="buffit_text_header">#E0E0E0</color>
+    <color name="buffit_contrast">#111117</color>
+    <color name="buffit_auth_title">#111117</color>
+    <color name="buffit_workout_bar">#0D000000</color>
+    <color name="buffit_workout_bg">#F3F3F7</color>
+    <color name="buffit_main">#F3F3F7</color>
+    <color name="buffit_main_dark">#F3F3F7</color>
+    <color name="buffit_text_header">#111117</color>
     <color name="buffit_auth_btn_dark">#444466</color>
-    <color name="buffit_card_bg">#2A2A3E</color>
-    <color name="buffit_card_border">#33FFFFFF</color>
-    <color name="buffit_toolbar">#1A1A2E</color>
+    <color name="buffit_card_bg">#00FFFFFF</color>
+    <color name="buffit_card_border">#14000000</color>
+    <color name="buffit_toolbar">#00FFFFFF</color>
 </resources>

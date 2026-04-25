@@ -55,7 +55,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:maxLines="1"
                         android:textColor="@color/dashboard_text_primary"
                         android:textSize="16sp"
@@ -68,7 +68,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
                         android:ellipsize="end"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:maxLines="1"
                         android:textColor="@color/dashboard_text_secondary"
                         android:textSize="11sp"
@@ -84,7 +84,8 @@
                     android:contentDescription="@string/edit"
                     android:focusable="true"
                     android:padding="12dp"
-                    app:srcCompat="@drawable/ic_image_edit" />
+                    app:srcCompat="@drawable/ic_image_edit"
+                    app:tint="@color/dashboard_text_secondary" />
 
                 <androidx.appcompat.widget.AppCompatImageView
                     android:id="@+id/options"
@@ -95,7 +96,8 @@
                     android:focusable="true"
                     android:nextFocusLeft="@+id/container"
                     android:padding="12dp"
-                    app:srcCompat="@drawable/ic_baseline_more_vert_24" />
+                    app:srcCompat="@drawable/ic_baseline_more_vert_24"
+                    app:tint="@color/dashboard_text_secondary" />
             </LinearLayout>
 
             <View
@@ -122,7 +124,7 @@
                         android:id="@+id/group_status"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:textColor="@color/dashboard_text_primary"
                         android:textSize="12sp"
                         tools:text="@string/group_status_empty" />
@@ -132,7 +134,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:textColor="@color/dashboard_text_secondary"
                         android:textSize="11sp"
                         android:visibility="gone"

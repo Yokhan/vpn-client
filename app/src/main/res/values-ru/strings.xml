@@ -35,6 +35,7 @@
 <string name="always_show_address">Всегда показывать адрес</string>
 <string name="always_show_address_sum">Всегда отображать адрес сервера на карте конфигурации</string>
 <string name="app_desc">Универсальный набор инструментов прокси для Android, написанный на Kotlin.</string>
+<string name="yokhan_app_desc">Закрытый VPN-клиент Yokhan с общим Compose UI, Android service core и собственным release pipeline.</string>
 <string name="app_name">BUFF IT GATES</string>
 <string name="app_name_long">BUFF IT GATES</string>
 <string name="app_tls_version">Минимальная версия TLS протокола</string>
@@ -175,16 +176,16 @@
 <string name="group_added">Добавлено:
 %s</string>
 <string name="group_basic">Базовый</string>
-<string name="group_changed">Обновлено: 
+<string name="group_changed">Обновлено:
 %s</string>
 <string name="group_create">Создать группу</string>
 <string name="group_create_subscription">Создать подписку</string>
 <string name="group_default">Разгруппировано</string>
 <string name="group_delete_confirm_prompt">Вы уверены, что хотите удалить эту группу?</string>
-<string name="group_deleted">Удалено: 
+<string name="group_deleted">Удалено:
 %s</string>
 <string name="group_diff">различия (%s)</string>
-<string name="group_duplicate">Дубликат: 
+<string name="group_duplicate">Дубликат:
 %s</string>
 <string name="group_edit">Редактировать группу</string>
 <string name="group_edit_subscription">Редактировать подписку</string>
@@ -283,8 +284,8 @@
 <string name="mux_sum">Протокол мультиплексирования предназначен для уменьшения задержки соединения TCP, а не для увеличения пропускной способности. Использование мультиплексирования для просмотра видео, загрузки или проверки скорости обычно неэффективно. Если сервер не поддерживает мультиплексирование, вы не сможете получить доступ к Интернету.</string>
 <string name="mux_type">Протокол мультиплексирования</string>
 <string name="naive_insecure_concurrency">Небезопасный параллелизм</string>
-<string name="naive_insecure_concurrency_summary">Использовать N параллельных соединений для повышения отказоустойчивости в условиях ненадёжной сети. Большее число соединений увеличивает риск обнаружения туннелей и снижает безопасность. Этот проект стремится к максимальной защите от анализа трафика, следовательно, использование его небезопасным образом противоречит данной цели. 
- 
+<string name="naive_insecure_concurrency_summary">Использовать N параллельных соединений для повышения отказоустойчивости в условиях ненадёжной сети. Большее число соединений увеличивает риск обнаружения туннелей и снижает безопасность. Этот проект стремится к максимальной защите от анализа трафика, следовательно, использование его небезопасным образом противоречит данной цели.
+
 Если придётся использовать данную функцию, попробуйте N=2, чтобы проверить, решит ли это проблему. Настоятельно не рекомендуется использовать более 4 соединений.</string>
 <string name="nat_result_hint">Провести проверку NAT</string>
 <string name="nat_stun_server_hint">STUN сервер</string>
@@ -405,7 +406,7 @@
 <string name="share">Поделиться</string>
 <string name="share_qr_nfc">QR-код</string>
 <string name="share_subscription">Поделиться подпиской</string>
-<string name="show_bottom_bar">Показать нижнюю панель, как в SagerNet</string>
+<string name="show_bottom_bar">Показать legacy-нижнюю панель</string>
 <string name="show_direct_speed">Показать прямую скорость</string>
 <string name="show_direct_speed_sum">Также в уведомлении показывать скорость трафика без прокси</string>
 <string name="show_group_in_notification">Показывать название группы в уведомлении</string>
@@ -415,7 +416,7 @@
 <string name="sniff_override">Результат проверки для адрес назначения</string>
 <string name="sniff_routing">Перехватывать результат для Маршрутизации</string>
 <string name="speed">%s/с</string>
-<string name="speed_detail">Прокси ：%1$s↑ %2$s↓ 
+<string name="speed_detail">Прокси ：%1$s↑ %2$s↓
 \nПрямой ：%3$s↑%4$s↓</string>
 <string name="speed_interval">Интервал обновления уведомлений о скорости</string>
 <string name="ss_cat">Настройки Shadowsocks</string>

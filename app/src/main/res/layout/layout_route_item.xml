@@ -43,7 +43,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/jetbrains_mono"
                     android:maxLines="1"
                     android:textColor="@color/dashboard_text_primary"
                     android:textSize="16sp"
@@ -62,7 +62,8 @@
                 android:focusable="true"
                 android:padding="12dp"
                 android:visibility="gone"
-                app:srcCompat="@drawable/ic_file_cloud_queue" />
+                app:srcCompat="@drawable/ic_file_cloud_queue"
+                app:tint="@color/dashboard_text_secondary" />
 
             <androidx.appcompat.widget.AppCompatImageView
                 android:id="@+id/edit"
@@ -73,7 +74,8 @@
                 android:contentDescription="@string/edit"
                 android:focusable="true"
                 android:padding="12dp"
-                app:srcCompat="@drawable/ic_image_edit" />
+                app:srcCompat="@drawable/ic_image_edit"
+                app:tint="@color/dashboard_text_secondary" />
 
             <LinearLayout
                 android:id="@+id/share"
@@ -96,7 +98,8 @@
                         android:id="@+id/shareIcon"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        app:srcCompat="@drawable/ic_social_share" />
+                        app:srcCompat="@drawable/ic_social_share"
+                        app:tint="@color/dashboard_text_secondary" />
                 </LinearLayout>
 
 
@@ -127,7 +130,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/jetbrains_mono"
                     android:maxLines="2"
                     android:textColor="@color/dashboard_text_secondary"
                     android:textSize="11sp" />
@@ -138,7 +141,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:ellipsize="end"
-                    android:fontFamily="monospace"
+                    android:fontFamily="@font/jetbrains_mono"
                     android:maxLines="2"
                     android:textColor="@color/dashboard_text_primary"
                     android:textSize="13sp"

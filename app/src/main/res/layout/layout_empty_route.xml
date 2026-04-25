@@ -23,9 +23,9 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:textAppearance="?android:attr/textAppearanceSmall"
+            android:fontFamily="@font/jetbrains_mono"
             android:textColor="@color/dashboard_text_primary"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:text="@string/route_warn" />
     </LinearLayout>

@@ -3,6 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/dashboard_bg_off"
     android:orientation="vertical">
 
     <com.google.android.material.card.MaterialCardView
@@ -11,7 +12,11 @@
         android:layout_margin="8dp"
         android:clickable="true"
         android:focusable="true"
-        app:cardElevation="2dp">
+        app:cardBackgroundColor="@android:color/transparent"
+        app:cardCornerRadius="10dp"
+        app:cardElevation="0dp"
+        app:strokeColor="@color/dashboard_card_border_off"
+        app:strokeWidth="1dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -27,16 +32,20 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:fontFamily="@font/jetbrains_mono"
                     android:text="@string/stun_test"
-                    android:textAppearance="?attr/textAppearanceHeadline6" />
+                    android:textColor="@color/dashboard_text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
+                    android:fontFamily="@font/golos_text"
                     android:text="@string/stun_test_summary"
-                    android:textAppearance="?attr/textAppearanceBody2"
-                    android:textColor="?android:attr/textColorSecondary" />
+                    android:textColor="@color/dashboard_text_secondary"
+                    android:textSize="13sp" />
 
             </LinearLayout>
 
@@ -47,14 +56,15 @@
                 android:gravity="end"
                 android:orientation="horizontal">
 
-                <Button
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/stunTest"
-                    style="@style/Widget.AppCompat.Button.Borderless"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginEnd="8dp"
                     android:text="@string/start"
-                    android:textColor="?primaryOrTextPrimary" />
+                    android:textColor="@color/dashboard_text_primary"
+                    app:strokeColor="@color/dashboard_card_border_off" />
             </LinearLayout>
 
         </LinearLayout>

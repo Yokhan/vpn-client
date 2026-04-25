@@ -11,7 +11,7 @@
     android:paddingLeft="2dp"
     android:paddingTop="8dp"
     android:paddingRight="2dp"
-    android:paddingBottom="88dp"
+    android:paddingBottom="40dp"
     android:scrollbarSize="0dp"
     app:fastScrollAutoHide="true"
     app:fastScrollThumbColor="@color/dashboard_accent"

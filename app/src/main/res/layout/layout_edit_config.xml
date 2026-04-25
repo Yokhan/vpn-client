@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/dashboard_bg_off"
     android:orientation="vertical">
 
     <include
@@ -13,7 +14,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0.5dp"
-        android:background="?android:attr/listDivider" />
+        android:background="@color/dashboard_divider_light" />
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -34,7 +35,7 @@
             android:layout_width="30dp"
             android:layout_height="match_parent"
             android:layout_gravity="end"
-            app:thumbTint="?colorPrimary" />
+            app:thumbTint="@color/dashboard_accent" />
 
     </FrameLayout>
 
@@ -42,6 +43,7 @@
         android:id="@+id/keyboard_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@color/dashboard_bg_off"
         android:elevation="2dp"
         android:orientation="horizontal">
 
@@ -49,16 +51,16 @@
             android:id="@+id/action_tab"
             android:layout_width="36dp"
             android:layout_height="36dp"
-            android:background="?primaryOrTextPrimary"
+            android:background="@color/dashboard_divider_light"
             android:padding="8dp"
             android:src="@drawable/baseline_keyboard_tab_24"
-            app:tint="?colorOnSurface" />
+            app:tint="@color/dashboard_text_primary" />
 
         <moe.matsuri.nb4a.ui.ExtendedKeyboard
             android:id="@+id/extended_keyboard"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="?colorSecondaryVariant"
+            android:background="@color/dashboard_bg_off"
             android:orientation="horizontal"
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
             tools:itemCount="6"
@@ -68,33 +70,33 @@
             android:id="@+id/action_undo"
             android:layout_width="36dp"
             android:layout_height="36dp"
-            android:background="?primaryOrTextPrimary"
+            android:background="@color/dashboard_divider_light"
             android:padding="8dp"
             android:src="@drawable/baseline_undo_24"
-            app:tint="?colorOnSurface" />
+            app:tint="@color/dashboard_text_primary" />
 
         <ImageView
             android:id="@+id/action_redo"
             android:layout_width="36dp"
             android:layout_height="36dp"
-            android:background="?primaryOrTextPrimary"
+            android:background="@color/dashboard_divider_light"
             android:padding="8dp"
             android:src="@drawable/baseline_redo_24"
-            app:tint="?colorOnSurface" />
+            app:tint="@color/dashboard_text_primary" />
 
         <ImageView
             android:id="@+id/action_format"
             android:layout_width="36dp"
             android:layout_height="36dp"
-            android:background="?primaryOrTextPrimary"
+            android:background="@color/dashboard_divider_light"
             android:padding="8dp"
             android:src="@drawable/ic_baseline_format_align_left_24"
-            app:tint="?colorOnSurface" />
+            app:tint="@color/dashboard_text_primary" />
 
         <ImageView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="?primaryOrTextPrimary" />
+            android:background="@color/dashboard_divider_light" />
 
     </LinearLayout>
 
