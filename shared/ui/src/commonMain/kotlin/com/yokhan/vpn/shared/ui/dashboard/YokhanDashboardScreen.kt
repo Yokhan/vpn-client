@@ -1,9 +1,12 @@
 package com.yokhan.vpn.shared.ui.dashboard
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -173,7 +176,54 @@ fun YokhanDashboardScreen(
             visualSpaceActive = false
         }
     }
-    val colors = if (state.shouldAnimateSpace) DashboardSpaceColors else DashboardLightColors
+    val targetColors = if (state.shouldAnimateSpace) DashboardSpaceColors else DashboardLightColors
+    val colors = DashboardColors(
+        background = animateColorAsState(
+            targetValue = targetColors.background,
+            animationSpec = tween(600, easing = CssEase),
+            label = "dashboard-background",
+        ).value,
+        primary = animateColorAsState(
+            targetValue = targetColors.primary,
+            animationSpec = tween(400, easing = CssEase),
+            label = "dashboard-primary",
+        ).value,
+        secondary = animateColorAsState(
+            targetValue = targetColors.secondary,
+            animationSpec = tween(400, easing = CssEase),
+            label = "dashboard-secondary",
+        ).value,
+        tertiary = animateColorAsState(
+            targetValue = targetColors.tertiary,
+            animationSpec = tween(400, easing = CssEase),
+            label = "dashboard-tertiary",
+        ).value,
+        border = animateColorAsState(
+            targetValue = targetColors.border,
+            animationSpec = tween(400, easing = CssEase),
+            label = "dashboard-border",
+        ).value,
+        divider = animateColorAsState(
+            targetValue = targetColors.divider,
+            animationSpec = tween(400, easing = CssEase),
+            label = "dashboard-divider",
+        ).value,
+        accent = animateColorAsState(
+            targetValue = targetColors.accent,
+            animationSpec = tween(400, easing = CssEase),
+            label = "dashboard-accent",
+        ).value,
+        orbCenter = animateColorAsState(
+            targetValue = targetColors.orbCenter,
+            animationSpec = tween(400, easing = CssEase),
+            label = "dashboard-orb-center",
+        ).value,
+    )
+    val spaceLayerAlpha by animateFloatAsState(
+        targetValue = if (state.shouldAnimateSpace) 1f else 0f,
+        animationSpec = tween(1200, easing = CssEaseIn),
+        label = "dashboard-space-layer",
+    )
     val typography = dashboardTypography()
 
     Box(
@@ -182,7 +232,7 @@ fun YokhanDashboardScreen(
             .background(colors.background)
     ) {
         if (visualSpaceActive) {
-            Starfield(modifier = Modifier.fillMaxSize())
+            Starfield(modifier = Modifier.fillMaxSize().alpha(spaceLayerAlpha))
         }
 
         Column(
@@ -423,7 +473,7 @@ private fun OrbScene(
         initialValue = 1f,
         targetValue = if (connected) 1.04f else 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1600, easing = LinearEasing),
+            animation = tween(1600, easing = CssEaseInOut),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "ring-scale",
@@ -432,7 +482,7 @@ private fun OrbScene(
         initialValue = 1f,
         targetValue = if (connected) 1.15f else 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(420, easing = LinearEasing),
+            animation = tween(420, easing = CssEaseInOut),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "flame-scale",
@@ -960,13 +1010,13 @@ private fun DashboardRocket(
                 yOffset.snapTo(1.15f)
             }
             coroutineScope {
-                launch { alpha.animateTo(1f, tween(400, easing = LinearEasing)) }
-                launch { yOffset.animateTo(0f, tween(1400, easing = LinearEasing)) }
+                launch { alpha.animateTo(1f, tween(400, easing = CssEaseOut)) }
+                launch { yOffset.animateTo(0f, tween(1400, easing = RocketLaunchEasing)) }
             }
         } else if (visible) {
             coroutineScope {
-                launch { alpha.animateTo(0f, tween(800, easing = LinearEasing)) }
-                launch { yOffset.animateTo(-1.25f, tween(1400, easing = LinearEasing)) }
+                launch { alpha.animateTo(0f, tween(800, easing = CssEaseIn)) }
+                launch { yOffset.animateTo(-1.25f, tween(1400, easing = RocketDisconnectEasing)) }
             }
             visible = false
             yOffset.snapTo(1.15f)
@@ -1116,6 +1166,12 @@ private data class DashboardColors(
 private val DashboardAccent = Color(0xFFE55A1B)
 private val DashboardGreen = Color(0xFF28B44F)
 private val DashboardRed = Color(0xFFE53E3E)
+private val CssEase = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
+private val CssEaseIn = CubicBezierEasing(0.42f, 0f, 1f, 1f)
+private val CssEaseOut = CubicBezierEasing(0f, 0f, 0.58f, 1f)
+private val CssEaseInOut = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
+private val RocketLaunchEasing = CubicBezierEasing(0.2f, 0.8f, 0.3f, 1f)
+private val RocketDisconnectEasing = CubicBezierEasing(0.4f, 0f, 0.8f, 0.2f)
 
 private val DashboardLightColors = DashboardColors(
     background = Color(0xFFF3F3F7),
