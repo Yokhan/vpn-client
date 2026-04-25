@@ -60,4 +60,4 @@ Desktop dashboard preview:
 cmd /c gradlew.bat :desktop-preview:run --no-daemon
 ```
 
-The desktop preview is intentionally limited to the dashboard UI state. It is faster for visual iteration on Windows, but final release checks still require a signed APK on the phone.
+The desktop preview uses the same shared Compose dashboard layout as the Android Compose route. It is faster for visual iteration on Windows, but final release checks still require a signed APK on the phone because Android resources, density, status bars, and VPN lifecycle remain platform-specific.

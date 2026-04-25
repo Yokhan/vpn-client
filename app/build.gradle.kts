@@ -50,6 +50,7 @@ android {
 dependencies {
 
     implementation(project(":shared-domain"))
+    implementation(project(":shared-ui"))
 
     implementation(fileTree("libs"))
 

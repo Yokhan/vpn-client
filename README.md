@@ -118,6 +118,7 @@ If these are not set, build scripts fall back to:
 
 - `app/` - Android client
 - `shared/domain/` - Kotlin Multiplatform shared domain models and dashboard state mapping
+- `shared/ui/` - Kotlin Multiplatform shared Compose UI for dashboard rewrite surfaces
 - `preview/desktop/` - Compose Desktop dashboard preview for fast Windows UI checks
 - `libcore/` - Go mobile bridge and native bindings
 - `buildScript/` - build bootstrap and native build scripts

@@ -27,7 +27,7 @@ What it does:
 
 - builds `libcore`
 - checks shared domain contracts
-- compiles the Compose Desktop dashboard preview
+- compiles the shared Compose UI through the Compose Desktop dashboard preview
 - runs the selected Android Gradle build
 - uploads APK artifacts
 

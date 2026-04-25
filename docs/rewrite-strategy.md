@@ -170,6 +170,8 @@ The first Compose dashboard renderer now exists under `app/src/main/java/io/neko
 
 The Android Compose route is now wired behind `BuildConfig.ENABLE_COMPOSE_DASHBOARD`. Normal APKs still use the legacy XML route. A test APK can enable Compose with `-PyokhanComposeDashboard=true` or `YOKHAN_COMPOSE_DASHBOARD=1`.
 
-A Windows-runnable Compose Desktop preview now exists at `preview/desktop/`. It uses shared-domain dashboard state and a desktop-only renderer so UI sizing, transparency, stars, profile rows, status controls, and animation direction can be iterated without installing an APK for every change.
+A Windows-runnable Compose Desktop preview now exists at `preview/desktop/`. It uses shared-domain dashboard state and the shared dashboard Compose screen from `shared/ui`, so layout, transparency, stars, profile rows, status controls, and animation direction are no longer duplicated between Android and desktop preview.
 
-Next step: extract shared Compose UI primitives from the Android renderer and desktop preview into a real `shared-ui` module, then make Android and desktop consume the same dashboard components. Keep current `main` releasable while the rewrite grows behind explicit adapters.
+The Android Compose adapter now only supplies Android strings, fonts, real rocket/flame PNG resources, and callbacks. The desktop preview uses the same shared layout with a vector rocket fallback until image/font assets move into shared Compose resources.
+
+Next step: move the rocket/flame PNGs and bundled fonts into shared Compose resources so the desktop preview and Android test route use identical assets, not only identical layout code. Keep current `main` releasable while the rewrite grows behind explicit adapters.

@@ -12,6 +12,7 @@ kotlin {
 
 dependencies {
     implementation(project(":shared-domain"))
+    implementation(project(":shared-ui"))
     implementation(compose.desktop.currentOs)
     implementation(compose.foundation)
     implementation(compose.material3)
