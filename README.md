@@ -19,7 +19,7 @@ Main changes relative to upstream:
 ## Current State
 
 - package: `com.buffitgates.vpnservice`
-- current version: `1.6.8`
+- current version: `1.6.9`
 - main Android app module: `app/`
 - native core wrapper: `libcore/`
 - metadata and versioning: `nb4a.properties`
