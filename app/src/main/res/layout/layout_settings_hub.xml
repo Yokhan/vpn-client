@@ -57,7 +57,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/jetbrains_mono"
                             android:letterSpacing="0.06"
                             android:text="@string/settings_service_mode_card_title"
                             android:textAllCaps="true"
@@ -71,7 +71,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:textColor="@color/dashboard_text_primary"
                         android:textSize="18sp"
                         android:textStyle="bold"
@@ -130,7 +130,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/jetbrains_mono"
                             android:letterSpacing="0.06"
                             android:text="@string/settings_quick_switches_title"
                             android:textAllCaps="true"
@@ -155,7 +155,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/jetbrains_mono"
                                 android:text="@string/settings_stealth_title"
                                 android:textColor="@color/dashboard_text_primary"
                                 android:textSize="14sp"
@@ -199,7 +199,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/jetbrains_mono"
                                 android:text="@string/settings_direct_speed_title"
                                 android:textColor="@color/dashboard_text_primary"
                                 android:textSize="14sp"
@@ -243,7 +243,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/jetbrains_mono"
                                 android:text="@string/settings_auto_connect_title"
                                 android:textColor="@color/dashboard_text_primary"
                                 android:textSize="14sp"
@@ -298,7 +298,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/jetbrains_mono"
                             android:letterSpacing="0.06"
                             android:text="@string/settings_runtime_title"
                             android:textAllCaps="true"
@@ -312,7 +312,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:textColor="@color/dashboard_text_primary"
                         android:textSize="14sp"
                         android:textStyle="bold"
@@ -322,7 +322,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:text="@string/settings_apps_title"
                         android:textColor="@color/dashboard_text_tertiary"
                         android:textSize="10sp" />
@@ -332,7 +332,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:textColor="@color/dashboard_text_primary"
                         android:textSize="12sp"
                         tools:text="Remote: https://dns.google/dns-query&#10;Direct: https://223.5.5.5/dns-query" />
@@ -341,7 +341,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:text="@string/settings_dns_title"
                         android:textColor="@color/dashboard_text_tertiary"
                         android:textSize="10sp" />
@@ -351,7 +351,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:textColor="@color/dashboard_text_primary"
                         android:textSize="12sp"
                         tools:text="DNS routing On | FakeDNS On | LAN access Off" />
@@ -360,7 +360,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:text="@string/settings_network_title"
                         android:textColor="@color/dashboard_text_tertiary"
                         android:textSize="10sp" />
@@ -398,7 +398,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/jetbrains_mono"
                             android:letterSpacing="0.06"
                             android:text="@string/settings_advanced_title_card"
                             android:textAllCaps="true"
@@ -412,7 +412,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:textColor="@color/dashboard_text_primary"
                         android:textSize="12sp"
                         tools:text="Local inbound Off | Clash API Off" />
@@ -421,7 +421,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:text="@string/settings_advanced_title"
                         android:textColor="@color/dashboard_text_tertiary"
                         android:textSize="10sp" />

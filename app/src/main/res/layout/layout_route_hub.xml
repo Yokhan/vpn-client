@@ -57,7 +57,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/jetbrains_mono"
                             android:letterSpacing="0.06"
                             android:text="@string/route_hub_overview_title"
                             android:textAllCaps="true"
@@ -83,7 +83,7 @@
                                 android:id="@+id/rule_totals_value"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/jetbrains_mono"
                                 android:textColor="@color/dashboard_text_primary"
                                 android:textSize="14sp"
                                 android:textStyle="bold"
@@ -93,7 +93,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/jetbrains_mono"
                                 android:text="@string/route_hub_rule_totals_title"
                                 android:textColor="@color/dashboard_text_tertiary"
                                 android:textSize="10sp" />
@@ -116,7 +116,7 @@
                                 android:id="@+id/asset_totals_value"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/jetbrains_mono"
                                 android:textColor="@color/dashboard_text_primary"
                                 android:textSize="14sp"
                                 android:textStyle="bold"
@@ -126,7 +126,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/jetbrains_mono"
                                 android:text="@string/route_hub_asset_totals_title"
                                 android:textColor="@color/dashboard_text_tertiary"
                                 android:textSize="10sp" />
@@ -166,7 +166,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/jetbrains_mono"
                             android:letterSpacing="0.06"
                             android:text="@string/route_hub_actions_title"
                             android:textAllCaps="true"

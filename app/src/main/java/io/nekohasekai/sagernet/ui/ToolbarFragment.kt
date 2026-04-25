@@ -1,11 +1,18 @@
 package io.nekohasekai.sagernet.ui
 
+import android.graphics.Color
+import android.graphics.Typeface
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
+import android.widget.TextView
 import androidx.appcompat.widget.Toolbar
+import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
+import androidx.core.view.ViewCompat
 import androidx.fragment.app.Fragment
+import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 
 open class ToolbarFragment : Fragment {
@@ -29,6 +36,35 @@ open class ToolbarFragment : Fragment {
             toolbar.setNavigationOnClickListener {
                 mainActivity.binding.drawerLayout.openDrawer(GravityCompat.START)
             }
+        }
+        applyYokhanToolbarStyle(view)
+    }
+
+    private fun applyYokhanToolbarStyle(view: View) {
+        if (!BuildConfig.ENABLE_COMPOSE_DASHBOARD) return
+
+        val context = toolbar.context
+        val titleColor = ContextCompat.getColor(context, R.color.dashboard_text_primary)
+        toolbar.setBackgroundColor(Color.TRANSPARENT)
+        toolbar.setTitleTextColor(titleColor)
+        toolbar.navigationIcon?.setTint(titleColor)
+        toolbar.elevation = 0f
+        ViewCompat.setElevation(toolbar, 0f)
+
+        view.findViewById<View>(R.id.appbar)?.let { appBar ->
+            appBar.setBackgroundColor(Color.TRANSPARENT)
+            appBar.elevation = 0f
+            ViewCompat.setElevation(appBar, 0f)
+        }
+
+        ResourcesCompat.getFont(context, R.font.golos_text)?.let { typeface ->
+            toolbar.post { toolbar.applyTitleTypeface(typeface) }
+        }
+    }
+
+    private fun Toolbar.applyTitleTypeface(typeface: Typeface) {
+        for (index in 0 until childCount) {
+            (getChildAt(index) as? TextView)?.typeface = typeface
         }
     }
 

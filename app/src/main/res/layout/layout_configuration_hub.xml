@@ -25,7 +25,7 @@
             android:paddingStart="12dp"
             android:paddingTop="12dp"
             android:paddingEnd="12dp"
-            android:paddingBottom="104dp">
+            android:paddingBottom="40dp">
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
@@ -57,7 +57,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/jetbrains_mono"
                             android:letterSpacing="0.06"
                             android:text="@string/configuration_hub_manage_title"
                             android:textAllCaps="true"
@@ -72,7 +72,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:ellipsize="end"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:maxLines="1"
                         android:textColor="@color/dashboard_text_primary"
                         android:textSize="18sp"
@@ -83,7 +83,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:text="@string/configuration_hub_current_profile"
                         android:textColor="@color/dashboard_text_tertiary"
                         android:textSize="12sp" />
@@ -100,7 +100,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:ellipsize="end"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:maxLines="1"
                         android:textColor="@color/dashboard_text_primary"
                         android:textSize="16sp"
@@ -112,7 +112,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:textColor="@color/dashboard_text_secondary"
                         android:textSize="12sp"
                         tools:text="Subscription group" />
@@ -121,7 +121,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:fontFamily="monospace"
+                        android:fontFamily="@font/jetbrains_mono"
                         android:text="@string/configuration_hub_current_group"
                         android:textColor="@color/dashboard_text_tertiary"
                         android:textSize="10sp" />
@@ -143,7 +143,7 @@
                                 android:id="@+id/profile_count_value"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/jetbrains_mono"
                                 android:textColor="@color/dashboard_text_primary"
                                 android:textSize="12sp"
                                 android:textStyle="bold"
@@ -153,7 +153,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/jetbrains_mono"
                                 android:text="@string/configuration_hub_profile_count"
                                 android:textColor="@color/dashboard_text_tertiary"
                                 android:textSize="10sp" />
@@ -176,7 +176,7 @@
                                 android:id="@+id/group_count_value"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/jetbrains_mono"
                                 android:textColor="@color/dashboard_text_primary"
                                 android:textSize="12sp"
                                 android:textStyle="bold"
@@ -186,7 +186,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="@font/jetbrains_mono"
                                 android:text="@string/configuration_hub_group_count_label"
                                 android:textColor="@color/dashboard_text_tertiary"
                                 android:textSize="10sp" />
@@ -288,7 +288,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/jetbrains_mono"
                             android:letterSpacing="0.06"
                             android:text="@string/configuration_hub_import_title"
                             android:textAllCaps="true"
@@ -392,7 +392,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
+                            android:fontFamily="@font/jetbrains_mono"
                             android:letterSpacing="0.06"
                             android:text="@string/configuration_hub_manual_title"
                             android:textAllCaps="true"

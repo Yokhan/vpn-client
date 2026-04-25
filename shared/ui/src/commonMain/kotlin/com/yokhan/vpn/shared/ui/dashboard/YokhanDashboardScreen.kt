@@ -101,9 +101,9 @@ data class DashboardUiActions(
 
 @Immutable
 data class DashboardUiTuning(
-    val contentBottomPadding: Int = 104,
+    val contentBottomPadding: Int = 120,
     val testButtonTopPadding: Int = 12,
-    val statsBarBottomPadding: Int = 16,
+    val statsBarBottomPadding: Int = 22,
     val rocketWidth: Int = 132,
     val rocketHeight: Int = 228,
     val flameWidth: Int = 22,
@@ -169,15 +169,21 @@ fun YokhanDashboardScreen(
 ) {
     val connected = state.connectionStatus == ConnectionStatus.Connected
     var visualSpaceActive by remember { mutableStateOf(state.shouldAnimateSpace) }
+    var starfieldMounted by remember { mutableStateOf(state.shouldAnimateSpace) }
     LaunchedEffect(state.connectionStatus, state.shouldAnimateSpace) {
         if (state.shouldAnimateSpace || state.connectionStatus == ConnectionStatus.Disconnecting) {
             visualSpaceActive = true
+            starfieldMounted = true
         } else if (visualSpaceActive) {
             delay(1400)
             visualSpaceActive = false
+            delay(1200)
+            starfieldMounted = false
+        } else {
+            starfieldMounted = false
         }
     }
-    val targetColors = if (state.shouldAnimateSpace) DashboardSpaceColors else DashboardLightColors
+    val targetColors = if (visualSpaceActive) DashboardSpaceColors else DashboardLightColors
     val colors = DashboardColors(
         background = animateColorAsState(
             targetValue = targetColors.background,
@@ -221,7 +227,7 @@ fun YokhanDashboardScreen(
         ).value,
     )
     val spaceLayerAlpha by animateFloatAsState(
-        targetValue = if (state.shouldAnimateSpace) 1f else 0f,
+        targetValue = if (visualSpaceActive) 1f else 0f,
         animationSpec = tween(1200, easing = CssEaseIn),
         label = "dashboard-space-layer",
     )
@@ -232,7 +238,7 @@ fun YokhanDashboardScreen(
             .fillMaxSize()
             .background(colors.background)
     ) {
-        if (visualSpaceActive) {
+        if (starfieldMounted) {
             Starfield(modifier = Modifier.fillMaxSize().alpha(spaceLayerAlpha))
         }
 
@@ -516,7 +522,7 @@ private fun OrbScene(
                 letterSpacing = 1.2.sp,
             )
         }
-        DashboardRocket(connectionStatus, running, flameScale, tuning)
+        DashboardRocket(connectionStatus, flameScale, tuning)
     }
 }
 
@@ -584,19 +590,18 @@ private fun ConnectionTestButton(
     ) {
         Row(
             modifier = Modifier
-                .shadow(8.dp, RoundedCornerShape(20.dp), clip = false)
+                .shadow(2.dp, RoundedCornerShape(20.dp), clip = false)
                 .clip(RoundedCornerShape(20.dp))
                 .background(
                     Brush.linearGradient(
                         listOf(
-                            colors.primary.copy(alpha = if (state.canRunConnectionTest) 0.07f else 0.035f),
-                            colors.background.copy(alpha = 0.18f),
+                            colors.primary.copy(alpha = if (state.canRunConnectionTest) 0.055f else 0.028f),
+                            colors.background.copy(alpha = 0.08f),
                         )
                     )
                 )
                 .border(1.dp, colors.border, RoundedCornerShape(20.dp))
                 .clickable(onClick = actions.onRunConnectionTest)
-                .alpha(if (state.canRunConnectionTest) 1f else 0.55f)
                 .padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -842,7 +847,7 @@ private fun SectionLabel(
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier
-                .offset(y = (-1).dp)
+                .offset(y = (-0.5f).dp)
                 .size(6.dp)
                 .clip(RoundedCornerShape(1.dp))
                 .background(colors.tertiary)
@@ -852,6 +857,7 @@ private fun SectionLabel(
             color = colors.tertiary,
             fontFamily = typography.mono,
             fontSize = fontSize.sp,
+            lineHeight = fontSize.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.6.sp,
             maxLines = 1,
@@ -978,22 +984,19 @@ private fun Starfield(modifier: Modifier = Modifier) {
 @Composable
 private fun DashboardRocket(
     connectionStatus: ConnectionStatus,
-    running: Boolean,
     flameScale: Float,
     tuning: DashboardUiTuning,
 ) {
     val initiallyVisible = connectionStatus == ConnectionStatus.Connecting ||
         connectionStatus == ConnectionStatus.Connected ||
-        connectionStatus == ConnectionStatus.Disconnecting ||
-        running
+        connectionStatus == ConnectionStatus.Disconnecting
     var visible by remember { mutableStateOf(initiallyVisible) }
     val yOffset = remember { Animatable(if (initiallyVisible) 0f else 1.15f) }
     val alpha = remember { Animatable(if (initiallyVisible) 1f else 0f) }
 
-    LaunchedEffect(connectionStatus, running) {
+    LaunchedEffect(connectionStatus) {
         val shouldDock = connectionStatus == ConnectionStatus.Connecting ||
-            connectionStatus == ConnectionStatus.Connected ||
-            running
+            connectionStatus == ConnectionStatus.Connected
         if (shouldDock) {
             visible = true
             if (yOffset.value < -1f || alpha.value == 0f) {
@@ -1180,7 +1183,7 @@ private val DashboardSpaceColors = DashboardColors(
     secondary = Color(0xFF8888A0),
     tertiary = Color(0xFF8888A0),
     border = Color(0x1AFFFFFF),
-    divider = Color(0x12FFFFFF),
+    divider = Color(0x0DFFFFFF),
     accent = DashboardGreen,
     orbCenter = Color(0xFF1C1C34),
 )
