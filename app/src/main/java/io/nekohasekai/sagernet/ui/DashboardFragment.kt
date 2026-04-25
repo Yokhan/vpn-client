@@ -353,10 +353,12 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         }
         if (connectionTestJob?.isActive == true) return
 
+        val activity = requireActivity() as MainActivity
+        dashboardHost()?.showDashboardMessage(R.string.connection_test_testing)
         connectionTestJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val elapsed = withContext(Dispatchers.IO) {
-                    (requireActivity() as MainActivity).urlTest()
+                    activity.urlTest()
                 }
                 latestLatencyMs = elapsed.toLong()
                 renderComposeDashboard()

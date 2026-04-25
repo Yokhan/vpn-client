@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -527,30 +528,40 @@ private fun ConnectionStatusRow(
     labels: DashboardUiLabels,
     typography: DashboardTypography,
 ) {
+    val statusText = when (state.connectionStatus) {
+        ConnectionStatus.Connected -> labels.connected
+        ConnectionStatus.Connecting -> labels.connecting
+        ConnectionStatus.Disconnecting -> labels.disconnecting
+        else -> labels.tapConnect
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 12.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = when (state.connectionStatus) {
-                ConnectionStatus.Connected -> labels.connected
-                ConnectionStatus.Connecting -> labels.connecting
-                ConnectionStatus.Disconnecting -> labels.disconnecting
-                else -> labels.tapConnect
-            },
-            color = if (connected) colors.primary else colors.tertiary,
-            fontFamily = typography.mono,
-            fontSize = 12.sp,
-            modifier = Modifier.weight(1f),
-        )
         if (connected) {
+            Text(
+                text = statusText,
+                color = colors.primary,
+                fontFamily = typography.mono,
+                fontSize = 12.sp,
+                modifier = Modifier.weight(1f),
+            )
             Text(
                 text = state.timerLabel,
                 color = colors.primary,
                 fontFamily = typography.mono,
                 fontSize = 12.sp,
+            )
+        } else {
+            Text(
+                text = statusText,
+                color = colors.tertiary,
+                fontFamily = typography.mono,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -584,7 +595,7 @@ private fun ConnectionTestButton(
                     )
                 )
                 .border(1.dp, colors.border, RoundedCornerShape(20.dp))
-                .clickable(enabled = state.canRunConnectionTest, onClick = actions.onRunConnectionTest)
+                .clickable(onClick = actions.onRunConnectionTest)
                 .alpha(if (state.canRunConnectionTest) 1f else 0.55f)
                 .padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
