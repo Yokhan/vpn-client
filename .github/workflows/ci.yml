@@ -119,7 +119,7 @@ jobs:
           echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
           export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
           ./run init action gradle
-          ./gradlew :shared-domain:check "$GRADLE_TASK"
+          ./gradlew :shared-domain:check :desktop-preview:classes "$GRADLE_TASK"
       - name: Collect artifacts
         shell: bash
         run: |

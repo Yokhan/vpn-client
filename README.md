@@ -45,6 +45,16 @@ Release build:
 ./gradlew app:assembleOssRelease
 ```
 
+Desktop UI preview on Windows:
+
+```powershell
+cmd /c gradlew.bat :desktop-preview:run --no-daemon
+```
+
+This launches a local Compose Desktop preview of the dashboard shell. It is for UI iteration only: it does not start the Android VPN service, does not install an APK, and does not replace phone testing.
+
+Android Studio setup for this repo is documented in [docs/android-studio.md](docs/android-studio.md).
+
 Important:
 
 - cold checkout is not just `./gradlew assembleRelease`
@@ -108,10 +118,11 @@ If these are not set, build scripts fall back to:
 
 - `app/` - Android client
 - `shared/domain/` - Kotlin Multiplatform shared domain models and dashboard state mapping
+- `preview/desktop/` - Compose Desktop dashboard preview for fast Windows UI checks
 - `libcore/` - Go mobile bridge and native bindings
 - `buildScript/` - build bootstrap and native build scripts
 - `.github/workflows/` - CI and release automation
-- `preview/` - web/dashboard design reference used during Android redesign
+- `preview/` - web/dashboard design reference and desktop UI preview used during redesign
 - `.claude/rules/` - local project and design-system notes
 
 ## Related

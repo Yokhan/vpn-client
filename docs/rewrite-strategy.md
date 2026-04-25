@@ -168,4 +168,8 @@ The current XML dashboard visual regressions have an interim fix: rocket/flame d
 
 The first Compose dashboard renderer now exists under `app/src/main/java/io/nekohasekai/sagernet/ui/dashboard/compose/`. It is intentionally isolated from `MainActivity`, database classes, fragments, and service bindings: it accepts `DashboardState`, explicit profile presentation items, and callbacks. The production route still uses XML until the Compose screen passes device and screenshot parity checks. Build a test variant with `YOKHAN_COMPOSE_DASHBOARD=1` or `-PyokhanComposeDashboard=true` to route the dashboard through Compose.
 
-Next step: wire the Compose renderer behind an explicit dashboard feature flag, reuse the existing `DashboardStateAdapter` and profile presentation items, then compare connected/disconnected screenshots against `preview/dashboard.html` before making it the default. Keep current `main` releasable while the rewrite grows behind explicit adapters.
+The Android Compose route is now wired behind `BuildConfig.ENABLE_COMPOSE_DASHBOARD`. Normal APKs still use the legacy XML route. A test APK can enable Compose with `-PyokhanComposeDashboard=true` or `YOKHAN_COMPOSE_DASHBOARD=1`.
+
+A Windows-runnable Compose Desktop preview now exists at `preview/desktop/`. It uses shared-domain dashboard state and a desktop-only renderer so UI sizing, transparency, stars, profile rows, status controls, and animation direction can be iterated without installing an APK for every change.
+
+Next step: extract shared Compose UI primitives from the Android renderer and desktop preview into a real `shared-ui` module, then make Android and desktop consume the same dashboard components. Keep current `main` releasable while the rewrite grows behind explicit adapters.

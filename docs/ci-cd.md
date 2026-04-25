@@ -26,7 +26,9 @@ Triggers:
 What it does:
 
 - builds `libcore`
-- runs Gradle build
+- checks shared domain contracts
+- compiles the Compose Desktop dashboard preview
+- runs the selected Android Gradle build
 - uploads APK artifacts
 
 Manual inputs:
