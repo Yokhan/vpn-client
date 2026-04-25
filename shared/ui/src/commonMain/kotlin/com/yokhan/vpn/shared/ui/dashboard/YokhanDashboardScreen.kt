@@ -80,6 +80,21 @@ data class DashboardUiActions(
 )
 
 @Immutable
+data class DashboardUiTuning(
+    val contentBottomPadding: Int = 104,
+    val testButtonTopPadding: Int = 12,
+    val testButtonWidthFraction: Float = 0.5f,
+    val statsBarBottomPadding: Int = 16,
+    val rocketWidth: Int = 132,
+    val rocketHeight: Int = 228,
+    val flameWidth: Int = 22,
+    val flameHeight: Int = 98,
+    val leftFlameX: Int = -10,
+    val rightFlameX: Int = 8,
+    val flameY: Int = 116,
+)
+
+@Immutable
 data class DashboardUiLabels(
     val title: String,
     val system: String,
@@ -131,6 +146,7 @@ fun YokhanDashboardScreen(
     labels: DashboardUiLabels,
     actions: DashboardUiActions,
     modifier: Modifier = Modifier,
+    tuning: DashboardUiTuning = DashboardUiTuning(),
 ) {
     val connected = state.connectionStatus == ConnectionStatus.Connected
     val running = state.shouldAnimateSpace
@@ -150,13 +166,13 @@ fun YokhanDashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 12.dp, end = 12.dp, bottom = 104.dp),
+                .padding(start = 12.dp, end = 12.dp, bottom = tuning.contentBottomPadding.dp),
         ) {
             DashboardToolbar(colors, labels, typography, actions)
             CurrentConfigCard(state, colors, labels, typography)
-            LaunchPanel(state, connected, running, colors, labels, typography, actions)
+            LaunchPanel(state, connected, running, colors, labels, typography, actions, tuning)
             ConnectionStatusRow(state, connected, colors, labels, typography)
-            ConnectionTestButton(state, colors, labels, typography, actions)
+            ConnectionTestButton(state, colors, labels, typography, actions, tuning)
             ProfilesCard(profiles, colors, labels, typography, actions)
             Spacer(Modifier.height(160.dp))
         }
@@ -167,6 +183,7 @@ fun YokhanDashboardScreen(
             colors = colors,
             labels = labels,
             typography = typography,
+            tuning = tuning,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
@@ -298,6 +315,7 @@ private fun LaunchPanel(
     labels: DashboardUiLabels,
     typography: DashboardTypography,
     actions: DashboardUiActions,
+    tuning: DashboardUiTuning,
 ) {
     Row(
         modifier = Modifier
@@ -307,7 +325,7 @@ private fun LaunchPanel(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         SpeedPanel(labels.upload, state.uploadLabel, "↑", colors, typography, false)
-        OrbScene(connected, running, colors, labels, typography, actions.onToggleConnection)
+        OrbScene(connected, running, colors, labels, typography, actions.onToggleConnection, tuning)
         SpeedPanel(labels.download, state.downloadLabel, "↓", colors, typography, true)
     }
 }
@@ -371,6 +389,7 @@ private fun OrbScene(
     labels: DashboardUiLabels,
     typography: DashboardTypography,
     onClick: () -> Unit,
+    tuning: DashboardUiTuning,
 ) {
     val infinite = rememberInfiniteTransition(label = "dashboard-orb")
     val ringScale by infinite.animateFloat(
@@ -421,7 +440,7 @@ private fun OrbScene(
             )
         }
         if (running) {
-            DashboardRocket(flameScale)
+            DashboardRocket(flameScale, tuning)
         }
     }
 }
@@ -470,16 +489,18 @@ private fun ConnectionTestButton(
     labels: DashboardUiLabels,
     typography: DashboardTypography,
     actions: DashboardUiActions,
+    tuning: DashboardUiTuning,
 ) {
     Row(
         modifier = Modifier
-            .padding(top = 12.dp)
+            .padding(top = tuning.testButtonTopPadding.dp)
             .clip(RoundedCornerShape(20.dp))
+            .background(colors.primary.copy(alpha = if (state.canRunConnectionTest) 0.045f else 0.025f))
             .border(1.dp, colors.border, RoundedCornerShape(20.dp))
             .clickable(enabled = state.canRunConnectionTest, onClick = actions.onRunConnectionTest)
             .alpha(if (state.canRunConnectionTest) 1f else 0.55f)
             .padding(horizontal = 12.dp, vertical = 8.dp)
-            .alignCenterHorizontally(),
+            .alignCenterHorizontally(tuning.testButtonWidthFraction),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("⊙", color = colors.secondary, fontFamily = typography.mono, fontSize = 14.sp)
@@ -612,6 +633,7 @@ private fun DashboardStatsBar(
     colors: DashboardColors,
     labels: DashboardUiLabels,
     typography: DashboardTypography,
+    tuning: DashboardUiTuning,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -619,7 +641,7 @@ private fun DashboardStatsBar(
             .fillMaxWidth()
             .border(1.dp, colors.border.copy(alpha = 0.8f))
             .background(Color.Transparent)
-            .padding(horizontal = 4.dp, vertical = 10.dp),
+            .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = tuning.statsBarBottomPadding.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         StatsSegment("◷", state.latencyLabel, labels.latency, colors, typography)
@@ -823,14 +845,14 @@ private fun Starfield(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun DashboardRocket(flameScale: Float) {
+private fun DashboardRocket(flameScale: Float, tuning: DashboardUiTuning) {
     Image(
         painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
         contentDescription = null,
         contentScale = ContentScale.Fit,
         modifier = Modifier
-            .size(width = 22.dp, height = 98.dp)
-            .offset(x = (-10).dp, y = 116.dp)
+            .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
+            .offset(x = tuning.leftFlameX.dp, y = tuning.flameY.dp)
             .scale(scaleX = 1f, scaleY = flameScale),
     )
     Image(
@@ -838,15 +860,15 @@ private fun DashboardRocket(flameScale: Float) {
         contentDescription = null,
         contentScale = ContentScale.Fit,
         modifier = Modifier
-            .size(width = 22.dp, height = 98.dp)
-            .offset(x = 8.dp, y = 116.dp)
+            .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
+            .offset(x = tuning.rightFlameX.dp, y = tuning.flameY.dp)
             .scale(scaleX = 1f, scaleY = flameScale),
     )
     Image(
         painter = painterResource(Res.drawable.ic_dashboard_spaceship),
         contentDescription = null,
         contentScale = ContentScale.Fit,
-        modifier = Modifier.size(width = 132.dp, height = 228.dp),
+        modifier = Modifier.size(width = tuning.rocketWidth.dp, height = tuning.rocketHeight.dp),
     )
 }
 
@@ -888,4 +910,5 @@ private val DashboardSpaceColors = DashboardColors(
     orbCenter = Color(0xFF1C1C34),
 )
 
-private fun Modifier.alignCenterHorizontally(): Modifier = this.then(Modifier.fillMaxWidth(0.6f))
+private fun Modifier.alignCenterHorizontally(widthFraction: Float): Modifier =
+    this.then(Modifier.fillMaxWidth(widthFraction))
