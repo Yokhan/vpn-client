@@ -17,13 +17,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,7 +48,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -88,10 +95,10 @@ data class DashboardUiTuning(
     val rocketWidth: Int = 132,
     val rocketHeight: Int = 228,
     val flameWidth: Int = 22,
-    val flameHeight: Int = 98,
-    val leftFlameX: Int = -10,
+    val flameHeight: Int = 75,
+    val leftFlameX: Int = -8,
     val rightFlameX: Int = 8,
-    val flameY: Int = 116,
+    val flameY: Int = 124,
 )
 
 @Immutable
@@ -639,6 +646,7 @@ private fun DashboardStatsBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
             .border(1.dp, colors.border.copy(alpha = 0.8f))
             .background(Color.Transparent)
             .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = tuning.statsBarBottomPadding.dp),
@@ -847,13 +855,22 @@ private fun Starfield(modifier: Modifier = Modifier) {
 @Composable
 private fun DashboardRocket(flameScale: Float, tuning: DashboardUiTuning) {
     Image(
+        painter = painterResource(Res.drawable.ic_dashboard_spaceship),
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier.size(width = tuning.rocketWidth.dp, height = tuning.rocketHeight.dp),
+    )
+    Image(
         painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
         contentDescription = null,
         contentScale = ContentScale.Fit,
         modifier = Modifier
             .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
             .offset(x = tuning.leftFlameX.dp, y = tuning.flameY.dp)
-            .scale(scaleX = 1f, scaleY = flameScale),
+            .graphicsLayer {
+                scaleY = flameScale
+                transformOrigin = TransformOrigin(0.5f, 0f)
+            },
     )
     Image(
         painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
@@ -862,13 +879,10 @@ private fun DashboardRocket(flameScale: Float, tuning: DashboardUiTuning) {
         modifier = Modifier
             .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
             .offset(x = tuning.rightFlameX.dp, y = tuning.flameY.dp)
-            .scale(scaleX = 1f, scaleY = flameScale),
-    )
-    Image(
-        painter = painterResource(Res.drawable.ic_dashboard_spaceship),
-        contentDescription = null,
-        contentScale = ContentScale.Fit,
-        modifier = Modifier.size(width = tuning.rocketWidth.dp, height = tuning.rocketHeight.dp),
+            .graphicsLayer {
+                scaleY = flameScale
+                transformOrigin = TransformOrigin(0.5f, 0f)
+            },
     )
 }
 
