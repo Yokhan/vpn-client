@@ -166,4 +166,6 @@ Dashboard host interactions now go through `DashboardHost`, including connection
 
 The current XML dashboard visual regressions have an interim fix: rocket/flame dimensions are restored closer to the verified mobile mock, the bottom green glow is reduced, starfield invalidation is made explicit while connected, profile-row ripple no longer paints a solid row background, and the bottom stats bar uses the bundled mono font with corrected runtime icons.
 
-Next step: verify the dashboard on a real Android device, then continue moving remaining dashboard data/action adapters out of `DashboardFragment`. Keep current `main` releasable while the rewrite grows behind explicit adapters.
+The first Compose dashboard renderer now exists under `app/src/main/java/io/nekohasekai/sagernet/ui/dashboard/compose/`. It is intentionally isolated from `MainActivity`, database classes, fragments, and service bindings: it accepts `DashboardState`, explicit profile presentation items, and callbacks. The production route still uses XML until the Compose screen passes device and screenshot parity checks.
+
+Next step: wire the Compose renderer behind an explicit dashboard feature flag, reuse the existing `DashboardStateAdapter` and profile presentation items, then compare connected/disconnected screenshots against `preview/dashboard.html` before making it the default. Keep current `main` releasable while the rewrite grows behind explicit adapters.
