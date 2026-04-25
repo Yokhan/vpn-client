@@ -319,9 +319,7 @@ class MainActivity : ThemedActivity(),
         }
         if (fragment is DashboardFragment) {
             binding.stats.allowShow = true
-            binding.fab.hide()
-            binding.fab.isVisible = false
-            binding.fabProgress.isVisible = false
+            hideLegacyConnectButton()
         } else if (fragment is ConfigurationFragment ||
             fragment is ConfigurationHubFragment ||
             fragment is GroupHubFragment ||
@@ -340,6 +338,17 @@ class MainActivity : ThemedActivity(),
             if (addToBackStack) addToBackStack(fragment::class.java.name)
         }.commitAllowingStateLoss()
         binding.drawerLayout.closeDrawers()
+    }
+
+    private fun isDashboardVisible(): Boolean {
+        return supportFragmentManager.findFragmentById(R.id.fragment_holder) is DashboardFragment
+    }
+
+    private fun hideLegacyConnectButton() {
+        binding.fab.hide()
+        binding.fab.isVisible = false
+        binding.fabProgress.hide()
+        binding.fabProgress.isVisible = false
     }
 
     fun openSubFragment(fragment: ToolbarFragment) {
@@ -388,6 +397,9 @@ class MainActivity : ThemedActivity(),
         DataStore.serviceState = state
 
         binding.fab.changeState(state, previousState, animate)
+        if (isDashboardVisible()) {
+            hideLegacyConnectButton()
+        }
         binding.stats.changeState(state)
         (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
             ?.updateConnectionState(state)

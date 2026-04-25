@@ -188,6 +188,18 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
 
     private fun selectProfile(profile: ProxyEntity) {
         if (profile.id == latestProfileId) return
+        latestProfileId = profile.id
+        latestProfile = profile
+        val dashboardState = buildDashboardState()
+        viewRenderer?.renderProfileHeader(
+            DashboardViewRenderer.ProfileHeader(
+                name = dashboardState.activeProfileName,
+                subtitle = dashboardState.activeProfileSubtitle,
+            )
+        )
+        populateProfileList(latestProfiles, latestProfileId)
+        dashboardHost()?.updateDashboardProtocol(profile.displayType())
+
         viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             val previous = DataStore.selectedProxy
             DataStore.selectedProxy = profile.id
