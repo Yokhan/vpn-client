@@ -12,7 +12,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 - Main navigation now opens Compose route screens for configuration list, group list, route list, route assets, webview/dashboard panel, settings hub, tools/backup/network, logcat, and about.
 - The main navigation still uses a temporary fragment bridge. Edit forms and preference subroutes remain legacy until their route parity is complete.
 - Preference screens still use `PreferenceFragmentCompat`, so they cannot follow the animated connected/disconnected Compose theme.
-- Dashboard content is Compose-only. It is still hosted by `DashboardFragment`, but `layout_dashboard.xml` now contains only a `ComposeView`.
+- Dashboard content is Compose-only. It is still hosted by `DashboardFragment`, and the fragment now creates its `ComposeView` programmatically.
 - Removed top-level legacy route layouts: `layout_configuration_hub.xml`, `layout_group_hub.xml`, `layout_route_hub.xml`, `layout_settings_hub.xml`, `layout_tools.xml`, `layout_about.xml`, `layout_logcat.xml`, `layout_backup.xml`, and `layout_network.xml`.
 - Removed backup import/progress dialog layouts; `ToolsFragment` now renders backup import confirmation and progress dialogs through ComposeView.
 - Detailed production planning lives in `docs/production-roadmap.md`.
@@ -52,7 +52,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 
 - Main shell: `MainActivity`, `YokhanMainShell`.
 - Removed shell legacy widgets: `layout_main.xml`, `StatsBar`, `ServiceButton`, `FabProgressBehavior`, `main_drawer_menu.xml`.
-- Dashboard host: `DashboardFragment`, `layout_dashboard.xml`.
+- Dashboard host: `DashboardFragment`.
 - Removed dashboard legacy renderers: `DashboardViewRenderer`, `DashboardProfileListRenderer`, `DashboardOrbMotionController`.
 - Compose route fragments: `ConfigurationHubFragment`, `ConfigurationFragment`, `GroupHubFragment`, `GroupFragment`, `RouteHubFragment`, `RouteFragment`, `SettingsFragment`, `ToolsFragment`, `LogcatFragment`, `AboutFragment`.
 - Legacy navigation/detail fragments still pending: none in the primary route-list layer; remaining legacy work is in forms, app lists, scanner, and preferences.

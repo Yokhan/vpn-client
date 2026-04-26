@@ -2,10 +2,13 @@ package io.nekohasekai.sagernet.ui
 
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import androidx.appcompat.widget.PopupMenu
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.lifecycleScope
 import com.yokhan.vpn.shared.domain.ConnectionStatus
@@ -18,7 +21,6 @@ import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
-import io.nekohasekai.sagernet.databinding.LayoutDashboardBinding
 import io.nekohasekai.sagernet.fmt.toUniversalLink
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.showAllowingStateLoss
@@ -33,10 +35,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
+class DashboardFragment : ToolbarFragment() {
 
-    private var _binding: LayoutDashboardBinding? = null
-    private val binding get() = _binding!!
+    private var composeView: ComposeView? = null
 
     private var latestProfiles: List<ProxyEntity> = emptyList()
     private var latestProfile: ProxyEntity? = null
@@ -54,11 +55,19 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private val composeModel = mutableStateOf<DashboardComposeModel?>(null)
     private var composeContentInstalled = false
 
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View {
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            composeView = this
+        }
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        _binding = LayoutDashboardBinding.bind(view)
-        configureDashboardMode()
-
         updateConnectionState(DataStore.serviceState)
         updateSpeeds(0L, 0L)
         refreshDashboard()
@@ -75,15 +84,8 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
         connectionTestJob?.cancel()
         composeContentInstalled = false
         composeModel.value = null
-        _binding = null
+        composeView = null
         super.onDestroyView()
-    }
-
-    private fun configureDashboardMode() {
-        binding.root.setViewCompositionStrategy(
-            ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
-        )
-        renderComposeDashboard()
     }
 
     fun refreshDashboard() {
@@ -103,7 +105,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
                 )
             }
 
-            if (_binding == null) return@launch
+            if (composeView == null) return@launch
             latestProfiles = summary.profiles
             latestProfile = summary.profile
             latestProfileId = summary.profile?.id ?: 0L
@@ -177,7 +179,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
                 SagerNet.reloadService()
             }
             withContext(Dispatchers.Main) {
-                if (_binding != null) refreshDashboard()
+                if (composeView != null) refreshDashboard()
             }
         }
     }
@@ -287,11 +289,11 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
     private fun renderComposeDashboard(
         dashboardState: DashboardState = buildDashboardState(),
     ) {
-        val binding = _binding ?: return
+        val root = composeView ?: return
 
         if (!composeContentInstalled) {
             composeContentInstalled = true
-            binding.root.setContent {
+            root.setContent {
                 val model = composeModel.value ?: return@setContent
                 DashboardComposeScreen(
                     state = model.state,
@@ -304,7 +306,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard) {
                         onSelectProfile = ::selectProfileById,
                         onEditProfile = ::editProfileById,
                         onOpenProfileMenu = { profileId ->
-                            _binding?.root?.let { anchor ->
+                            composeView?.let { anchor ->
                                 showProfileMenuById(anchor, profileId)
                             }
                         },
