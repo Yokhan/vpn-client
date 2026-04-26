@@ -3,261 +3,294 @@ package io.nekohasekai.sagernet.ui
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.text.format.DateFormat
-import android.view.Menu
-import android.view.MenuItem
-import android.view.ViewGroup
 import androidx.activity.addCallback
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.view.isGone
-import androidx.core.view.isInvisible
-import androidx.recyclerview.widget.ItemTouchHelper
-import androidx.recyclerview.widget.RecyclerView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
+import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanTypography
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.databinding.LayoutAssetItemBinding
-import io.nekohasekai.sagernet.databinding.LayoutAssetsBinding
-import io.nekohasekai.sagernet.ktx.*
-import io.nekohasekai.sagernet.widget.UndoSnackbarManager
+import io.nekohasekai.sagernet.ktx.alert
+import io.nekohasekai.sagernet.ktx.app
+import io.nekohasekai.sagernet.ktx.filterIsInstance
+import io.nekohasekai.sagernet.ktx.getStr
+import io.nekohasekai.sagernet.ktx.onMainDispatcher
+import io.nekohasekai.sagernet.ktx.readableMessage
+import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
+import io.nekohasekai.sagernet.ktx.snackbar
+import io.nekohasekai.sagernet.ktx.startFilesForResult
+import io.nekohasekai.sagernet.ktx.tryToShow
+import io.nekohasekai.sagernet.ui.compose.YokhanButtonGrid
+import io.nekohasekai.sagernet.ui.compose.YokhanCaption
+import io.nekohasekai.sagernet.ui.compose.YokhanDivider
+import io.nekohasekai.sagernet.ui.compose.YokhanMonoValue
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteAction
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteCard
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteLazyFrame
 import libcore.Libcore
 import moe.matsuri.nb4a.utils.Util
 import org.json.JSONObject
 import java.io.File
 import java.io.FileWriter
-import java.util.*
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.Date
 
 class AssetsActivity : ThemedActivity() {
 
-    lateinit var adapter: AssetAdapter
-    lateinit var layout: LayoutAssetsBinding
-    lateinit var undoManager: UndoSnackbarManager<File>
+    private val rows = mutableStateOf<List<AssetRow>>(emptyList())
+    private val updating = mutableStateOf<Set<String>>(emptySet())
+    private val assetNames = arrayOf("geoip.db", "geosite.db")
+
+    private val importFile = registerForActivityResult(ActivityResultContracts.GetContent()) { file ->
+        if (file == null) return@registerForActivityResult
+
+        val fileName = contentResolver.query(file, null, null, null, null)?.use { cursor ->
+            cursor.moveToFirst()
+            cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME).let(cursor::getString)
+        }?.takeIf { it.isNotBlank() } ?: file.pathSegments.last()
+            .substringAfterLast('/')
+            .substringAfter(':')
+
+        if (!fileName.endsWith(".db")) {
+            alert(getString(R.string.route_not_asset, fileName)).show()
+            return@registerForActivityResult
+        }
+
+        val rootDir = getExternalFilesDir(null) ?: this.filesDir
+        val resolver = contentResolver
+        runOnDefaultDispatcher {
+            val outFile = File(rootDir, fileName).apply {
+                parentFile?.mkdirs()
+            }
+            resolver.openInputStream(file)?.use { input ->
+                outFile.outputStream().use { output -> input.copyTo(output) }
+            }
+            File(outFile.parentFile, outFile.nameWithoutExtension + ".version.txt").apply {
+                if (isFile) delete()
+                createNewFile()
+                FileWriter(this).use { it.write("Custom") }
+            }
+            reloadAssets()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         onBackPressedDispatcher.addCallback(this) {
             finish()
         }
-
-        val binding = LayoutAssetsBinding.inflate(layoutInflater)
-        layout = binding
-        setContentView(binding.root)
-
-        setSupportActionBar(findViewById(R.id.toolbar))
-        supportActionBar?.apply {
-            setTitle(R.string.route_assets)
-            setDisplayHomeAsUpEnabled(true)
-            setHomeAsUpIndicator(R.drawable.ic_navigation_close)
+        setContent {
+            Content()
         }
+        reloadAssets()
+    }
 
-        binding.recyclerView.layoutManager = FixedLinearLayoutManager(binding.recyclerView)
-        adapter = AssetAdapter()
-        binding.recyclerView.adapter = adapter
-
-        binding.refreshLayout.setOnRefreshListener {
-            adapter.reloadAssets()
-            binding.refreshLayout.isRefreshing = false
-        }
-        binding.refreshLayout.setColorSchemeColors(getColorAttr(R.attr.primaryOrTextPrimary))
-
-        undoManager = UndoSnackbarManager(this, adapter)
-
-        ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
-            0, ItemTouchHelper.START
-        ) {
-
-            override fun getSwipeDirs(
-                recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder
-            ): Int {
-                val index = viewHolder.bindingAdapterPosition
-                if (index < 2) return 0
-                return super.getSwipeDirs(recyclerView, viewHolder)
-            }
-
-            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                val index = viewHolder.bindingAdapterPosition
-                adapter.remove(index)
-                undoManager.remove(index to (viewHolder as AssetHolder).file)
-            }
-
-            override fun onMove(
-                recyclerView: RecyclerView,
-                viewHolder: RecyclerView.ViewHolder,
-                target: RecyclerView.ViewHolder
-            ) = false
-
-        }).attachToRecyclerView(binding.recyclerView)
+    override fun onResume() {
+        super.onResume()
+        reloadAssets()
     }
 
     override fun snackbarInternal(text: CharSequence): Snackbar {
-        return Snackbar.make(layout.coordinator, text, Snackbar.LENGTH_LONG)
+        return Snackbar.make(findViewById(android.R.id.content), text, Snackbar.LENGTH_LONG)
     }
 
-    val assetNames = arrayOf("geoip.db", "geosite.db")
-
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.import_asset_menu, menu)
-        return true
-    }
-
-    val importFile = registerForActivityResult(ActivityResultContracts.GetContent()) { file ->
-        if (file != null) {
-            val fileName = contentResolver.query(file, null, null, null, null)?.use { cursor ->
-                cursor.moveToFirst()
-                cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME).let(cursor::getString)
-            }?.takeIf { it.isNotBlank() } ?: file.pathSegments.last()
-                .substringAfterLast('/')
-                .substringAfter(':')
-
-            if (!fileName.endsWith(".db")) {
-                alert(getString(R.string.route_not_asset, fileName)).show()
-                return@registerForActivityResult
-            }
-            val filesDir = getExternalFilesDir(null) ?: filesDir
-
-            runOnDefaultDispatcher {
-                val outFile = File(filesDir, fileName).apply {
-                    parentFile?.mkdirs()
+    @Composable
+    private fun Content() {
+        YokhanRouteLazyFrame(
+            title = stringResource(R.string.route_assets),
+            systemLabel = stringResource(R.string.dashboard_system_label),
+            spaceActive = DataStore.serviceState.isSpaceActive(),
+            onMenuClick = ::finish,
+        ) { colors, typography ->
+            item(key = "asset-actions") {
+                YokhanRouteCard(
+                    title = stringResource(R.string.route_hub_actions_title),
+                    colors = colors,
+                    typography = typography,
+                ) {
+                    YokhanButtonGrid(
+                        actions = listOf(
+                            YokhanRouteAction(
+                                title = stringResource(R.string.action_import_file),
+                                primary = true,
+                                onClick = { startFilesForResult(importFile, "*/*") },
+                            ),
+                            YokhanRouteAction(
+                                title = stringResource(R.string.asset_refresh),
+                                onClick = ::reloadAssets,
+                            ),
+                        ),
+                        colors = colors,
+                        typography = typography,
+                    )
                 }
-
-                contentResolver.openInputStream(file)?.use(outFile.outputStream())
-
-                File(outFile.parentFile, outFile.nameWithoutExtension + ".version.txt").apply {
-                    if (isFile) delete()
-                    createNewFile()
-                    val fw = FileWriter(this)
-                    fw.write("Custom")
-                    fw.close()
-                }
-
-                adapter.reloadAssets()
             }
 
+            items(
+                items = rows.value,
+                key = { it.file.absolutePath },
+            ) { row ->
+                AssetCard(
+                    row = row,
+                    updating = row.file.name in updating.value,
+                    colors = colors,
+                    typography = typography,
+                )
+            }
         }
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.action_import_file -> {
-                startFilesForResult(importFile, "*/*")
-                return true
+    @Composable
+    private fun AssetCard(
+        row: AssetRow,
+        updating: Boolean,
+        colors: YokhanPalette,
+        typography: YokhanTypography,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .border(1.dp, colors.border, RoundedCornerShape(18.dp)),
+        ) {
+            if (updating) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .background(colors.accent),
+                )
+            }
+            Column(Modifier.padding(16.dp)) {
+                YokhanMonoValue(
+                    text = row.file.name,
+                    colors = colors,
+                    typography = typography,
+                    sizeSp = 16,
+                )
+                YokhanDivider(colors, Modifier.padding(vertical = 14.dp))
+                YokhanCaption(
+                    text = stringResource(R.string.route_asset_status, row.localVersion),
+                    colors = colors,
+                    typography = typography,
+                )
+                YokhanButtonGrid(
+                    actions = buildList {
+                        if (row.official) {
+                            add(
+                                YokhanRouteAction(
+                                    title = stringResource(R.string.group_update),
+                                    primary = true,
+                                    enabled = !updating,
+                                    onClick = { updateAsset(row) },
+                                ),
+                            )
+                        } else {
+                            add(
+                                YokhanRouteAction(
+                                    title = stringResource(R.string.delete),
+                                    enabled = !updating,
+                                    onClick = { confirmDeleteAsset(row) },
+                                ),
+                            )
+                        }
+                    },
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 14.dp),
+                )
             }
         }
-        return false
     }
 
-    inner class AssetAdapter : RecyclerView.Adapter<AssetHolder>(),
-        UndoSnackbarManager.Interface<File> {
+    private fun reloadAssets() {
+        runOnDefaultDispatcher {
+            val loaded = loadAssetRows()
+            onMainDispatcher {
+                rows.value = loaded
+            }
+        }
+    }
 
-        val assets = ArrayList<File>()
+    private fun loadAssetRows(): List<AssetRow> {
+        val rootDir = getExternalFilesDir(null) ?: this.filesDir
+        val customFiles = rootDir.listFiles()
+            ?.filter { it.isFile && it.name.endsWith(".db") && it.name !in assetNames }
+            .orEmpty()
+            .sortedBy { it.name.lowercase() }
+        return assetNames.map { File(rootDir, it) }
+            .plus(customFiles)
+            .map { file ->
+                AssetRow(
+                    file = file,
+                    versionFile = File(file.parentFile, "${file.nameWithoutExtension}.version.txt"),
+                    localVersion = readLocalVersion(file),
+                    official = file.name in assetNames,
+                )
+            }
+    }
 
-        init {
+    private fun readLocalVersion(file: File): String {
+        val versionFile = File(file.parentFile, "${file.nameWithoutExtension}.version.txt")
+        return if (file.isFile) {
+            if (versionFile.isFile) {
+                runCatching { versionFile.readText().trim() }.getOrElse { "<unknown>" }
+            } else {
+                "Unknown-" + DateFormat.getDateFormat(app).format(Date(file.lastModified()))
+            }
+        } else {
+            "<unknown>"
+        }
+    }
+
+    private fun updateAsset(row: AssetRow) {
+        if (row.file.name in updating.value) return
+        updating.value = updating.value + row.file.name
+        runOnDefaultDispatcher {
+            runCatching {
+                updateAssetFile(row.file, row.versionFile, row.localVersion)
+            }.onFailure {
+                onMainDispatcher {
+                    alert(it.readableMessage).tryToShow()
+                }
+            }
+            onMainDispatcher {
+                updating.value = updating.value - row.file.name
+            }
             reloadAssets()
         }
-
-        fun reloadAssets() {
-            val filesDir = getExternalFilesDir(null) ?: filesDir
-            val files = filesDir.listFiles()
-                ?.filter { it.isFile && it.name.endsWith(".db") && it.name !in assetNames }
-            assets.clear()
-            assets.add(File(filesDir, "geoip.db"))
-            assets.add(File(filesDir, "geosite.db"))
-            if (files != null) assets.addAll(files)
-
-            layout.refreshLayout.post {
-                notifyDataSetChanged()
-            }
-        }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AssetHolder {
-            return AssetHolder(LayoutAssetItemBinding.inflate(layoutInflater, parent, false))
-        }
-
-        override fun onBindViewHolder(holder: AssetHolder, position: Int) {
-            holder.bind(assets[position])
-        }
-
-        override fun getItemCount(): Int {
-            return assets.size
-        }
-
-        fun remove(index: Int) {
-            assets.removeAt(index)
-            notifyItemRemoved(index)
-        }
-
-        override fun undo(actions: List<Pair<Int, File>>) {
-            for ((index, item) in actions) {
-                assets.add(index, item)
-                notifyItemInserted(index)
-            }
-        }
-
-        override fun commit(actions: List<Pair<Int, File>>) {
-            val groups = actions.map { it.second }.toTypedArray()
-            runOnDefaultDispatcher {
-                groups.forEach { it.deleteRecursively() }
-            }
-        }
-
     }
 
-    val updating = AtomicInteger()
-
-    inner class AssetHolder(val binding: LayoutAssetItemBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-        lateinit var file: File
-
-        fun bind(file: File) {
-            this.file = file
-
-            binding.assetName.text = file.name
-            val versionFile = File(file.parentFile, "${file.nameWithoutExtension}.version.txt")
-
-            val localVersion = if (file.isFile) {
-                if (versionFile.isFile) {
-                    try {
-                        versionFile.readText().trim()
-                    } catch (e: Throwable) {
-                        snackbar(e.readableMessage)
-                        "<unknown>"
-                    }
-                } else {
-                    "Unknown-" + DateFormat.getDateFormat(app).format(Date(file.lastModified()))
-                }
-            } else {
-                "<unknown>"
-            }
-
-            binding.assetStatus.text = getString(R.string.route_asset_status, localVersion)
-
-            binding.rulesUpdate.isGone = file.name !in assetNames
-            binding.rulesUpdate.setOnClickListener {
-                updating.incrementAndGet()
-                layout.refreshLayout.isEnabled = false
-                binding.subscriptionUpdateProgress.isInvisible = false
-                binding.rulesUpdate.isGone = true
+    private fun confirmDeleteAsset(row: AssetRow) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.confirm)
+            .setMessage(row.file.name)
+            .setPositiveButton(R.string.yes) { _, _ ->
                 runOnDefaultDispatcher {
-                    runCatching {
-                        updateAsset(file, versionFile, localVersion)
-                    }.onFailure {
-                        onMainDispatcher {
-                            alert(it.readableMessage).tryToShow()
-                        }
-                    }
-
-                    onMainDispatcher {
-                        binding.rulesUpdate.isGone = file.name !in assetNames
-                        binding.subscriptionUpdateProgress.isInvisible = true
-                        if (updating.decrementAndGet() == 0) {
-                            layout.refreshLayout.isEnabled = true
-                        }
-                    }
+                    row.file.deleteRecursively()
+                    row.versionFile.deleteRecursively()
+                    reloadAssets()
                 }
             }
-
-        }
-
+            .setNegativeButton(R.string.no, null)
+            .show()
     }
 
     private val rulesProviders = listOf(
@@ -270,16 +303,15 @@ class AssetsActivity : ThemedActivity() {
             "soffchen/sing-geosite",
         ),
         RuleAssetsProvider(
-            "Chocolate4U/Iran-sing-box-rules"
+            "Chocolate4U/Iran-sing-box-rules",
         ),
         RuleAssetsProvider(
-            "L11R/antizapret-sing-box-geo"
+            "L11R/antizapret-sing-box-geo",
         ),
     )
 
-    suspend fun updateAsset(file: File, versionFile: File, localVersion: String) {
-        var fileName = file.name
-
+    private suspend fun updateAssetFile(file: File, versionFile: File, localVersion: String) {
+        val fileName = file.name
         val ruleProvider = rulesProviders[DataStore.rulesProvider]
         val repo = ruleProvider.repoByFileName[fileName]
 
@@ -315,7 +347,6 @@ class AssetsActivity : ThemedActivity() {
 
             val cacheFile = File(file.parentFile, file.name + ".tmp")
             cacheFile.parentFile?.mkdirs()
-
             response.writeTo(cacheFile.canonicalPath)
 
             if (fileName.endsWith(".xz")) {
@@ -327,8 +358,6 @@ class AssetsActivity : ThemedActivity() {
 
             versionFile.writeText(tagName)
 
-            adapter.reloadAssets()
-
             onMainDispatcher {
                 snackbar(R.string.route_asset_updated).show()
             }
@@ -337,21 +366,21 @@ class AssetsActivity : ThemedActivity() {
         }
     }
 
-    override fun onSupportNavigateUp(): Boolean {
-        finish()
-        return true
+    private fun BaseService.State.isSpaceActive(): Boolean {
+        return this == BaseService.State.Connecting ||
+            this == BaseService.State.Connected ||
+            this == BaseService.State.Stopping
     }
 
-    override fun onResume() {
-        super.onResume()
-
-        if (::adapter.isInitialized) {
-            adapter.reloadAssets()
-        }
-    }
+    private data class AssetRow(
+        val file: File,
+        val versionFile: File,
+        val localVersion: String,
+        val official: Boolean,
+    )
 
     private data class RuleAssetsProvider(
-        val repoByFileName: Map<String, String>
+        val repoByFileName: Map<String, String>,
     ) {
         constructor(
             geoipRepo: String,
@@ -360,7 +389,7 @@ class AssetsActivity : ThemedActivity() {
             mapOf(
                 "geoip.db" to geoipRepo,
                 "geosite.db" to geositeRepo,
-            )
+            ),
         )
     }
 }

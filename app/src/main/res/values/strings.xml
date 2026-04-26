@@ -281,6 +281,7 @@
     <string name="route_move_down">Move down</string>
     <string name="route_manage_assets">Manage Route Assets</string>
     <string name="route_assets">Assets</string>
+    <string name="asset_refresh">Refresh</string>
     <string name="route_rules_provider">Rule Assets Provider</string>
     <string name="route_rules_official">Official</string>
     <string name="route_asset_status">Local version: %s</string>

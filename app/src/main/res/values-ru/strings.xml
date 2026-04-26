@@ -364,6 +364,7 @@
 <string name="route_asset_status">Локальная версия: %s</string>
 <string name="route_asset_updated">Обновлено</string>
 <string name="route_assets">Ресурсы</string>
+<string name="asset_refresh">Обновить список</string>
 <string name="route_block">Блокировать</string>
 <string name="route_bypass">Обход</string>
 <string name="route_bypass_domain">Правило домена для %s</string>
