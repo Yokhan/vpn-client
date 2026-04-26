@@ -34,7 +34,7 @@ fun Context.createYokhanSettingsHost(
     }
 }
 
-private fun Context.createYokhanAppBar(): AppBarLayout {
+fun Context.createYokhanAppBar(): AppBarLayout {
     return AppBarLayout(this).apply {
         id = R.id.appbar
         setBackgroundColor(Color.TRANSPARENT)

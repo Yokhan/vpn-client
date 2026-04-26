@@ -18,13 +18,16 @@ package moe.matsuri.nb4a.ui
 
 import android.content.Context
 import android.graphics.Color
+import android.view.Gravity
 import android.util.AttributeSet
-import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import io.nekohasekai.sagernet.databinding.ItemKeyboardKeyBinding
+import io.nekohasekai.sagernet.R
 
 class ExtendedKeyboard @JvmOverloads constructor(
     context: Context,
@@ -68,15 +71,24 @@ class ExtendedKeyboard @JvmOverloads constructor(
         }
 
         private class KeyViewHolder(
-            private val binding: ItemKeyboardKeyBinding,
+            private val title: TextView,
             private val keyListener: OnKeyListener
-        ) : ViewHolder(binding.root) {
+        ) : ViewHolder(title) {
 
             companion object {
                 fun create(parent: ViewGroup, keyListener: OnKeyListener): KeyViewHolder {
-                    val inflater = LayoutInflater.from(parent.context)
-                    val binding = ItemKeyboardKeyBinding.inflate(inflater, parent, false)
-                    return KeyViewHolder(binding, keyListener)
+                    val context = parent.context
+                    val density = context.resources.displayMetrics.density
+                    val title = TextView(context).apply {
+                        layoutParams = LayoutParams((36 * density).toInt(), (36 * density).toInt())
+                        setBackgroundResource(R.color.dashboard_divider_light)
+                        typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
+                        gravity = Gravity.CENTER
+                        setPadding(0, 0, 0, (2 * density).toInt())
+                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                        textSize = 16f
+                    }
+                    return KeyViewHolder(title, keyListener)
                 }
             }
 
@@ -90,8 +102,8 @@ class ExtendedKeyboard @JvmOverloads constructor(
 
             fun bind(item: String) {
                 char = item
-                binding.itemTitle.text = char
-                binding.itemTitle.setTextColor(Color.WHITE)
+                title.text = char
+                title.setTextColor(Color.WHITE)
             }
         }
     }

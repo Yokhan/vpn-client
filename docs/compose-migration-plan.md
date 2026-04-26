@@ -16,6 +16,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 - Removed top-level legacy route layouts: `layout_configuration_hub.xml`, `layout_group_hub.xml`, `layout_route_hub.xml`, `layout_settings_hub.xml`, `layout_tools.xml`, `layout_about.xml`, `layout_logcat.xml`, `layout_backup.xml`, and `layout_network.xml`.
 - Removed backup import/progress dialog layouts; `ToolsFragment` now renders backup import confirmation and progress dialogs through ComposeView.
 - Removed XML settings host layouts for group, route, profile, chain, and advanced settings. These screens still use `PreferenceFragmentCompat`, but toolbar/container/list hosting is programmatic through `YokhanSettingsHost`.
+- Removed config editor XML and custom keyboard item XML. `ConfigEditActivity` still uses the native editor widgets, but its toolbar/editor/keyboard host is now programmatic.
 - Detailed production planning lives in `docs/production-roadmap.md`.
 
 ## Migration Rules
