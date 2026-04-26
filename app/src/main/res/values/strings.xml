@@ -151,6 +151,8 @@
     <!-- group -->
     <string name="group_name">Group name</string>
     <string name="group_update">Update</string>
+    <string name="group_move_up">Move up</string>
+    <string name="group_move_down">Move down</string>
     <string name="group_subscription_link">Subscription Link</string>
     <string name="group_name_required">Group name required</string>
     <string name="group_create">Create group</string>

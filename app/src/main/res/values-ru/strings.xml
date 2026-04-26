@@ -198,6 +198,8 @@
 <string name="group_order_by_delay">По задержке</string>
 <string name="group_order_by_name">По имени</string>
 <string name="group_order_origin">По источнику</string>
+<string name="group_move_up">Переместить выше</string>
+<string name="group_move_down">Переместить ниже</string>
 <string name="group_settings">Настройки группы</string>
 <string name="group_show_diff">Сравнить группы</string>
 <string name="group_status_empty">Пустая группа</string>

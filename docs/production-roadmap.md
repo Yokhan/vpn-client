@@ -80,13 +80,13 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 ## 08. Group Screens
 
 - [x] Port group hub to Compose.
-- [ ] Port group list to Compose.
+- [x] Port group list to Compose.
 - [ ] Port group create/edit/delete to typed Compose forms.
 - [x] Port subscription refresh controls.
 - [ ] Preserve subscription import confirmation.
 - [ ] Preserve group selection persistence.
-- [ ] Add progress and error state for subscription update.
-- [ ] Remove group XML layouts after route parity.
+- [x] Add visible progress state for subscription update.
+- [x] Remove group list XML layouts after route parity.
 
 ## 09. Route Screens
 
