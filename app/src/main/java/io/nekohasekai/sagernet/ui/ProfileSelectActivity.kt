@@ -2,10 +2,12 @@ package io.nekohasekai.sagernet.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.ViewGroup
+import androidx.fragment.app.FragmentContainerView
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.ProxyEntity
 
-class ProfileSelectActivity : ThemedActivity(R.layout.layout_empty),
+class ProfileSelectActivity : ThemedActivity(),
     ConfigurationFragment.SelectCallback {
 
     companion object {
@@ -15,6 +17,7 @@ class ProfileSelectActivity : ThemedActivity(R.layout.layout_empty),
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(createFragmentHost())
 
         val selected = intent.getParcelableExtra<ProxyEntity>(EXTRA_SELECTED)
 
@@ -31,6 +34,17 @@ class ProfileSelectActivity : ThemedActivity(R.layout.layout_empty),
             putExtra(EXTRA_PROFILE_ID, profileId)
         })
         finish()
+    }
+
+    private fun createFragmentHost(): FragmentContainerView {
+        return FragmentContainerView(this).apply {
+            id = R.id.fragment_holder
+            setBackgroundResource(R.color.dashboard_bg_off)
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+        }
     }
 
 }

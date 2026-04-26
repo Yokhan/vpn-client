@@ -10,7 +10,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 - `app` now uses a Compose main shell with a programmatic `FragmentContainerView` for routes that are not migrated yet.
 - Removed from the main shell: `layout_main.xml`, `DrawerLayout`, `NavigationView`, legacy `StatsBar`, `ServiceButton`, and `FabProgressBehavior`.
 - Main navigation now opens Compose route screens for configuration list, group list, route list, route assets, webview/dashboard panel, settings hub, tools/backup/network, logcat, and about.
-- The main navigation still uses a temporary fragment bridge. Edit forms, profile select, switch, and preference subroutes remain legacy until their route parity is complete.
+- The main navigation still uses a temporary fragment bridge. Edit forms and preference subroutes remain legacy until their route parity is complete.
 - Preference screens still use `PreferenceFragmentCompat`, so they cannot follow the animated connected/disconnected Compose theme.
 - Dashboard content is Compose-only. It is still hosted by `DashboardFragment`, but `layout_dashboard.xml` now contains only a `ComposeView`.
 - Removed top-level legacy route layouts: `layout_configuration_hub.xml`, `layout_group_hub.xml`, `layout_route_hub.xml`, `layout_settings_hub.xml`, `layout_tools.xml`, `layout_about.xml`, `layout_logcat.xml`, `layout_backup.xml`, and `layout_network.xml`.
@@ -57,5 +57,5 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 - Legacy navigation/detail fragments still pending: none in the primary route-list layer; remaining legacy work is in forms, app lists, scanner, and preferences.
 - Legacy XML still retained for non-migrated detail flows: `layout_profile.xml` is used by the chain editor only, not by the main configuration list.
 - Form/preference screens: `GroupSettingsActivity`, `RouteSettingsActivity`, `SettingsPreferenceFragment`, `SettingsAdvancedFragment`.
-- Utility activities still pending full Compose parity: `ProfileSelectActivity`, `SwitchActivity`.
-- Migrated utility activities: `AssetsActivity`, `ScannerActivity`, `StunActivity`, `AppListActivity`, `AppManagerActivity`.
+- Utility activities still pending full Compose parity: none in the app-list/scanner/STUN/profile-selection layer.
+- Migrated utility activities: `AssetsActivity`, `ScannerActivity`, `StunActivity`, `AppListActivity`, `AppManagerActivity`, `ProfileSelectActivity`, `SwitchActivity`.

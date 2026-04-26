@@ -122,7 +122,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 - [x] Port scanner host shell while keeping camera/scanner implementation stable.
 - [x] Port STUN test utility to Compose.
 - [x] Port app list/app manager UI to Compose.
-- [ ] Delete remaining utility XML layouts after profile select parity.
+- [x] Delete remaining utility XML layouts after profile select parity.
 
 ## 12. Forms And Validation
 
