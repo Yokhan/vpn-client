@@ -12,7 +12,6 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.fragment.app.Fragment
-import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 
 open class ToolbarFragment : Fragment {
@@ -24,7 +23,7 @@ open class ToolbarFragment : Fragment {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        toolbar = view.findViewById(R.id.toolbar)
+        toolbar = view.findViewById(R.id.toolbar) ?: return
         val mainActivity = activity as MainActivity
         if (parentFragmentManager.backStackEntryCount > 0) {
             toolbar.setNavigationIcon(R.drawable.ic_navigation_close)
@@ -41,8 +40,6 @@ open class ToolbarFragment : Fragment {
     }
 
     private fun applyYokhanToolbarStyle(view: View) {
-        if (!BuildConfig.ENABLE_COMPOSE_DASHBOARD) return
-
         val context = toolbar.context
         val titleColor = ContextCompat.getColor(context, R.color.dashboard_text_primary)
         toolbar.setBackgroundColor(Color.TRANSPARENT)

@@ -323,6 +323,6 @@
     <color name="dashboard_card_border_off">#14000000</color>
     <color name="dashboard_card_border_on">#1AFFFFFF</color>
     <color name="dashboard_divider_light">#0D000000</color>
-    <color name="dashboard_divider_dark">#1AFFFFFF</color>
+    <color name="dashboard_divider_dark">#0DFFFFFF</color>
 
 </resources>

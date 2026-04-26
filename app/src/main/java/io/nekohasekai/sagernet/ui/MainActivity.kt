@@ -60,8 +60,6 @@ class MainActivity : ThemedActivity(),
 
     lateinit var binding: LayoutMainBinding
     lateinit var navigation: NavigationView
-    private val useComposeDashboard: Boolean
-        get() = BuildConfig.ENABLE_COMPOSE_DASHBOARD
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -124,7 +122,7 @@ class MainActivity : ThemedActivity(),
 
     fun refreshNavMenu(clashApi: Boolean) {
         if (::navigation.isInitialized) {
-            navigation.menu.findItem(R.id.nav_traffic)?.isVisible = !useComposeDashboard && clashApi
+            navigation.menu.findItem(R.id.nav_traffic)?.isVisible = false
             navigation.menu.findItem(R.id.nav_faq)?.isVisible = false
             navigation.menu.findItem(R.id.nav_tuiguang)?.isVisible = false
         }
@@ -319,42 +317,12 @@ class MainActivity : ThemedActivity(),
                 FragmentManager.POP_BACK_STACK_INCLUSIVE
             )
         }
-        applyLegacyServiceChrome(fragment)
+        hideLegacyServiceChrome()
         supportFragmentManager.beginTransaction().apply {
             replace(R.id.fragment_holder, fragment)
             if (addToBackStack) addToBackStack(fragment::class.java.name)
         }.commitAllowingStateLoss()
         binding.drawerLayout.closeDrawers()
-    }
-
-    private fun applyLegacyServiceChrome(fragment: ToolbarFragment) {
-        if (useComposeDashboard) {
-            hideLegacyServiceChrome()
-            return
-        }
-
-        val showStats = fragment is DashboardFragment ||
-            fragment is ConfigurationFragment ||
-            fragment is ConfigurationHubFragment ||
-            fragment is GroupHubFragment ||
-            fragment is RouteHubFragment ||
-            DataStore.showBottomBar
-        val showFab = showStats && fragment !is DashboardFragment
-
-        binding.stats.allowShow = showStats
-        binding.stats.isVisible = showStats
-        if (showStats) {
-            binding.stats.performShow()
-        } else {
-            binding.stats.performHide()
-        }
-
-        if (showFab) {
-            binding.fab.isVisible = true
-            binding.fab.show()
-        } else {
-            hideLegacyConnectButton()
-        }
     }
 
     private fun isDashboardVisible(): Boolean {
@@ -415,16 +383,12 @@ class MainActivity : ThemedActivity(),
     private fun changeState(
         state: BaseService.State,
         msg: String? = null,
-        animate: Boolean = false,
     ) {
-        val previousState = DataStore.serviceState
         DataStore.serviceState = state
 
-        binding.fab.changeState(state, previousState, animate)
         if (isDashboardVisible()) {
             hideLegacyConnectButton()
         }
-        binding.stats.changeState(state)
         (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
             ?.updateConnectionState(state)
         if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
@@ -440,7 +404,7 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun stateChanged(state: BaseService.State, profileName: String?, msg: String?) {
-        changeState(state, msg, true)
+        changeState(state, msg)
     }
 
     val connection = SagerConnection(SagerConnection.CONNECTION_ID_MAIN_ACTIVITY_FOREGROUND, true)
@@ -465,7 +429,6 @@ class MainActivity : ThemedActivity(),
     // may NOT called when app is in background
     // ONLY do UI update here, write DB in bg process
     override fun cbSpeedUpdate(stats: SpeedDisplayData) {
-        binding.stats.updateSpeed(stats.txRateProxy, stats.rxRateProxy)
         (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
             ?.updateSpeeds(stats.txRateProxy, stats.rxRateProxy)
     }
@@ -565,15 +528,7 @@ class MainActivity : ThemedActivity(),
     }
 
     fun runConnectionTest() {
-        if (useComposeDashboard) {
-            currentDashboardFragment()?.runConnectionTest()
-            return
-        }
-        if (DataStore.serviceState.connected) {
-            binding.stats.testConnection()
-        } else {
-            snackbar(R.string.not_connected).show()
-        }
+        currentDashboardFragment()?.runConnectionTest() ?: snackbar(R.string.not_connected).show()
     }
 
     override fun runDashboardConnectionTest() {
@@ -589,7 +544,6 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun updateDashboardProtocol(protocol: String) {
-        binding.stats.updateProtocol(protocol)
     }
 
     override fun showDashboardMessage(message: CharSequence) {

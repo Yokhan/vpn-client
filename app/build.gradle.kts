@@ -10,12 +10,7 @@ plugins {
 
 setupApp()
 
-val composeDashboardEnabled =
-    providers.gradleProperty("yokhanComposeDashboard").orNull?.toBooleanStrictOrNull()
-        ?: System.getenv("YOKHAN_COMPOSE_DASHBOARD")?.let {
-            it.equals("true", ignoreCase = true) || it == "1"
-        }
-        ?: true
+val composeDashboardEnabled = true
 
 android {
     compileOptions {

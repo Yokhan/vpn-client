@@ -1,7 +1,6 @@
 package com.yokhan.vpn.shared.ui.dashboard
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.animateColorAsState
@@ -61,7 +60,6 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,12 +67,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yokhan.vpn.shared.domain.ConnectionStatus
 import com.yokhan.vpn.shared.domain.DashboardState
+import com.yokhan.vpn.shared.ui.design.YokhanAccent
+import com.yokhan.vpn.shared.ui.design.YokhanGreen
+import com.yokhan.vpn.shared.ui.design.YokhanMotion
+import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanRed
+import com.yokhan.vpn.shared.ui.design.YokhanTypography
+import com.yokhan.vpn.shared.ui.design.yokhanPalette
+import com.yokhan.vpn.shared.ui.design.yokhanTypography
 import nb4a.shared_ui.generated.resources.Res
-import nb4a.shared_ui.generated.resources.golos_text
 import nb4a.shared_ui.generated.resources.ic_dashboard_spaceship
 import nb4a.shared_ui.generated.resources.ic_dashboard_spaceship_flame
-import nb4a.shared_ui.generated.resources.jetbrains_mono_regular
-import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.resources.painterResource
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -158,6 +161,9 @@ data class DashboardUiLabels(
     }
 }
 
+private typealias DashboardColors = YokhanPalette
+private typealias DashboardTypography = YokhanTypography
+
 @Composable
 fun YokhanDashboardScreen(
     state: DashboardState,
@@ -183,7 +189,7 @@ fun YokhanDashboardScreen(
             starfieldMounted = false
         }
     }
-    val targetColors = if (visualSpaceActive) DashboardSpaceColors else DashboardLightColors
+    val targetColors = yokhanPalette(visualSpaceActive)
     val colors = DashboardColors(
         background = animateColorAsState(
             targetValue = targetColors.background,
@@ -269,18 +275,9 @@ fun YokhanDashboardScreen(
     }
 }
 
-@Immutable
-private data class DashboardTypography(
-    val text: FontFamily,
-    val mono: FontFamily,
-)
-
 @Composable
 private fun dashboardTypography(): DashboardTypography {
-    return DashboardTypography(
-        text = FontFamily(Font(Res.font.golos_text)),
-        mono = FontFamily(Font(Res.font.jetbrains_mono_regular)),
-    )
+    return yokhanTypography()
 }
 
 @Composable
@@ -1144,46 +1141,12 @@ private val movingStars = listOf(
     MovingStar(0.88f, 1f, 10f, 0.3f, 2.4f, 0.8f, true),
 )
 
-@Immutable
-private data class DashboardColors(
-    val background: Color,
-    val primary: Color,
-    val secondary: Color,
-    val tertiary: Color,
-    val border: Color,
-    val divider: Color,
-    val accent: Color,
-    val orbCenter: Color,
-)
-
-private val DashboardAccent = Color(0xFFE55A1B)
-private val DashboardGreen = Color(0xFF28B44F)
-private val DashboardRed = Color(0xFFE53E3E)
-private val CssEase = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
-private val CssEaseIn = CubicBezierEasing(0.42f, 0f, 1f, 1f)
-private val CssEaseOut = CubicBezierEasing(0f, 0f, 0.58f, 1f)
-private val CssEaseInOut = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
-private val RocketLaunchEasing = CubicBezierEasing(0.2f, 0.8f, 0.3f, 1f)
-private val RocketDisconnectEasing = CubicBezierEasing(0.4f, 0f, 0.8f, 0.2f)
-
-private val DashboardLightColors = DashboardColors(
-    background = Color(0xFFF3F3F7),
-    primary = Color(0xFF111117),
-    secondary = Color(0xFF6C6C74),
-    tertiary = Color(0xFFA3A3AB),
-    border = Color(0x14000000),
-    divider = Color(0x0D000000),
-    accent = DashboardAccent,
-    orbCenter = Color.White,
-)
-
-private val DashboardSpaceColors = DashboardColors(
-    background = Color(0xFF0A0A18),
-    primary = Color(0xFFE8E8F0),
-    secondary = Color(0xFF8888A0),
-    tertiary = Color(0xFF8888A0),
-    border = Color(0x1AFFFFFF),
-    divider = Color(0x0DFFFFFF),
-    accent = DashboardGreen,
-    orbCenter = Color(0xFF1C1C34),
-)
+private val DashboardAccent = YokhanAccent
+private val DashboardGreen = YokhanGreen
+private val DashboardRed = YokhanRed
+private val CssEase = YokhanMotion.CssEase
+private val CssEaseIn = YokhanMotion.CssEaseIn
+private val CssEaseOut = YokhanMotion.CssEaseOut
+private val CssEaseInOut = YokhanMotion.CssEaseInOut
+private val RocketLaunchEasing = YokhanMotion.RocketLaunch
+private val RocketDisconnectEasing = YokhanMotion.RocketDisconnect
