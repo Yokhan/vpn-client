@@ -3,57 +3,37 @@ package io.nekohasekai.sagernet.ui
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import androidx.core.view.ViewCompat
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.SagerDatabase
-import io.nekohasekai.sagernet.databinding.LayoutRouteHubBinding
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
-import io.nekohasekai.sagernet.widget.ListListener
+import io.nekohasekai.sagernet.ui.compose.YokhanButtonGrid
+import io.nekohasekai.sagernet.ui.compose.YokhanComposeRouteFragment
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteAction
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteCard
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteFrame
+import io.nekohasekai.sagernet.ui.compose.YokhanStatPair
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-class RouteHubFragment : ToolbarFragment(R.layout.layout_route_hub) {
+class RouteHubFragment : YokhanComposeRouteFragment() {
 
-    private var _binding: LayoutRouteHubBinding? = null
-    private val binding get() = _binding!!
+    private val summaryState = mutableStateOf<RouteSummary?>(null)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        _binding = LayoutRouteHubBinding.bind(view)
-
-        ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
-        toolbar.setTitle(R.string.route_hub_title)
-
-        binding.openRouteListButton.setOnClickListener {
-            (activity as? MainActivity)?.openSubFragment(RouteFragment())
-        }
-        binding.newRouteButton.setOnClickListener {
-            startActivity(Intent(requireActivity(), RouteSettingsActivity::class.java))
-        }
-        binding.manageAssetsButton.setOnClickListener {
-            startActivity(Intent(requireActivity(), AssetsActivity::class.java))
-        }
-        binding.resetRoutesButton.setOnClickListener {
-            MaterialAlertDialogBuilder(requireContext())
-                .setTitle(R.string.confirm)
-                .setMessage(R.string.clear_profiles_message)
-                .setPositiveButton(R.string.yes) { _, _ ->
-                    runOnDefaultDispatcher {
-                        SagerDatabase.rulesDao.reset()
-                        DataStore.rulesFirstCreate = false
-                    }
-                    refreshSummary()
-                }
-                .setNegativeButton(R.string.no, null)
-                .show()
-        }
-
         refreshSummary()
     }
 
@@ -63,8 +43,78 @@ class RouteHubFragment : ToolbarFragment(R.layout.layout_route_hub) {
     }
 
     override fun onDestroyView() {
-        _binding = null
+        summaryState.value = null
         super.onDestroyView()
+    }
+
+    @Composable
+    override fun Content(spaceActive: Boolean) {
+        val summary = summaryState.value
+        YokhanRouteFrame(
+            title = stringResource(R.string.route_hub_title),
+            systemLabel = stringResource(R.string.dashboard_system_label),
+            spaceActive = spaceActive,
+            onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
+        ) { colors, typography ->
+            YokhanRouteCard(
+                title = stringResource(R.string.route_hub_overview_title),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanStatPair(
+                    firstValue = summary?.let {
+                        pluralStringResource(
+                            R.plurals.route_hub_rule_totals,
+                            it.totalRules,
+                            it.totalRules,
+                            it.enabledRules,
+                        )
+                    } ?: "--",
+                    firstLabel = stringResource(R.string.route_hub_rule_totals_title),
+                    secondValue = summary?.let {
+                        pluralStringResource(
+                            R.plurals.route_hub_asset_totals,
+                            it.assetCount,
+                            it.assetCount,
+                        )
+                    } ?: "--",
+                    secondLabel = stringResource(R.string.route_hub_asset_totals_title),
+                    colors = colors,
+                    typography = typography,
+                )
+            }
+
+            YokhanRouteCard(
+                title = stringResource(R.string.route_hub_actions_title),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.route_hub_open_list),
+                            primary = true,
+                            onClick = { (activity as? MainActivity)?.openSubFragment(RouteFragment()) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.route_add),
+                            onClick = { startActivity(Intent(requireActivity(), RouteSettingsActivity::class.java)) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.route_manage_assets),
+                            onClick = { startActivity(Intent(requireActivity(), AssetsActivity::class.java)) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.route_reset),
+                            onClick = ::confirmResetRoutes,
+                        ),
+                    ),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
     }
 
     private fun refreshSummary() {
@@ -73,27 +123,29 @@ class RouteHubFragment : ToolbarFragment(R.layout.layout_route_hub) {
             val summary = withContext(Dispatchers.IO) {
                 val rules = ProfileManager.getRules()
                 val enabledRules = rules.count { it.enabled }
-                val dbAssets = countRouteAssets()
                 RouteSummary(
                     totalRules = rules.size,
                     enabledRules = enabledRules,
-                    assetCount = dbAssets
+                    assetCount = countRouteAssets()
                 )
             }
-
-            val binding = _binding ?: return@launch
-            binding.ruleTotalsValue.text = resources.getQuantityString(
-                R.plurals.route_hub_rule_totals,
-                summary.totalRules,
-                summary.totalRules,
-                summary.enabledRules
-            )
-            binding.assetTotalsValue.text = resources.getQuantityString(
-                R.plurals.route_hub_asset_totals,
-                summary.assetCount,
-                summary.assetCount
-            )
+            summaryState.value = summary
         }
+    }
+
+    private fun confirmResetRoutes() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.confirm)
+            .setMessage(R.string.clear_profiles_message)
+            .setPositiveButton(R.string.yes) { _, _ ->
+                runOnDefaultDispatcher {
+                    SagerDatabase.rulesDao.reset()
+                    DataStore.rulesFirstCreate = false
+                }
+                refreshSummary()
+            }
+            .setNegativeButton(R.string.no, null)
+            .show()
     }
 
     private fun countRouteAssets(): Int {

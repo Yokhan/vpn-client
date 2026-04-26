@@ -49,6 +49,7 @@ import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.parseProxies
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
+import io.nekohasekai.sagernet.ui.compose.YokhanServiceStateConsumer
 import io.nekohasekai.sagernet.ui.shell.YokhanMainShell
 import io.nekohasekai.sagernet.ui.shell.YokhanShellDrawerCommand
 import moe.matsuri.nb4a.utils.Util
@@ -331,6 +332,7 @@ class MainActivity : ThemedActivity(),
             replace(R.id.fragment_holder, fragment)
             if (addToBackStack) addToBackStack(fragment::class.java.name)
         }.commitAllowingStateLoss()
+        (fragment as? YokhanServiceStateConsumer)?.onShellServiceStateChanged(shellServiceState.value)
         closeNavigationMenu()
     }
 
@@ -380,6 +382,8 @@ class MainActivity : ThemedActivity(),
 
         (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
             ?.updateConnectionState(state)
+        (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? YokhanServiceStateConsumer)
+            ?.onShellServiceStateChanged(state)
         if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
     }
 

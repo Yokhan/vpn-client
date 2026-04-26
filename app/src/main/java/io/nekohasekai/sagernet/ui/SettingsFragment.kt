@@ -3,70 +3,39 @@ package io.nekohasekai.sagernet.ui
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import androidx.core.view.ViewCompat
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.preference.PreferenceDataStore
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener
-import io.nekohasekai.sagernet.databinding.LayoutSettingsHubBinding
 import io.nekohasekai.sagernet.ktx.needReload
-import io.nekohasekai.sagernet.widget.ListListener
+import io.nekohasekai.sagernet.ui.compose.YokhanButtonGrid
+import io.nekohasekai.sagernet.ui.compose.YokhanCaption
+import io.nekohasekai.sagernet.ui.compose.YokhanComposeRouteFragment
+import io.nekohasekai.sagernet.ui.compose.YokhanDivider
+import io.nekohasekai.sagernet.ui.compose.YokhanHeadline
+import io.nekohasekai.sagernet.ui.compose.YokhanMonoValue
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteAction
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteButton
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteCard
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteFrame
+import io.nekohasekai.sagernet.ui.compose.YokhanToggleRow
 
-class SettingsFragment : ToolbarFragment(R.layout.layout_settings_hub),
+class SettingsFragment : YokhanComposeRouteFragment(),
     OnPreferenceDataStoreChangeListener {
 
-    private var _binding: LayoutSettingsHubBinding? = null
-    private val binding get() = _binding!!
-    private var updatingUi = false
+    private val settingsState = mutableStateOf<SettingsUiState?>(null)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        _binding = LayoutSettingsHubBinding.bind(view)
-
-        ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
-        toolbar.setTitle(R.string.settings)
-
-        binding.serviceModeButton.setOnClickListener {
-            DataStore.serviceMode = if (DataStore.serviceMode == Key.MODE_VPN) {
-                Key.MODE_PROXY
-            } else {
-                Key.MODE_VPN
-            }
-            if (DataStore.serviceState.started) {
-                SagerNet.stopServiceAsync()
-            }
-            refreshUi()
-        }
-        binding.manageAppsButton.setOnClickListener {
-            startActivity(Intent(requireActivity(), AppManagerActivity::class.java))
-        }
-        binding.openRoutesButton.setOnClickListener {
-            (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_route)
-        }
-        binding.advancedSettingsButton.setOnClickListener {
-            (activity as? MainActivity)?.openSubFragment(SettingsAdvancedFragment())
-        }
-
-        binding.stealthSwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (updatingUi) return@setOnCheckedChangeListener
-            applyStealthMode(isChecked)
-            needReload()
-            refreshUi()
-        }
-        binding.directSpeedSwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (updatingUi) return@setOnCheckedChangeListener
-            DataStore.showDirectSpeed = isChecked
-            needReload()
-            refreshUi()
-        }
-        binding.autoConnectSwitch.setOnCheckedChangeListener { _, isChecked ->
-            if (updatingUi) return@setOnCheckedChangeListener
-            DataStore.configurationStore.putBoolean(Key.PERSIST_ACROSS_REBOOT, isChecked)
-            refreshUi()
-        }
-
         DataStore.configurationStore.registerChangeListener(this)
         refreshUi()
     }
@@ -78,7 +47,7 @@ class SettingsFragment : ToolbarFragment(R.layout.layout_settings_hub),
 
     override fun onDestroyView() {
         DataStore.configurationStore.unregisterChangeListener(this)
-        _binding = null
+        settingsState.value = null
         super.onDestroyView()
     }
 
@@ -100,55 +69,228 @@ class SettingsFragment : ToolbarFragment(R.layout.layout_settings_hub),
         }
     }
 
+    @Composable
+    override fun Content(spaceActive: Boolean) {
+        val state = settingsState.value
+        YokhanRouteFrame(
+            title = stringResource(R.string.settings),
+            systemLabel = stringResource(R.string.dashboard_system_label),
+            spaceActive = spaceActive,
+            onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
+        ) { colors, typography ->
+            YokhanRouteCard(
+                title = stringResource(R.string.settings_service_mode_card_title),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanHeadline(
+                    text = state?.serviceModeValue ?: "--",
+                    colors = colors,
+                    typography = typography,
+                )
+                io.nekohasekai.sagernet.ui.compose.YokhanBody(
+                    text = state?.serviceModeSummary ?: "",
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 5.dp),
+                    maxLines = 4,
+                )
+                YokhanRouteButton(
+                    text = state?.serviceModeButton ?: stringResource(R.string.settings_switch_to_proxy),
+                    primary = true,
+                    enabled = true,
+                    colors = colors,
+                    typography = typography,
+                    onClick = ::toggleServiceMode,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 14.dp),
+                )
+            }
+
+            YokhanRouteCard(
+                title = stringResource(R.string.settings_quick_switches_title),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanToggleRow(
+                    title = stringResource(R.string.settings_stealth_title),
+                    summary = stringResource(R.string.settings_stealth_summary),
+                    checked = state?.stealthMode == true,
+                    colors = colors,
+                    typography = typography,
+                    onCheckedChange = {
+                        applyStealthMode(it)
+                        needReload()
+                        refreshUi()
+                    },
+                )
+                YokhanDivider(colors, Modifier.padding(vertical = 10.dp))
+                YokhanToggleRow(
+                    title = stringResource(R.string.settings_direct_speed_title),
+                    summary = stringResource(R.string.settings_direct_speed_summary),
+                    checked = state?.directSpeed == true,
+                    colors = colors,
+                    typography = typography,
+                    onCheckedChange = {
+                        DataStore.showDirectSpeed = it
+                        needReload()
+                        refreshUi()
+                    },
+                )
+                YokhanDivider(colors, Modifier.padding(vertical = 10.dp))
+                YokhanToggleRow(
+                    title = stringResource(R.string.settings_auto_connect_title),
+                    summary = stringResource(R.string.settings_auto_connect_summary),
+                    checked = state?.autoConnect == true,
+                    colors = colors,
+                    typography = typography,
+                    onCheckedChange = {
+                        DataStore.configurationStore.putBoolean(Key.PERSIST_ACROSS_REBOOT, it)
+                        refreshUi()
+                    },
+                )
+            }
+
+            YokhanRouteCard(
+                title = stringResource(R.string.settings_runtime_title),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanMonoValue(state?.appRoutingValue ?: "--", colors, typography, sizeSp = 13)
+                YokhanCaption(
+                    text = stringResource(R.string.settings_apps_title),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                YokhanMonoValue(
+                    text = state?.dnsSummaryValue ?: "--",
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 13.dp),
+                    sizeSp = 12,
+                    maxLines = 3,
+                )
+                YokhanCaption(
+                    text = stringResource(R.string.settings_dns_title),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                YokhanMonoValue(
+                    text = state?.networkSummaryValue ?: "--",
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 13.dp),
+                    sizeSp = 12,
+                    maxLines = 2,
+                )
+                YokhanCaption(
+                    text = stringResource(R.string.settings_network_title),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+
+            YokhanRouteCard(
+                title = stringResource(R.string.settings_advanced_title_card),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanMonoValue(
+                    text = state?.advancedSummaryValue ?: "--",
+                    colors = colors,
+                    typography = typography,
+                    sizeSp = 12,
+                    maxLines = 2,
+                )
+                YokhanCaption(
+                    text = stringResource(R.string.settings_advanced_title),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.settings_manage_apps),
+                            onClick = { startActivity(Intent(requireActivity(), AppManagerActivity::class.java)) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.settings_open_routes),
+                            onClick = { (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_route) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.settings_open_advanced),
+                            primary = true,
+                            onClick = { (activity as? MainActivity)?.openSubFragment(SettingsAdvancedFragment()) },
+                        ),
+                    ),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 14.dp),
+                )
+            }
+        }
+    }
+
+    private fun toggleServiceMode() {
+        DataStore.serviceMode = if (DataStore.serviceMode == Key.MODE_VPN) {
+            Key.MODE_PROXY
+        } else {
+            Key.MODE_VPN
+        }
+        if (DataStore.serviceState.started) {
+            SagerNet.stopServiceAsync()
+        }
+        refreshUi()
+    }
+
     private fun refreshUi() {
-        val binding = _binding ?: return
-        updatingUi = true
-
         val isVpnMode = DataStore.serviceMode == Key.MODE_VPN
-        binding.serviceModeValue.text = getString(
-            if (isVpnMode) R.string.service_mode_vpn else R.string.service_mode_proxy
+        settingsState.value = SettingsUiState(
+            serviceModeValue = getString(
+                if (isVpnMode) R.string.service_mode_vpn else R.string.service_mode_proxy
+            ),
+            serviceModeButton = getString(
+                if (isVpnMode) R.string.settings_switch_to_proxy else R.string.settings_switch_to_vpn
+            ),
+            serviceModeSummary = getString(
+                if (isVpnMode) {
+                    R.string.settings_service_mode_vpn_summary
+                } else {
+                    R.string.settings_service_mode_proxy_summary
+                }
+            ),
+            stealthMode = DataStore.stealthMode,
+            directSpeed = DataStore.showDirectSpeed,
+            autoConnect = DataStore.configurationStore.getBoolean(Key.PERSIST_ACROSS_REBOOT, false),
+            appRoutingValue = getString(
+                if (DataStore.proxyApps) {
+                    R.string.settings_proxy_apps_enabled
+                } else {
+                    R.string.settings_proxy_apps_disabled
+                }
+            ),
+            dnsSummaryValue = getString(
+                R.string.settings_dns_summary_value,
+                DataStore.remoteDns,
+                DataStore.directDns
+            ),
+            networkSummaryValue = getString(
+                R.string.settings_network_summary_value,
+                getString(if (DataStore.enableDnsRouting) R.string.on else R.string.off),
+                getString(if (DataStore.enableFakeDns) R.string.on else R.string.off),
+                getString(if (DataStore.allowAccess) R.string.on else R.string.off)
+            ),
+            advancedSummaryValue = getString(
+                R.string.settings_advanced_summary_value,
+                getString(if (DataStore.enableLocalInbound) R.string.on else R.string.off),
+                getString(if (DataStore.enableClashAPI) R.string.on else R.string.off)
+            ),
         )
-        binding.serviceModeButton.text = getString(
-            if (isVpnMode) R.string.settings_switch_to_proxy else R.string.settings_switch_to_vpn
-        )
-        binding.serviceModeSummary.text = getString(
-            if (isVpnMode) {
-                R.string.settings_service_mode_vpn_summary
-            } else {
-                R.string.settings_service_mode_proxy_summary
-            }
-        )
-
-        binding.stealthSwitch.isChecked = DataStore.stealthMode
-        binding.directSpeedSwitch.isChecked = DataStore.showDirectSpeed
-        binding.autoConnectSwitch.isChecked =
-            DataStore.configurationStore.getBoolean(Key.PERSIST_ACROSS_REBOOT, false)
-
-        binding.appRoutingValue.text = getString(
-            if (DataStore.proxyApps) {
-                R.string.settings_proxy_apps_enabled
-            } else {
-                R.string.settings_proxy_apps_disabled
-            }
-        )
-        binding.dnsSummaryValue.text = getString(
-            R.string.settings_dns_summary_value,
-            DataStore.remoteDns,
-            DataStore.directDns
-        )
-        binding.networkSummaryValue.text = getString(
-            R.string.settings_network_summary_value,
-            getString(if (DataStore.enableDnsRouting) R.string.on else R.string.off),
-            getString(if (DataStore.enableFakeDns) R.string.on else R.string.off),
-            getString(if (DataStore.allowAccess) R.string.on else R.string.off)
-        )
-        binding.advancedSummaryValue.text = getString(
-            R.string.settings_advanced_summary_value,
-            getString(if (DataStore.enableLocalInbound) R.string.on else R.string.off),
-            getString(if (DataStore.enableClashAPI) R.string.on else R.string.off)
-        )
-
-        updatingUi = false
     }
 
     private fun applyStealthMode(enabled: Boolean) {
@@ -169,4 +311,17 @@ class SettingsFragment : ToolbarFragment(R.layout.layout_settings_hub),
         }
         (activity as? MainActivity)?.refreshNavMenu(DataStore.enableClashAPI && !enabled)
     }
+
+    private data class SettingsUiState(
+        val serviceModeValue: String,
+        val serviceModeButton: String,
+        val serviceModeSummary: String,
+        val stealthMode: Boolean,
+        val directSpeed: Boolean,
+        val autoConnect: Boolean,
+        val appRoutingValue: String,
+        val dnsSummaryValue: String,
+        val networkSummaryValue: String,
+        val advancedSummaryValue: String,
+    )
 }

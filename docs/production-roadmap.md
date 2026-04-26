@@ -68,7 +68,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 
 ## 07. Configuration Screens
 
-- [ ] Port configuration hub to Compose cards/lists.
+- [x] Port configuration hub to Compose cards/lists.
 - [ ] Port active group/profile list to Compose.
 - [ ] Port profile selection interactions to Compose.
 - [ ] Port profile add/import/export actions to Compose.
@@ -79,10 +79,10 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 
 ## 08. Group Screens
 
-- [ ] Port group hub to Compose.
+- [x] Port group hub to Compose.
 - [ ] Port group list to Compose.
 - [ ] Port group create/edit/delete to typed Compose forms.
-- [ ] Port subscription refresh controls.
+- [x] Port subscription refresh controls.
 - [ ] Preserve subscription import confirmation.
 - [ ] Preserve group selection persistence.
 - [ ] Add progress and error state for subscription update.
@@ -90,7 +90,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 
 ## 09. Route Screens
 
-- [ ] Port route hub to Compose.
+- [x] Port route hub to Compose.
 - [ ] Port route list to Compose.
 - [ ] Port route edit forms to Compose.
 - [ ] Preserve route import/export behavior.
@@ -112,11 +112,11 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 
 ## 11. Utility Screens
 
-- [ ] Port tools hub to Compose.
-- [ ] Port logcat screen to Compose with stable large-text performance.
-- [ ] Port about screen to Compose and remove inherited branding noise.
-- [ ] Port backup/import screens to Compose.
-- [ ] Port network/debug screens to Compose if still product-relevant.
+- [x] Port tools hub to Compose.
+- [x] Port logcat screen to Compose with stable large-text performance.
+- [x] Port about screen to Compose and remove inherited branding noise.
+- [x] Port backup/import screens to Compose.
+- [x] Port network/debug screens to Compose if still product-relevant.
 - [ ] Port scanner host shell while keeping camera/scanner implementation stable.
 - [ ] Port app list/app manager UI to Compose.
 - [ ] Delete utility XML layouts after parity.

@@ -5,8 +5,14 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import androidx.core.view.ViewCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceDataStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -18,7 +24,6 @@ import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener
-import io.nekohasekai.sagernet.databinding.LayoutConfigurationHubBinding
 import io.nekohasekai.sagernet.fmt.AbstractBean
 import io.nekohasekai.sagernet.group.GroupUpdater
 import io.nekohasekai.sagernet.group.RawUpdater
@@ -29,20 +34,28 @@ import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.snackbar
 import io.nekohasekai.sagernet.ktx.startFilesForResult
+import io.nekohasekai.sagernet.ui.compose.YokhanButtonGrid
+import io.nekohasekai.sagernet.ui.compose.YokhanCaption
+import io.nekohasekai.sagernet.ui.compose.YokhanComposeRouteFragment
+import io.nekohasekai.sagernet.ui.compose.YokhanDivider
+import io.nekohasekai.sagernet.ui.compose.YokhanHeadline
+import io.nekohasekai.sagernet.ui.compose.YokhanMonoValue
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteAction
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteCard
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteFrame
+import io.nekohasekai.sagernet.ui.compose.YokhanStatPair
 import io.nekohasekai.sagernet.ui.profile.ShadowsocksSettingsActivity
 import io.nekohasekai.sagernet.ui.profile.VMessSettingsActivity
 import io.nekohasekai.sagernet.ui.profile.WireGuardSettingsActivity
-import io.nekohasekai.sagernet.widget.ListListener
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.zip.ZipInputStream
 
-class ConfigurationHubFragment : ToolbarFragment(R.layout.layout_configuration_hub),
+class ConfigurationHubFragment : YokhanComposeRouteFragment(),
     OnPreferenceDataStoreChangeListener {
 
-    private var _binding: LayoutConfigurationHubBinding? = null
-    private val binding get() = _binding!!
+    private val summaryState = mutableStateOf<HubSummary?>(null)
 
     private val importFile =
         registerForActivityResult(ActivityResultContracts.GetContent()) { file ->
@@ -96,59 +109,6 @@ class ConfigurationHubFragment : ToolbarFragment(R.layout.layout_configuration_h
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        _binding = LayoutConfigurationHubBinding.bind(view)
-
-        ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
-        toolbar.setTitle(R.string.configuration_hub_title)
-
-        binding.manageProfilesButton.setOnClickListener {
-            (activity as? MainActivity)?.openSubFragment(ConfigurationFragment())
-        }
-        binding.manageGroupsButton.setOnClickListener {
-            (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_group)
-        }
-        binding.manageRoutesButton.setOnClickListener {
-            (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_route)
-        }
-        binding.updateSubscriptionButton.setOnClickListener {
-            runOnDefaultDispatcher {
-                val group = DataStore.ensureCurrentGroup()
-                if (group.type != GroupType.SUBSCRIPTION) {
-                    onMainDispatcher {
-                        snackbar(R.string.group_not_subscription).show()
-                    }
-                } else {
-                    GroupUpdater.startUpdate(group, true)
-                }
-            }
-        }
-
-        binding.scanQrButton.setOnClickListener {
-            startActivity(Intent(requireActivity(), ScannerActivity::class.java))
-        }
-        binding.importClipboardButton.setOnClickListener {
-            importFromClipboard()
-        }
-        binding.importFileButton.setOnClickListener {
-            startFilesForResult(importFile, "*/*")
-        }
-        binding.openFullProfilesButton.setOnClickListener {
-            (activity as? MainActivity)?.openSubFragment(ConfigurationFragment())
-        }
-
-        binding.manualShadowsocksButton.setOnClickListener {
-            startActivity(Intent(requireActivity(), ShadowsocksSettingsActivity::class.java))
-        }
-        binding.manualVmessButton.setOnClickListener {
-            startActivity(Intent(requireActivity(), VMessSettingsActivity::class.java))
-        }
-        binding.manualWireguardButton.setOnClickListener {
-            startActivity(Intent(requireActivity(), WireGuardSettingsActivity::class.java))
-        }
-        binding.manualConfigButton.setOnClickListener {
-            ProfileAddController.showManualProfileChooser(this)
-        }
-
         DataStore.configurationStore.registerChangeListener(this)
         refreshSummary()
     }
@@ -160,7 +120,7 @@ class ConfigurationHubFragment : ToolbarFragment(R.layout.layout_configuration_h
 
     override fun onDestroyView() {
         DataStore.configurationStore.unregisterChangeListener(this)
-        _binding = null
+        summaryState.value = null
         super.onDestroyView()
     }
 
@@ -168,6 +128,152 @@ class ConfigurationHubFragment : ToolbarFragment(R.layout.layout_configuration_h
         if (store !== DataStore.configurationStore) return
         when (key) {
             Key.PROFILE_ID, Key.PROFILE_GROUP, Key.SERVICE_MODE -> view?.post { refreshSummary() }
+        }
+    }
+
+    @Composable
+    override fun Content(spaceActive: Boolean) {
+        val summary = summaryState.value
+        YokhanRouteFrame(
+            title = stringResource(R.string.configuration_hub_title),
+            systemLabel = stringResource(R.string.dashboard_system_label),
+            spaceActive = spaceActive,
+            onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
+        ) { colors, typography ->
+            YokhanRouteCard(
+                title = stringResource(R.string.configuration_hub_manage_title),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanHeadline(
+                    text = summary?.profileName ?: stringResource(R.string.dashboard_no_profile),
+                    colors = colors,
+                    typography = typography,
+                )
+                YokhanCaption(
+                    text = stringResource(R.string.configuration_hub_current_profile),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                YokhanDivider(colors, Modifier.padding(vertical = 12.dp))
+                YokhanMonoValue(
+                    text = summary?.groupName ?: "--",
+                    colors = colors,
+                    typography = typography,
+                    sizeSp = 15,
+                )
+                YokhanCaption(
+                    text = summary?.groupTypeLabel() ?: stringResource(R.string.configuration_hub_group_type),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                YokhanStatPair(
+                    firstValue = summary?.let {
+                        stringResource(
+                            R.string.configuration_hub_profile_count_value,
+                            it.groupProfiles,
+                            it.totalProfiles,
+                        )
+                    } ?: "--",
+                    firstLabel = stringResource(R.string.configuration_hub_profile_count),
+                    secondValue = summary?.let {
+                        pluralStringResource(
+                            R.plurals.configuration_hub_group_count,
+                            it.groupCount,
+                            it.groupCount,
+                        )
+                    } ?: "--",
+                    secondLabel = stringResource(R.string.configuration_hub_group_count_label),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 14.dp),
+                )
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.configuration_hub_manage_profiles),
+                            primary = true,
+                            onClick = { (activity as? MainActivity)?.openSubFragment(ConfigurationFragment()) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.configuration_hub_update_subscription),
+                            enabled = summary?.groupType == GroupType.SUBSCRIPTION,
+                            onClick = ::updateCurrentSubscription,
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.configuration_hub_manage_groups),
+                            onClick = { (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_group) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.configuration_hub_manage_routes),
+                            onClick = { (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_route) },
+                        ),
+                    ),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 14.dp),
+                )
+            }
+
+            YokhanRouteCard(
+                title = stringResource(R.string.configuration_hub_import_title),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.add_profile_methods_scan_qr_code),
+                            onClick = { startActivity(Intent(requireActivity(), ScannerActivity::class.java)) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.action_import),
+                            onClick = ::importFromClipboard,
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.action_import_file),
+                            onClick = { startFilesForResult(importFile, "*/*") },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.configuration_hub_open_profiles),
+                            onClick = { (activity as? MainActivity)?.openSubFragment(ConfigurationFragment()) },
+                        ),
+                    ),
+                    colors = colors,
+                    typography = typography,
+                )
+            }
+
+            YokhanRouteCard(
+                title = stringResource(R.string.configuration_hub_manual_title),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.action_shadowsocks),
+                            onClick = { startActivity(Intent(requireActivity(), ShadowsocksSettingsActivity::class.java)) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.action_vmess),
+                            onClick = { startActivity(Intent(requireActivity(), VMessSettingsActivity::class.java)) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.action_wireguard),
+                            onClick = { startActivity(Intent(requireActivity(), WireGuardSettingsActivity::class.java)) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.configuration_hub_open_all_protocols),
+                            onClick = { ProfileAddController.showManualProfileChooser(this@ConfigurationHubFragment) },
+                        ),
+                    ),
+                    colors = colors,
+                    typography = typography,
+                )
+            }
         }
     }
 
@@ -189,28 +295,20 @@ class ConfigurationHubFragment : ToolbarFragment(R.layout.layout_configuration_h
                     groupCount = groups.size
                 )
             }
+            summaryState.value = summary
+        }
+    }
 
-            val binding = _binding ?: return@launch
-            binding.currentProfileValue.text =
-                summary.profileName ?: getString(R.string.dashboard_no_profile)
-            binding.currentGroupValue.text = summary.groupName
-            binding.profileCountValue.text = getString(
-                R.string.configuration_hub_profile_count_value,
-                summary.groupProfiles,
-                summary.totalProfiles
-            )
-            binding.groupCountValue.text = resources.getQuantityString(
-                R.plurals.configuration_hub_group_count,
-                summary.groupCount,
-                summary.groupCount
-            )
-            binding.groupTypeValue.text = getString(
-                when (summary.groupType) {
-                    GroupType.SUBSCRIPTION -> R.string.configuration_hub_group_type_subscription
-                    else -> R.string.configuration_hub_group_type_local
+    private fun updateCurrentSubscription() {
+        runOnDefaultDispatcher {
+            val group = DataStore.ensureCurrentGroup()
+            if (group.type != GroupType.SUBSCRIPTION) {
+                onMainDispatcher {
+                    snackbar(R.string.group_not_subscription).show()
                 }
-            )
-            binding.updateSubscriptionButton.isEnabled = summary.groupType == GroupType.SUBSCRIPTION
+            } else {
+                GroupUpdater.startUpdate(group, true)
+            }
         }
     }
 
@@ -276,4 +374,14 @@ class ConfigurationHubFragment : ToolbarFragment(R.layout.layout_configuration_h
         val totalProfiles: Int,
         val groupCount: Int,
     )
+
+    @Composable
+    private fun HubSummary.groupTypeLabel(): String {
+        return stringResource(
+            when (groupType) {
+                GroupType.SUBSCRIPTION -> R.string.configuration_hub_group_type_subscription
+                else -> R.string.configuration_hub_group_type_local
+            }
+        )
+    }
 }

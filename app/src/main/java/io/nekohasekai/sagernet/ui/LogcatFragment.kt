@@ -1,119 +1,109 @@
 package io.nekohasekai.sagernet.ui
 
-import android.annotation.SuppressLint
-import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
-import android.text.SpannableString
-import android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-import android.text.style.ForegroundColorSpan
-import android.view.MenuItem
 import android.view.View
-import android.view.ViewGroup
-import androidx.appcompat.widget.Toolbar
-import androidx.core.view.ViewCompat
-import androidx.core.view.doOnLayout
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.nekohasekai.sagernet.R
-import io.nekohasekai.sagernet.databinding.LayoutLogcatBinding
-import io.nekohasekai.sagernet.ktx.*
-import io.nekohasekai.sagernet.widget.ListListener
+import io.nekohasekai.sagernet.ktx.onMainDispatcher
+import io.nekohasekai.sagernet.ktx.readableMessage
+import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
+import io.nekohasekai.sagernet.ktx.snackbar
+import io.nekohasekai.sagernet.ui.compose.YokhanButtonGrid
+import io.nekohasekai.sagernet.ui.compose.YokhanComposeRouteFragment
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteAction
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteCard
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteFrame
 import libcore.Libcore
 import moe.matsuri.nb4a.utils.SendLog
 
-class LogcatFragment : ToolbarFragment(R.layout.layout_logcat),
-    Toolbar.OnMenuItemClickListener {
+class LogcatFragment : YokhanComposeRouteFragment() {
 
-    lateinit var binding: LayoutLogcatBinding
+    private val logText = mutableStateOf("")
 
-    @SuppressLint("RestrictedApi", "WrongConstant")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        toolbar.setTitle(R.string.menu_log)
-
-        toolbar.inflateMenu(R.menu.logcat_menu)
-        toolbar.setOnMenuItemClickListener(this)
-
-        binding = LayoutLogcatBinding.bind(view)
-
-        if (Build.VERSION.SDK_INT >= 23) {
-            binding.textview.breakStrategy = 0 // simple
-        }
-
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root, ListListener)
-
         reloadSession()
     }
 
-    private fun getColorForLine(line: String): ForegroundColorSpan {
-        var color = ForegroundColorSpan(Color.GRAY)
-        when {
-            line.contains("INFO[") || line.contains(" [Info]") -> {
-                color = ForegroundColorSpan((0xFF86C166).toInt())
-            }
-
-            line.contains("ERROR[") || line.contains(" [Error]") -> {
-                color = ForegroundColorSpan(Color.RED)
-            }
-
-            line.contains("WARN[") || line.contains(" [Warning]") -> {
-                color = ForegroundColorSpan(Color.RED)
+    @Composable
+    override fun Content(spaceActive: Boolean) {
+        val text = logText.value
+        YokhanRouteFrame(
+            title = stringResource(R.string.menu_log),
+            systemLabel = stringResource(R.string.dashboard_system_label),
+            spaceActive = spaceActive,
+            onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
+        ) { colors, typography ->
+            YokhanRouteCard(
+                title = stringResource(R.string.menu_log),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.clear_logcat),
+                            onClick = ::clearLogcat,
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.logcat),
+                            onClick = ::sendLogcat,
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.group_update),
+                            primary = true,
+                            onClick = ::reloadSession,
+                        ),
+                    ),
+                    colors = colors,
+                    typography = typography,
+                )
+                Text(
+                    text = text.ifBlank { "--" },
+                    color = colors.secondary,
+                    fontFamily = typography.mono,
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(top = 14.dp),
+                )
             }
         }
-        return color
     }
 
     private fun reloadSession() {
-        val span = SpannableString(
-            String(SendLog.getNekoLog(50 * 1024))
-        )
-        var offset = 0
-        for (line in span.lines()) {
-            val color = getColorForLine(line)
-            span.setSpan(
-                color, offset, offset + line.length, SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-            offset += line.length + 1
-        }
-        binding.textview.text = span
-        binding.textview.clearFocus()
-        // 等 textview 完成最终 layout 再滚动到底部
-        binding.textview.doOnLayout {
-            binding.scroolview.scrollTo(0, binding.textview.height)
+        logText.value = String(SendLog.getNekoLog(50 * 1024))
+    }
+
+    private fun clearLogcat() {
+        runOnDefaultDispatcher {
+            try {
+                Libcore.nekoLogClear()
+                Runtime.getRuntime().exec("/system/bin/logcat -c")
+            } catch (e: Exception) {
+                onMainDispatcher {
+                    snackbar(e.readableMessage).show()
+                }
+                return@runOnDefaultDispatcher
+            }
+            onMainDispatcher {
+                logText.value = ""
+            }
         }
     }
 
-    override fun onMenuItemClick(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.action_clear_logcat -> {
-                runOnDefaultDispatcher {
-                    try {
-                        Libcore.nekoLogClear()
-                        Runtime.getRuntime().exec("/system/bin/logcat -c")
-                    } catch (e: Exception) {
-                        onMainDispatcher {
-                            snackbar(e.readableMessage).show()
-                        }
-                        return@runOnDefaultDispatcher
-                    }
-                    onMainDispatcher {
-                        binding.textview.text = ""
-                    }
-                }
-
-            }
-
-            R.id.action_send_logcat -> {
-                val context = requireContext()
-                runOnDefaultDispatcher {
-                    SendLog.sendLog(context, "YokhanVPN")
-                }
-            }
-
-            R.id.action_refresh -> {
-                reloadSession()
-            }
+    private fun sendLogcat() {
+        val context = requireContext()
+        runOnDefaultDispatcher {
+            SendLog.sendLog(context, "YokhanVPN")
         }
-        return true
     }
-
 }

@@ -3,57 +3,40 @@ package io.nekohasekai.sagernet.ui
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import androidx.core.view.ViewCompat
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
-import io.nekohasekai.sagernet.databinding.LayoutGroupHubBinding
 import io.nekohasekai.sagernet.group.GroupUpdater
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.snackbar
-import io.nekohasekai.sagernet.widget.ListListener
+import io.nekohasekai.sagernet.ui.compose.YokhanButtonGrid
+import io.nekohasekai.sagernet.ui.compose.YokhanCaption
+import io.nekohasekai.sagernet.ui.compose.YokhanComposeRouteFragment
+import io.nekohasekai.sagernet.ui.compose.YokhanHeadline
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteAction
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteCard
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteFrame
+import io.nekohasekai.sagernet.ui.compose.YokhanStatPair
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class GroupHubFragment : ToolbarFragment(R.layout.layout_group_hub) {
+class GroupHubFragment : YokhanComposeRouteFragment() {
 
-    private var _binding: LayoutGroupHubBinding? = null
-    private val binding get() = _binding!!
+    private val summaryState = mutableStateOf<GroupSummary?>(null)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        _binding = LayoutGroupHubBinding.bind(view)
-
-        ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
-        toolbar.setTitle(R.string.group_hub_title)
-
-        binding.openGroupListButton.setOnClickListener {
-            (activity as? MainActivity)?.openSubFragment(GroupFragment())
-        }
-        binding.newGroupButton.setOnClickListener {
-            startActivity(Intent(requireActivity(), GroupSettingsActivity::class.java))
-        }
-        binding.updateSubscriptionsButton.setOnClickListener {
-            runOnDefaultDispatcher {
-                val groups = SagerDatabase.groupDao.allGroups()
-                    .filter { it.type == GroupType.SUBSCRIPTION }
-                if (groups.isEmpty()) {
-                    onMainDispatcher {
-                        snackbar(R.string.group_hub_no_subscription_groups).show()
-                    }
-                } else {
-                    groups.forEach { GroupUpdater.startUpdate(it, true) }
-                }
-            }
-        }
-        binding.openProfilesButton.setOnClickListener {
-            (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_configuration)
-        }
-
         refreshSummary()
     }
 
@@ -63,8 +46,91 @@ class GroupHubFragment : ToolbarFragment(R.layout.layout_group_hub) {
     }
 
     override fun onDestroyView() {
-        _binding = null
+        summaryState.value = null
         super.onDestroyView()
+    }
+
+    @Composable
+    override fun Content(spaceActive: Boolean) {
+        val summary = summaryState.value
+        YokhanRouteFrame(
+            title = stringResource(R.string.group_hub_title),
+            systemLabel = stringResource(R.string.dashboard_system_label),
+            spaceActive = spaceActive,
+            onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
+        ) { colors, typography ->
+            YokhanRouteCard(
+                title = stringResource(R.string.group_hub_overview_title),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanHeadline(
+                    text = summary?.activeGroupName ?: "--",
+                    colors = colors,
+                    typography = typography,
+                )
+                YokhanCaption(
+                    text = summary?.activeGroupTypeLabel() ?: stringResource(R.string.configuration_hub_group_type),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                YokhanStatPair(
+                    firstValue = summary?.let {
+                        pluralStringResource(
+                            R.plurals.group_hub_group_totals,
+                            it.groupCount,
+                            it.groupCount,
+                            it.localCount,
+                            it.subscriptionCount,
+                        )
+                    } ?: "--",
+                    firstLabel = stringResource(R.string.group_hub_totals_title),
+                    secondValue = summary?.let {
+                        pluralStringResource(
+                            R.plurals.group_hub_profile_totals,
+                            it.totalProfiles,
+                            it.totalProfiles,
+                        )
+                    } ?: "--",
+                    secondLabel = stringResource(R.string.group_hub_profile_inventory),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 16.dp),
+                )
+            }
+
+            YokhanRouteCard(
+                title = stringResource(R.string.group_hub_actions_title),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.group_hub_open_list),
+                            primary = true,
+                            onClick = { (activity as? MainActivity)?.openSubFragment(GroupFragment()) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.group_create),
+                            onClick = { startActivity(Intent(requireActivity(), GroupSettingsActivity::class.java)) },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.group_hub_update_all),
+                            enabled = (summary?.subscriptionCount ?: 0) > 0,
+                            onClick = ::updateSubscriptions,
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.group_hub_open_profiles),
+                            onClick = { (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_configuration) },
+                        ),
+                    ),
+                    colors = colors,
+                    typography = typography,
+                )
+            }
+        }
     }
 
     private fun refreshSummary() {
@@ -85,29 +151,21 @@ class GroupHubFragment : ToolbarFragment(R.layout.layout_group_hub) {
                     totalProfiles = totalProfiles.toInt()
                 )
             }
+            summaryState.value = summary
+        }
+    }
 
-            val binding = _binding ?: return@launch
-            binding.activeGroupValue.text = summary.activeGroupName
-            binding.activeGroupTypeValue.text = getString(
-                if (summary.activeGroupType == GroupType.SUBSCRIPTION) {
-                    R.string.configuration_hub_group_type_subscription
-                } else {
-                    R.string.configuration_hub_group_type_local
+    private fun updateSubscriptions() {
+        runOnDefaultDispatcher {
+            val groups = SagerDatabase.groupDao.allGroups()
+                .filter { it.type == GroupType.SUBSCRIPTION }
+            if (groups.isEmpty()) {
+                onMainDispatcher {
+                    snackbar(R.string.group_hub_no_subscription_groups).show()
                 }
-            )
-            binding.groupTotalsValue.text = resources.getQuantityString(
-                R.plurals.group_hub_group_totals,
-                summary.groupCount,
-                summary.groupCount,
-                summary.localCount,
-                summary.subscriptionCount
-            )
-            binding.profileTotalsValue.text = resources.getQuantityString(
-                R.plurals.group_hub_profile_totals,
-                summary.totalProfiles,
-                summary.totalProfiles
-            )
-            binding.updateSubscriptionsButton.isEnabled = summary.subscriptionCount > 0
+            } else {
+                groups.forEach { GroupUpdater.startUpdate(it, true) }
+            }
         }
     }
 
@@ -119,4 +177,15 @@ class GroupHubFragment : ToolbarFragment(R.layout.layout_group_hub) {
         val localCount: Int,
         val totalProfiles: Int,
     )
+
+    @Composable
+    private fun GroupSummary.activeGroupTypeLabel(): String {
+        return stringResource(
+            if (activeGroupType == GroupType.SUBSCRIPTION) {
+                R.string.configuration_hub_group_type_subscription
+            } else {
+                R.string.configuration_hub_group_type_local
+            }
+        )
+    }
 }
