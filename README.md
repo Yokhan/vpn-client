@@ -23,6 +23,7 @@ Main changes relative to upstream:
 - main Android app module: `app/`
 - native core wrapper: `libcore/`
 - metadata and versioning: `nb4a.properties`
+- Android product layout XML: removed from `app/src/main/res/layout`; remaining form debt is preference XML and typed Compose migration.
 
 ## Local Build
 

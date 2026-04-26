@@ -17,12 +17,16 @@
 package moe.matsuri.nb4a.ui
 
 import android.content.Context
+import android.text.TextUtils
 import android.util.AttributeSet
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
+import android.widget.CheckedTextView
 import android.widget.Spinner
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.preference.DropDownPreference
 import androidx.preference.PreferenceViewHolder
 import io.nekohasekai.sagernet.R
@@ -51,7 +55,7 @@ open class SimpleMenuPreference
     }
 
     override fun createAdapter(): ArrayAdapter<CharSequence?> {
-        mAdapter = SimpleMenuAdapter(getContext(), R.layout.simple_menu_dropdown_item)
+        mAdapter = SimpleMenuAdapter(getContext())
         return mAdapter
     }
 
@@ -63,13 +67,17 @@ open class SimpleMenuPreference
         }
     }
 
-    private class SimpleMenuAdapter(context: Context, resource: Int) :
-        ArrayAdapter<CharSequence?>(context, resource) {
+    private class SimpleMenuAdapter(context: Context) :
+        ArrayAdapter<CharSequence?>(context, 0) {
 
         var currentPosition = -1
 
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            return bindView(position, convertView)
+        }
+
         override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
-            val view: View = super.getDropDownView(position, convertView, parent)
+            val view = bindView(position, convertView)
             if (position == currentPosition) {
                 view.setBackgroundColor(context.getColorAttr(R.attr.colorMaterial100))
             } else {
@@ -81,6 +89,31 @@ open class SimpleMenuPreference
                 )
             }
             return view
+        }
+
+        private fun bindView(position: Int, convertView: View?): CheckedTextView {
+            return ((convertView as? CheckedTextView) ?: CheckedTextView(context).apply {
+                ellipsize = TextUtils.TruncateAt.MARQUEE
+                gravity = Gravity.CENTER
+                minWidth = dp(112)
+                setSingleLine(true)
+                setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                textSize = 13f
+                typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
+                setPadding(dp(16), 0, dp(16), 0)
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(48),
+                )
+            }).apply {
+                setBackgroundColor(ContextCompat.getColor(context, R.color.preference_simple_menu_background))
+                isChecked = position == currentPosition
+                text = getItem(position)
+            }
+        }
+
+        private fun dp(value: Int): Int {
+            return (value * context.resources.displayMetrics.density).toInt()
         }
     }
 }

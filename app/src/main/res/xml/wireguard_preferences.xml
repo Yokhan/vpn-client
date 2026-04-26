@@ -32,8 +32,7 @@
             app:key="peerPublicKey"
             app:title="@string/wireguard_public_key"
             app:useSimpleSummaryProvider="true" />
-        <EditTextPreference
-            app:dialogLayout="@layout/layout_password_dialog"
+        <io.nekohasekai.sagernet.widget.PasswordPreference
             app:icon="@drawable/ic_settings_password"
             app:key="peerPreSharedKey"
             app:title="@string/wireguard_psk" />

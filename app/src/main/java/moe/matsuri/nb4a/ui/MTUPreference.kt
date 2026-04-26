@@ -19,7 +19,7 @@ class MTUPreference
         setSummaryProvider {
             value.toString()
         }
-        dialogLayoutResource = R.layout.layout_mtu_help
+        dialogMessage = context.getString(R.string.mtu_help)
     }
 
     override fun onBindViewHolder(holder: PreferenceViewHolder) {

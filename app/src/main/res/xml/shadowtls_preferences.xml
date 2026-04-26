@@ -23,8 +23,7 @@
             app:key="version"
             app:title="@string/protocol_version"
             app:useSimpleSummaryProvider="true" />
-        <EditTextPreference
-            app:dialogLayout="@layout/layout_password_dialog"
+        <io.nekohasekai.sagernet.widget.PasswordPreference
             app:icon="@drawable/ic_notification_enhanced_encryption"
             app:key="password"
             app:title="@string/password" />

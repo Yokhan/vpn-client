@@ -3,23 +3,31 @@ package io.nekohasekai.sagernet.ui.profile
 import android.annotation.SuppressLint
 import android.content.DialogInterface
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
+import android.text.TextUtils
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.activity.result.component1
 import androidx.activity.result.component2
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
 import androidx.preference.EditTextPreference
@@ -28,6 +36,8 @@ import androidx.preference.PreferenceDataStore
 import androidx.preference.PreferenceFragmentCompat
 import com.github.shadowsocks.plugin.Empty
 import com.github.shadowsocks.plugin.fragment.AlertDialogFragment
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.*
 import io.nekohasekai.sagernet.database.DataStore
@@ -37,12 +47,14 @@ import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.ProxyGroup
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener
-import io.nekohasekai.sagernet.databinding.LayoutGroupItemBinding
 import io.nekohasekai.sagernet.fmt.AbstractBean
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.ui.ThemedActivity
+import io.nekohasekai.sagernet.ui.YokhanEditTextPreferenceDialogFragment
 import io.nekohasekai.sagernet.ui.createYokhanSettingsHost
+import io.nekohasekai.sagernet.widget.LinkOrContentPreference
 import io.nekohasekai.sagernet.widget.ListListener
+import io.nekohasekai.sagernet.widget.PasswordPreference
 import kotlinx.parcelize.Parcelize
 import kotlin.properties.Delegates
 
@@ -234,6 +246,10 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
 
     class MyPreferenceFragmentCompat : PreferenceFragmentCompat() {
 
+        companion object {
+            private const val DIALOG_FRAGMENT_TAG = "androidx.preference.PreferenceFragment.DIALOG"
+        }
+
         var activity: ProfileSettingsActivity<*>? = null
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -358,32 +374,13 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
 
             R.id.action_move -> {
                 val activity = requireActivity() as ProfileSettingsActivity<*>
+                val ent = activity.proxyEntity!!
                 val view = LinearLayout(context).apply {
-                    val ent = activity.proxyEntity!!
                     orientation = LinearLayout.VERTICAL
 
                     activity.movableGroups.forEach { group ->
-                            LayoutGroupItemBinding.inflate(layoutInflater, this, true).apply {
-                                edit.isVisible = false
-                                options.isVisible = false
-                                groupName.text = group.displayName()
-                                groupUpdate.text = getString(R.string.move)
-                                groupUpdate.setOnClickListener {
-                                    runOnDefaultDispatcher {
-                                        val oldGroupId = ent.groupId
-                                        val newGroupId = group.id
-                                        ent.groupId = newGroupId
-                                        ProfileManager.updateProfile(ent)
-                                        GroupManager.postUpdate(oldGroupId) // reload
-                                        GroupManager.postUpdate(newGroupId)
-                                        DataStore.editingGroup = newGroupId // post switch animation
-                                        runOnMainDispatcher {
-                                            activity.finish()
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        addView(createMoveGroupRow(activity, group, ent))
+                    }
                 }
                 val scrollView = ScrollView(context).apply {
                     addView(view)
@@ -395,9 +392,89 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
             else -> false
         }
 
+        private fun createMoveGroupRow(
+            activity: ProfileSettingsActivity<*>,
+            group: ProxyGroup,
+            ent: ProxyEntity,
+        ): View {
+            val context = requireContext()
+            return MaterialCardView(context).apply {
+                setCardBackgroundColor(Color.TRANSPARENT)
+                radius = dp(10).toFloat()
+                cardElevation = 0f
+                strokeWidth = dp(1)
+                setStrokeColor(ContextCompat.getColor(context, R.color.dashboard_card_border_off))
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    setMargins(dp(10), dp(4), dp(10), dp(4))
+                }
+                addView(LinearLayout(context).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(dp(12), dp(12), dp(12), dp(12))
+                    addView(TextView(context).apply {
+                        ellipsize = TextUtils.TruncateAt.END
+                        maxLines = 1
+                        text = group.displayName()
+                        typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                        textSize = 16f
+                        layoutParams = LinearLayout.LayoutParams(
+                            0,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                            1f,
+                        )
+                    })
+                    addView(MaterialButton(context).apply {
+                        backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
+                        minWidth = 0
+                        text = getString(R.string.move)
+                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                        strokeColor = ColorStateList.valueOf(
+                            ContextCompat.getColor(context, R.color.dashboard_card_border_off)
+                        )
+                        strokeWidth = dp(1)
+                        setOnClickListener {
+                            runOnDefaultDispatcher {
+                                val oldGroupId = ent.groupId
+                                val newGroupId = group.id
+                                ent.groupId = newGroupId
+                                ProfileManager.updateProfile(ent)
+                                GroupManager.postUpdate(oldGroupId)
+                                GroupManager.postUpdate(newGroupId)
+                                DataStore.editingGroup = newGroupId
+                                runOnMainDispatcher {
+                                    activity.finish()
+                                }
+                            }
+                        }
+                    })
+                })
+            }
+        }
+
+        private fun dp(value: Int): Int {
+            return (value * resources.displayMetrics.density).toInt()
+        }
+
         override fun onDisplayPreferenceDialog(preference: Preference) {
             activity?.apply {
                 if (displayPreferenceDialog(preference)) return
+            }
+            if (preference is LinkOrContentPreference || preference is PasswordPreference) {
+                if (parentFragmentManager.findFragmentByTag(DIALOG_FRAGMENT_TAG) != null) return
+                val dialog = if (preference is PasswordPreference) {
+                    YokhanEditTextPreferenceDialogFragment.newPasswordInstance(preference.key)
+                } else {
+                    YokhanEditTextPreferenceDialogFragment.newInstance(preference.key)
+                }
+                dialog.apply {
+                    setTargetFragment(this@MyPreferenceFragmentCompat, 0)
+                }.show(parentFragmentManager, DIALOG_FRAGMENT_TAG)
+                return
             }
             super.onDisplayPreferenceDialog(preference)
         }

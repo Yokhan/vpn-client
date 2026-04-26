@@ -20,6 +20,10 @@ import moe.matsuri.nb4a.ui.*
 
 class SettingsPreferenceFragment : PreferenceFragmentCompat() {
 
+    companion object {
+        private const val DIALOG_FRAGMENT_TAG = "androidx.preference.PreferenceFragment.DIALOG"
+    }
+
     private lateinit var isProxyApps: SwitchPreference
 
     private lateinit var globalCustomConfig: EditConfigPreference
@@ -71,7 +75,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         globalCustomConfig = findPreference(Key.GLOBAL_CUSTOM_CONFIG)!!
         globalCustomConfig.useConfigStore(Key.GLOBAL_CUSTOM_CONFIG)
 
-        logLevel.dialogLayoutResource = R.layout.layout_loglevel_help
+        logLevel.dialogMessage = getString(R.string.log_level_help)
         logLevel.setOnPreferenceChangeListener { _, _ ->
             needRestart()
             true
@@ -209,6 +213,17 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         if (::globalCustomConfig.isInitialized) {
             globalCustomConfig.notifyChanged()
         }
+    }
+
+    override fun onDisplayPreferenceDialog(preference: Preference) {
+        if (preference is UrlTestPreference) {
+            if (parentFragmentManager.findFragmentByTag(DIALOG_FRAGMENT_TAG) != null) return
+            YokhanEditTextPreferenceDialogFragment.newInstance(preference.key).apply {
+                setTargetFragment(this@SettingsPreferenceFragment, 0)
+            }.show(parentFragmentManager, DIALOG_FRAGMENT_TAG)
+            return
+        }
+        super.onDisplayPreferenceDialog(preference)
     }
 
 }

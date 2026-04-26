@@ -105,7 +105,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 - [ ] Port core settings first: service mode, proxy apps, bypass mode, individual apps, stealth mode.
 - [ ] Port advanced settings after the main settings route is stable.
 - [ ] Preserve settings that require service reload and show Compose apply action.
-- [ ] Replace preference dialogs with Compose dialogs.
+- [x] Remove custom preference dialog layout XML and replace it with programmatic preference dialogs/classes.
 - [ ] Add searchable settings only after full parity.
 - [ ] Remove preference XML resources after migration.
 - [ ] Make theme/state changes immediate across settings screens.
@@ -202,7 +202,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 
 ## 19. Codebase Cleanup
 
-- [ ] Delete XML layouts only after their route is fully migrated.
+- [x] Delete app `res/layout` XML after replacing remaining chain rows, dialogs, dropdown rows, and hosts.
 - [ ] Delete old widgets after shell removal: `StatsBar`, `ServiceButton`, old appbar styling.
 - [ ] Remove unused drawables/dimens tied only to deleted XML UI.
 - [ ] Remove stale imports and inherited comments that no longer describe YokhanVPN.

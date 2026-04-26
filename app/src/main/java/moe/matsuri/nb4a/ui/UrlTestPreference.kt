@@ -25,8 +25,6 @@ constructor(
     var concurrent: EditText? = null
 
     init {
-        dialogLayoutResource = R.layout.layout_urltest_preference_dialog
-
         setOnBindEditTextListener {
             concurrent = it.rootView.findViewById(R.id.edit_concurrent)
             concurrent?.apply {

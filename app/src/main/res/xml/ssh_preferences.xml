@@ -32,8 +32,7 @@
             app:title="@string/hysteria_auth_type"
             app:useSimpleSummaryProvider="true" />
 
-        <EditTextPreference
-            app:dialogLayout="@layout/layout_password_dialog"
+        <io.nekohasekai.sagernet.widget.PasswordPreference
             app:icon="@drawable/ic_settings_password"
             app:key="serverPassword"
             app:title="@string/password" />
@@ -44,8 +43,7 @@
             app:title="@string/ssh_private_key"
             app:useSimpleSummaryProvider="true" />
 
-        <EditTextPreference
-            app:dialogLayout="@layout/layout_password_dialog"
+        <io.nekohasekai.sagernet.widget.PasswordPreference
             app:icon="@drawable/ic_settings_password"
             app:key="serverPassword1"
             app:title="@string/ssh_private_key_passphrase" />

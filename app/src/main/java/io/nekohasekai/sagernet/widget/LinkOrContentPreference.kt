@@ -25,10 +25,9 @@ constructor(
 ) : EditTextPreference(context, attrs, defStyleAttr, defStyleRes) {
 
     init {
-        dialogLayoutResource = R.layout.layout_urltest_preference_dialog
-
         setOnBindEditTextListener {
             val linkLayout = it.rootView.findViewById<TextInputLayout>(R.id.input_layout)
+                ?: return@setOnBindEditTextListener
             fun validate() {
                 val link = it.text
                 if (link.isBlank()) {

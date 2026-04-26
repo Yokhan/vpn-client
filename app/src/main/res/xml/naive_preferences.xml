@@ -24,8 +24,7 @@
             app:key="serverUsername"
             app:title="@string/username_opt"
             app:useSimpleSummaryProvider="true" />
-        <EditTextPreference
-            app:dialogLayout="@layout/layout_password_dialog"
+        <io.nekohasekai.sagernet.widget.PasswordPreference
             app:icon="@drawable/ic_settings_password"
             app:key="serverPassword"
             app:title="@string/password_opt" />

@@ -5,25 +5,28 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.text.format.Formatter
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.component1
 import androidx.activity.result.component2
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.preference.PreferenceFragmentCompat
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.ProxyEntity
-import io.nekohasekai.sagernet.databinding.LayoutAddEntityBinding
-import io.nekohasekai.sagernet.databinding.LayoutProfileBinding
 import io.nekohasekai.sagernet.fmt.internal.ChainBean
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.ui.ProfileSelectActivity
@@ -158,9 +161,9 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             return if (viewType == 0) {
-                AddHolder(LayoutAddEntityBinding.inflate(layoutInflater, parent, false))
+                AddHolder(createAddProfileRow(parent))
             } else {
-                ProfileHolder(LayoutProfileBinding.inflate(layoutInflater, parent, false))
+                ProfileHolder(createProfileRow(parent))
             }
         }
 
@@ -236,10 +239,9 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
             }
         }
 
-    inner class AddHolder(val binding: LayoutAddEntityBinding) :
-        RecyclerView.ViewHolder(binding.root) {
+    private inner class AddHolder(root: View) : RecyclerView.ViewHolder(root) {
         fun bind() {
-            binding.root.setOnClickListener {
+            itemView.setOnClickListener {
                 replacing = 0
                 selectProfileForAdd.launch(
                     Intent(
@@ -250,14 +252,14 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
         }
     }
 
-    inner class ProfileHolder(binding: LayoutProfileBinding) :
-        RecyclerView.ViewHolder(binding.root) {
+    private inner class ProfileHolder(private val row: ChainProfileRow) :
+        RecyclerView.ViewHolder(row.root) {
 
-        val profileName = binding.profileName
-        val profileType = binding.profileType
-        val trafficText: TextView = binding.trafficText
-        val editButton = binding.edit
-        val shareLayout = binding.share
+        val profileName = row.profileName
+        val profileType = row.profileType
+        val trafficText: TextView = row.trafficText
+        val editButton = row.editButton
+        val shareLayout = row.shareLayout
 
         fun bind(proxyEntity: ProxyEntity) {
 
@@ -290,6 +292,119 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
             shareLayout.isVisible = false
         }
 
+    }
+
+    private data class ChainProfileRow(
+        val root: View,
+        val profileName: TextView,
+        val profileType: TextView,
+        val trafficText: TextView,
+        val editButton: ImageView,
+        val shareLayout: View,
+    )
+
+    private fun createAddProfileRow(parent: ViewGroup): View {
+        return createChainCard(parent).apply {
+            addView(LinearLayout(context).apply {
+                setPadding(dp(16), dp(16), dp(16), dp(16))
+                addView(TextView(context).apply {
+                    text = getString(R.string.add_profile)
+                    typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
+                    setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                    textSize = 13f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                })
+            })
+        }
+    }
+
+    private fun createProfileRow(parent: ViewGroup): ChainProfileRow {
+        val card = createChainCard(parent).apply {
+            isClickable = true
+            isFocusable = true
+        }
+        val profileName = TextView(card.context).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
+            setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+            textSize = 16f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        val profileType = TextView(card.context).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
+            setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_secondary))
+            textSize = 11f
+            setPadding(0, dp(6), 0, 0)
+        }
+        val trafficText = TextView(card.context).apply {
+            typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
+            setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_secondary))
+            textSize = 11f
+            setPadding(0, dp(4), 0, 0)
+            isVisible = false
+        }
+        val editButton = ImageView(card.context).apply {
+            contentDescription = getString(R.string.edit)
+            isFocusable = true
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setImageResource(R.drawable.ic_image_edit)
+            imageTintList = android.content.res.ColorStateList.valueOf(
+                ContextCompat.getColor(context, R.color.dashboard_text_secondary)
+            )
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+        }
+        val shareLayout = LinearLayout(card.context).apply {
+            contentDescription = getString(R.string.share)
+            isFocusable = true
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            addView(ImageView(context).apply {
+                setImageResource(R.drawable.ic_social_share)
+                imageTintList = android.content.res.ColorStateList.valueOf(
+                    ContextCompat.getColor(context, R.color.dashboard_text_secondary)
+                )
+            })
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+        }
+
+        card.addView(LinearLayout(card.context).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(12), dp(12), dp(4), dp(12))
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                addView(profileName)
+                addView(profileType)
+                addView(trafficText)
+            })
+            addView(editButton)
+            addView(shareLayout)
+        })
+
+        return ChainProfileRow(card, profileName, profileType, trafficText, editButton, shareLayout)
+    }
+
+    private fun createChainCard(parent: ViewGroup): MaterialCardView {
+        return MaterialCardView(parent.context).apply {
+            setCardBackgroundColor(android.graphics.Color.TRANSPARENT)
+            radius = dp(10).toFloat()
+            cardElevation = 0f
+            strokeWidth = dp(1)
+            setStrokeColor(ContextCompat.getColor(context, R.color.dashboard_card_border_off))
+            layoutParams = RecyclerView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                setMargins(dp(10), dp(4), dp(10), dp(4))
+            }
+        }
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 
 }

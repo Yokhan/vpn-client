@@ -6,9 +6,12 @@
     <item name="action_tab" type="id" />
     <item name="action_undo" type="id" />
     <item name="configuration_list" type="id" />
+    <item name="concurrent_layout" type="id" />
     <item name="editor" type="id" />
+    <item name="edit_concurrent" type="id" />
     <item name="extended_keyboard" type="id" />
     <item name="fragment_holder" type="id" />
+    <item name="input_layout" type="id" />
     <item name="keyboard_container" type="id" />
     <item name="list_cell" type="id" />
     <item name="scroller" type="id" />
