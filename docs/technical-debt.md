@@ -17,6 +17,7 @@ This file tracks concrete cleanup work that affects build reliability, UI qualit
 - `AppListActivity` and `AppManagerActivity` now share a Compose app-selection screen; their RecyclerView adapters, item layout, app-list layouts, placeholder layout, and menu XML are removed.
 - `ProfileSelectActivity` and `SwitchActivity` no longer use `layout_empty.xml`; they create a `FragmentContainerView` host programmatically for the Compose configuration selector.
 - `ToolsFragment` backup import confirmation/progress dialogs now use ComposeView and no longer require `layout_import.xml` or `layout_progress.xml`.
+- Removed unused legacy layouts with no remaining binding or resource references: old dashboard profile item, debug, edit-group, icon-list, loading, and progress-list layouts.
 - CI and Release workflows duplicate libcore/bootstrap steps. Extract shared setup into a composite action or reusable workflow once the release process is stable.
 - Native core source defaults still fall back to `MatsuriDayo/*`. Full detachment requires Yokhan-owned forks or explicit `CORE_*_GIT_URL` repository variables.
 - Closed-source transition and upstream cleanup constraints are tracked in `docs/source-closure-and-cleanup.md`.
