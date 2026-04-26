@@ -35,14 +35,15 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 
 ## 04. Compose Main Shell
 
-- [ ] Replace `layout_main.xml` with an Android `setContent` entry point.
-- [ ] Replace `DrawerLayout` and `NavigationView` with a Compose navigation surface.
-- [ ] Replace legacy `StatsBar` with shared Compose bottom status.
-- [ ] Replace legacy `ServiceButton` and `fabProgress` with Compose actions.
+- [x] Replace `layout_main.xml` with an Android `setContent` entry point.
+- [x] Replace `DrawerLayout` and `NavigationView` with a Compose navigation surface.
+- [x] Remove legacy `StatsBar` from the main shell.
+- [x] Remove legacy `ServiceButton` and `fabProgress` from the main shell.
 - [ ] Move snackbar ownership into Compose with a single snackbar host.
 - [ ] Handle system insets in Compose, not in XML appbar listeners.
-- [ ] Make connected/disconnected theme transitions global to the shell.
-- [ ] Keep back navigation behavior equivalent to current Fragment logic until the old fragments are gone.
+- [x] Make connected/disconnected theme transitions global to the shell.
+- [x] Keep back navigation behavior equivalent to current Fragment logic until the old fragments are gone.
+- [ ] Replace the temporary fragment host bridge after each route is migrated.
 
 ## 05. Dashboard Completion
 

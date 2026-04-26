@@ -7,7 +7,8 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 ## Current State
 
 - `shared-ui` contains the production dashboard composable and shared dashboard assets.
-- `app` still uses XML for the main shell: `layout_main.xml`, `DrawerLayout`, `NavigationView`, legacy `StatsBar`, and `ServiceButton`.
+- `app` now uses a Compose main shell with a programmatic `FragmentContainerView` for routes that are not migrated yet.
+- Removed from the main shell: `layout_main.xml`, `DrawerLayout`, `NavigationView`, legacy `StatsBar`, `ServiceButton`, and `FabProgressBehavior`.
 - Main navigation still opens legacy fragments: configurations, groups, routes, settings, tools, logcat, about, backup, network, and webview.
 - Preference screens still use `PreferenceFragmentCompat`, so they cannot follow the animated connected/disconnected Compose theme.
 - Dashboard content is Compose-only. It is still hosted by `DashboardFragment`, but `layout_dashboard.xml` now contains only a `ComposeView`.
@@ -27,7 +28,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
    Create common palette, typography, motion, and reusable primitives in `shared-ui`.
 
 2. Compose main shell.
-   Replace `layout_main.xml`/drawer/bottom stats/fab with a Compose shell that owns navigation, bottom status, snackbar host, and connected/disconnected theme animation.
+   Replace `layout_main.xml`/drawer/bottom stats/fab with a Compose shell that owns navigation, bottom status, snackbar host, and connected/disconnected theme animation. Initial shell replacement is complete; snackbar still uses a Material Snackbar attached to the fragment host until all host behavior is Compose-native.
 
 3. Dashboard host cleanup.
    Move dashboard state and actions out of `DashboardFragment`, render `YokhanDashboardScreen` directly from the Compose shell, then delete the dashboard fragment host.
@@ -46,7 +47,8 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 
 ## Legacy UI Inventory
 
-- Main shell: `MainActivity`, `layout_main.xml`, `StatsBar`, `ServiceButton`.
+- Main shell: `MainActivity`, `YokhanMainShell`.
+- Removed shell legacy widgets: `layout_main.xml`, `StatsBar`, `ServiceButton`, `FabProgressBehavior`, `main_drawer_menu.xml`.
 - Dashboard host: `DashboardFragment`, `layout_dashboard.xml`.
 - Removed dashboard legacy renderers: `DashboardViewRenderer`, `DashboardProfileListRenderer`, `DashboardOrbMotionController`.
 - Navigation fragments: `ConfigurationHubFragment`, `ConfigurationFragment`, `GroupHubFragment`, `GroupFragment`, `RouteHubFragment`, `RouteFragment`, `SettingsFragment`, `ToolsFragment`, `LogcatFragment`, `AboutFragment`, `WebviewFragment`.

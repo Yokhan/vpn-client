@@ -9,7 +9,6 @@ import android.widget.TextView
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
-import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.fragment.app.Fragment
 import io.nekohasekai.sagernet.R
@@ -33,7 +32,7 @@ open class ToolbarFragment : Fragment {
         } else {
             toolbar.setNavigationIcon(R.drawable.ic_navigation_menu)
             toolbar.setNavigationOnClickListener {
-                mainActivity.binding.drawerLayout.openDrawer(GravityCompat.START)
+                mainActivity.openNavigationMenu()
             }
         }
         applyYokhanToolbarStyle(view)

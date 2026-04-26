@@ -9,17 +9,17 @@ import android.os.Build
 import android.os.Bundle
 import android.os.RemoteException
 import android.view.KeyEvent
-import android.view.MenuItem
+import android.view.View
 import androidx.activity.addCallback
+import androidx.activity.compose.setContent
 import androidx.annotation.IdRes
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentManager
+import androidx.fragment.app.FragmentContainerView
 import androidx.preference.PreferenceDataStore
-import androidx.core.view.GravityCompat
-import androidx.core.view.isVisible
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.navigation.NavigationView
 import com.google.android.material.snackbar.Snackbar
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.GroupType
@@ -37,7 +37,6 @@ import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.ProxyGroup
 import io.nekohasekai.sagernet.database.SubscriptionBean
 import io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener
-import io.nekohasekai.sagernet.databinding.LayoutMainBinding
 import io.nekohasekai.sagernet.fmt.AbstractBean
 import io.nekohasekai.sagernet.fmt.KryoConverters
 import io.nekohasekai.sagernet.fmt.PluginEntry
@@ -50,29 +49,44 @@ import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.parseProxies
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
+import io.nekohasekai.sagernet.ui.shell.YokhanMainShell
+import io.nekohasekai.sagernet.ui.shell.YokhanShellDrawerCommand
 import moe.matsuri.nb4a.utils.Util
 
 class MainActivity : ThemedActivity(),
     SagerConnection.Callback,
     OnPreferenceDataStoreChangeListener,
-    DashboardHost,
-    NavigationView.OnNavigationItemSelectedListener {
+    DashboardHost {
 
-    lateinit var binding: LayoutMainBinding
-    lateinit var navigation: NavigationView
+    private lateinit var fragmentHostView: View
+    private val selectedRouteId = mutableStateOf(R.id.nav_home)
+    private val shellServiceState = mutableStateOf(BaseService.State.Idle)
+    private val drawerCommand = mutableStateOf(YokhanShellDrawerCommand())
+    private var navigationMenuOpen = false
+    private var fragmentHostReady = false
+    private var pendingInitialFragment = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        binding = LayoutMainBinding.inflate(layoutInflater)
-        binding.fab.initProgress(binding.fabProgress)
-        navigation = binding.navView
-        navigation.setNavigationItemSelectedListener(this)
-
-        if (savedInstanceState == null) {
-            displayFragmentWithId(R.id.nav_home)
+        setContent {
+            YokhanMainShell(
+                selectedRouteId = selectedRouteId.value,
+                serviceState = shellServiceState.value,
+                drawerCommand = drawerCommand.value,
+                onRouteSelected = ::displayFragmentWithId,
+                onDrawerOpenChanged = { navigationMenuOpen = it },
+                onFragmentHostReady = { host ->
+                    fragmentHostView = host
+                    onFragmentHostReady(host, savedInstanceState)
+                },
+            )
         }
         onBackPressedDispatcher.addCallback {
+            if (navigationMenuOpen) {
+                closeNavigationMenu()
+                return@addCallback
+            }
             if (supportFragmentManager.backStackEntryCount > 0) {
                 supportFragmentManager.popBackStack()
                 return@addCallback
@@ -84,10 +98,6 @@ class MainActivity : ThemedActivity(),
             }
         }
 
-        binding.fab.setOnClickListener { toggleConnection() }
-        binding.stats.setOnClickListener { runConnectionTest() }
-
-        setContentView(binding.root)
         changeState(BaseService.State.Idle)
         connection.connect(this, this)
         DataStore.configurationStore.registerChangeListener(this)
@@ -96,8 +106,6 @@ class MainActivity : ThemedActivity(),
         if (intent?.action == Intent.ACTION_VIEW) {
             onNewIntent(intent)
         }
-
-        refreshNavMenu(DataStore.enableClashAPI && !DataStore.stealthMode)
 
         // sdk 33 notification
         if (Build.VERSION.SDK_INT >= 33) {
@@ -120,12 +128,24 @@ class MainActivity : ThemedActivity(),
         }
     }
 
-    fun refreshNavMenu(clashApi: Boolean) {
-        if (::navigation.isInitialized) {
-            navigation.menu.findItem(R.id.nav_traffic)?.isVisible = false
-            navigation.menu.findItem(R.id.nav_faq)?.isVisible = false
-            navigation.menu.findItem(R.id.nav_tuiguang)?.isVisible = false
+    private fun onFragmentHostReady(host: FragmentContainerView, savedInstanceState: Bundle?) {
+        if (fragmentHostReady) return
+        fragmentHostReady = true
+        if (!pendingInitialFragment) return
+        pendingInitialFragment = false
+        host.post {
+            if (
+                savedInstanceState == null ||
+                supportFragmentManager.findFragmentById(R.id.fragment_holder) == null
+            ) {
+                displayFragmentWithId(R.id.nav_home)
+            }
         }
+    }
+
+    fun refreshNavMenu(_clashApi: Boolean) {
+        // The Compose shell owns navigation visibility. Keep this compatibility hook
+        // until the legacy settings routes are migrated away from direct activity calls.
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -299,16 +319,6 @@ class MainActivity : ThemedActivity(),
             .show()
     }
 
-    override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        if (item.isChecked && supportFragmentManager.backStackEntryCount == 0) {
-            binding.drawerLayout.closeDrawers()
-        } else {
-            return displayFragmentWithId(item.itemId)
-        }
-        return true
-    }
-
-
     @SuppressLint("CommitTransaction")
     fun displayFragment(fragment: ToolbarFragment, addToBackStack: Boolean = false) {
         if (!addToBackStack && supportFragmentManager.backStackEntryCount > 0) {
@@ -317,30 +327,11 @@ class MainActivity : ThemedActivity(),
                 FragmentManager.POP_BACK_STACK_INCLUSIVE
             )
         }
-        hideLegacyServiceChrome()
         supportFragmentManager.beginTransaction().apply {
             replace(R.id.fragment_holder, fragment)
             if (addToBackStack) addToBackStack(fragment::class.java.name)
         }.commitAllowingStateLoss()
-        binding.drawerLayout.closeDrawers()
-    }
-
-    private fun isDashboardVisible(): Boolean {
-        return supportFragmentManager.findFragmentById(R.id.fragment_holder) is DashboardFragment
-    }
-
-    private fun hideLegacyServiceChrome() {
-        binding.stats.allowShow = false
-        binding.stats.performHide()
-        binding.stats.isVisible = false
-        hideLegacyConnectButton()
-    }
-
-    private fun hideLegacyConnectButton() {
-        binding.fab.hide()
-        binding.fab.isVisible = false
-        binding.fabProgress.hide()
-        binding.fabProgress.isVisible = false
+        closeNavigationMenu()
     }
 
     fun openSubFragment(fragment: ToolbarFragment) {
@@ -376,7 +367,7 @@ class MainActivity : ThemedActivity(),
 
             else -> return false
         }
-        navigation.menu.findItem(id).isChecked = true
+        selectedRouteId.value = id
         return true
     }
 
@@ -385,22 +376,16 @@ class MainActivity : ThemedActivity(),
         msg: String? = null,
     ) {
         DataStore.serviceState = state
+        shellServiceState.value = state
 
-        if (isDashboardVisible()) {
-            hideLegacyConnectButton()
-        }
         (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
             ?.updateConnectionState(state)
         if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
     }
 
     override fun snackbarInternal(text: CharSequence): Snackbar {
-        return Snackbar.make(binding.coordinator, text, Snackbar.LENGTH_LONG).apply {
-            if (binding.fab.isShown) {
-                anchorView = binding.fab
-            }
-            // TODO
-        }
+        val root = if (::fragmentHostView.isInitialized) fragmentHostView else window.decorView
+        return Snackbar.make(root, text, Snackbar.LENGTH_LONG)
     }
 
     override fun stateChanged(state: BaseService.State, profileName: String?, msg: String?) {
@@ -491,20 +476,20 @@ class MainActivity : ThemedActivity(),
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> {
                 if (super.onKeyDown(keyCode, event)) return true
-                binding.drawerLayout.openDrawer(GravityCompat.START)
-                navigation.requestFocus()
+                openNavigationMenu()
+                return true
             }
 
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (binding.drawerLayout.isOpen) {
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                if (navigationMenuOpen) {
+                    closeNavigationMenu()
                     return true
                 }
             }
         }
 
         if (super.onKeyDown(keyCode, event)) return true
-        if (binding.drawerLayout.isOpen) return false
+        if (navigationMenuOpen) return true
 
         val fragment =
             supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment
@@ -519,8 +504,18 @@ class MainActivity : ThemedActivity(),
         }
     }
 
+    fun openNavigationMenu() {
+        val current = drawerCommand.value
+        drawerCommand.value = YokhanShellDrawerCommand(current.sequence + 1, open = true)
+    }
+
+    private fun closeNavigationMenu() {
+        val current = drawerCommand.value
+        drawerCommand.value = YokhanShellDrawerCommand(current.sequence + 1, open = false)
+    }
+
     override fun openDashboardMenu() {
-        binding.drawerLayout.openDrawer(GravityCompat.START)
+        openNavigationMenu()
     }
 
     override fun toggleDashboardConnection() {
