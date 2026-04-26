@@ -416,6 +416,8 @@
 <string name="show_direct_speed_sum">Также в уведомлении показывать скорость трафика без прокси</string>
 <string name="show_group_in_notification">Показывать название группы в уведомлении</string>
 <string name="show_system_apps">Показать системные приложения</string>
+<string name="app_list_loading">Читаю установленные приложения…</string>
+<string name="app_list_no_matches">Нет приложений под текущий фильтр.</string>
 <string name="side_sheet_accessibility_pane_title">Боковая панель</string>
 <string name="sni">SNI (индикация имени сервера)</string>
 <string name="sniff_override">Результат проверки для адрес назначения</string>
