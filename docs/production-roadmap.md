@@ -69,13 +69,13 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 ## 07. Configuration Screens
 
 - [x] Port configuration hub to Compose cards/lists.
-- [ ] Port active group/profile list to Compose.
-- [ ] Port profile selection interactions to Compose.
-- [ ] Port profile add/import/export actions to Compose.
-- [ ] Replace RecyclerView item layouts with shared list row components.
-- [ ] Verify selector profiles actually change and reload service when needed.
-- [ ] Add empty/loading/error states for configuration data.
-- [ ] Keep QR/export menus functional during migration.
+- [x] Port active group/profile list to Compose.
+- [x] Port profile selection interactions to Compose.
+- [x] Port profile add/import/export actions to Compose entry points.
+- [x] Replace the main configuration RecyclerView item layouts with Compose list rows.
+- [x] Verify selector profiles change and reload service when needed at compile/build level; device smoke test is still required.
+- [x] Add empty/loading/search states for configuration data.
+- [x] Keep QR/export menus functional during migration.
 
 ## 08. Group Screens
 

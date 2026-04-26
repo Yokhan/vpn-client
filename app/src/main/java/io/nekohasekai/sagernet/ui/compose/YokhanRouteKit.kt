@@ -26,6 +26,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -99,6 +101,57 @@ fun YokhanRouteFrame(
                     .padding(horizontal = 24.dp)
                     .padding(top = 10.dp, bottom = 44.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                content(colors, typography)
+            }
+        }
+    }
+}
+
+@Composable
+fun YokhanRouteLazyFrame(
+    title: String,
+    systemLabel: String,
+    spaceActive: Boolean,
+    onMenuClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: LazyListScope.(YokhanPalette, YokhanTypography) -> Unit,
+) {
+    val target = yokhanPalette(spaceActive)
+    val colors = target.animate()
+    val typography = yokhanTypography()
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(colors.background),
+    ) {
+        YokhanRouteStars(
+            active = spaceActive,
+            color = colors.secondary,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .safeDrawingPadding(),
+        ) {
+            YokhanRouteTopBar(
+                title = title,
+                systemLabel = systemLabel,
+                colors = colors,
+                typography = typography,
+                onMenuClick = onMenuClick,
+            )
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    start = 24.dp,
+                    top = 10.dp,
+                    end = 24.dp,
+                    bottom = 44.dp,
+                ),
             ) {
                 content(colors, typography)
             }
