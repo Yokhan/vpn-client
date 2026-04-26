@@ -13,7 +13,6 @@ import androidx.activity.addCallback
 import androidx.activity.result.component1
 import androidx.activity.result.component2
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.ViewCompat
 import androidx.preference.EditTextPreference
@@ -43,9 +42,7 @@ import kotlinx.parcelize.Parcelize
 import moe.matsuri.nb4a.ui.EditConfigPreference
 
 @Suppress("UNCHECKED_CAST")
-class RouteSettingsActivity(
-    @LayoutRes resId: Int = R.layout.layout_settings_activity,
-) : ThemedActivity(resId),
+class RouteSettingsActivity : ThemedActivity(),
     OnPreferenceDataStoreChangeListener {
 
     private var ruleEntity: RuleEntity? = null
@@ -227,6 +224,7 @@ class RouteSettingsActivity(
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(createYokhanSettingsHost())
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.apply {
             setTitle(R.string.cag_route)

@@ -16,7 +16,6 @@ import androidx.activity.addCallback
 import androidx.activity.result.component1
 import androidx.activity.result.component2
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
@@ -42,14 +41,15 @@ import io.nekohasekai.sagernet.databinding.LayoutGroupItemBinding
 import io.nekohasekai.sagernet.fmt.AbstractBean
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.ui.ThemedActivity
+import io.nekohasekai.sagernet.ui.createYokhanSettingsHost
 import io.nekohasekai.sagernet.widget.ListListener
 import kotlinx.parcelize.Parcelize
 import kotlin.properties.Delegates
 
 @Suppress("UNCHECKED_CAST")
 abstract class ProfileSettingsActivity<T : AbstractBean>(
-    @LayoutRes resId: Int = R.layout.layout_config_settings,
-) : ThemedActivity(resId), OnPreferenceDataStoreChangeListener {
+    private val includeConfigurationList: Boolean = false,
+) : ThemedActivity(), OnPreferenceDataStoreChangeListener {
 
     class UnsavedChangesDialogFragment : AlertDialogFragment<Empty, Empty>() {
         override fun AlertDialog.Builder.prepare(listener: DialogInterface.OnClickListener) {
@@ -107,6 +107,7 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(createYokhanSettingsHost(includeConfigurationList))
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.apply {
             setTitle(R.string.profile_config)

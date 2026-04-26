@@ -12,7 +12,6 @@ import android.view.View
 import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.ViewCompat
 import androidx.preference.*
@@ -34,9 +33,7 @@ import kotlinx.parcelize.Parcelize
 import moe.matsuri.nb4a.ui.SimpleMenuPreference
 
 @Suppress("UNCHECKED_CAST")
-class GroupSettingsActivity(
-    @LayoutRes resId: Int = R.layout.layout_config_settings,
-) : ThemedActivity(resId),
+class GroupSettingsActivity : ThemedActivity(),
     OnPreferenceDataStoreChangeListener {
 
     private var groupEntity: ProxyGroup? = null
@@ -207,6 +204,7 @@ class GroupSettingsActivity(
     @SuppressLint("CommitTransaction")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(createYokhanSettingsHost())
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.apply {
             setTitle(R.string.group_settings)

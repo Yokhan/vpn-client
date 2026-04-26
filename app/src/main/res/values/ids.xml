@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <item name="appbar" type="id" />
+    <item name="configuration_list" type="id" />
     <item name="fragment_holder" type="id" />
+    <item name="list_cell" type="id" />
+    <item name="settings" type="id" />
+    <item name="toolbar" type="id" />
 </resources>
