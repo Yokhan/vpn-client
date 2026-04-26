@@ -160,6 +160,46 @@ fun YokhanRouteLazyFrame(
 }
 
 @Composable
+fun YokhanRouteSurface(
+    title: String,
+    systemLabel: String,
+    spaceActive: Boolean,
+    onMenuClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.(YokhanPalette, YokhanTypography) -> Unit,
+) {
+    val target = yokhanPalette(spaceActive)
+    val colors = target.animate()
+    val typography = yokhanTypography()
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(colors.background),
+    ) {
+        YokhanRouteStars(
+            active = spaceActive,
+            color = colors.secondary,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .safeDrawingPadding(),
+        ) {
+            YokhanRouteTopBar(
+                title = title,
+                systemLabel = systemLabel,
+                colors = colors,
+                typography = typography,
+                onMenuClick = onMenuClick,
+            )
+            content(colors, typography)
+        }
+    }
+}
+
+@Composable
 fun YokhanRouteCard(
     title: String,
     colors: YokhanPalette,

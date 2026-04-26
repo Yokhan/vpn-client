@@ -9,8 +9,8 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 - `shared-ui` contains the production dashboard composable and shared dashboard assets.
 - `app` now uses a Compose main shell with a programmatic `FragmentContainerView` for routes that are not migrated yet.
 - Removed from the main shell: `layout_main.xml`, `DrawerLayout`, `NavigationView`, legacy `StatsBar`, `ServiceButton`, and `FabProgressBehavior`.
-- Main navigation now opens Compose route screens for configuration list, group list, route list, route assets, settings hub, tools/backup/network, logcat, and about.
-- The main navigation still uses a temporary fragment bridge. Edit forms, app manager, scanner, webview, and preference subroutes remain legacy until their route parity is complete.
+- Main navigation now opens Compose route screens for configuration list, group list, route list, route assets, webview/dashboard panel, settings hub, tools/backup/network, logcat, and about.
+- The main navigation still uses a temporary fragment bridge. Edit forms, app manager, scanner, and preference subroutes remain legacy until their route parity is complete.
 - Preference screens still use `PreferenceFragmentCompat`, so they cannot follow the animated connected/disconnected Compose theme.
 - Dashboard content is Compose-only. It is still hosted by `DashboardFragment`, but `layout_dashboard.xml` now contains only a `ComposeView`.
 - Removed top-level legacy route layouts: `layout_configuration_hub.xml`, `layout_group_hub.xml`, `layout_route_hub.xml`, `layout_settings_hub.xml`, `layout_tools.xml`, `layout_about.xml`, `layout_logcat.xml`, `layout_backup.xml`, and `layout_network.xml`.
@@ -42,7 +42,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
    Replace `PreferenceFragmentCompat` and edit layouts with typed Compose forms.
 
 6. Utility screens.
-   Port tools, logcat, about, backup, network, scanner, app list, and webview wrappers. Tools, backup, network, logcat, about, and route assets are now Compose screens; scanner, app lists, and webview remain.
+   Port tools, logcat, about, backup, network, scanner, app list, and webview wrappers. Tools, backup, network, logcat, about, route assets, and webview are now Compose screens; scanner and app lists remain.
 
 7. Removal pass.
    Delete unused XML layouts, old renderers/widgets, and Matsuri/Neko UI references that are not needed by non-UI core logic.
@@ -54,7 +54,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 - Dashboard host: `DashboardFragment`, `layout_dashboard.xml`.
 - Removed dashboard legacy renderers: `DashboardViewRenderer`, `DashboardProfileListRenderer`, `DashboardOrbMotionController`.
 - Compose route fragments: `ConfigurationHubFragment`, `ConfigurationFragment`, `GroupHubFragment`, `GroupFragment`, `RouteHubFragment`, `RouteFragment`, `SettingsFragment`, `ToolsFragment`, `LogcatFragment`, `AboutFragment`.
-- Legacy navigation/detail fragments still pending: `WebviewFragment`.
+- Legacy navigation/detail fragments still pending: none in the primary route-list layer; remaining legacy work is in forms, app lists, scanner, and preferences.
 - Legacy XML still retained for non-migrated detail flows: `layout_profile.xml` is used by the chain editor only, not by the main configuration list.
 - Form/preference screens: `GroupSettingsActivity`, `RouteSettingsActivity`, `SettingsPreferenceFragment`, `SettingsAdvancedFragment`.
 - Utility activities: `AppListActivity`, `AppManagerActivity`, `AssetsActivity`, `ScannerActivity`, `StunActivity`, `ProfileSelectActivity`, `SwitchActivity`.

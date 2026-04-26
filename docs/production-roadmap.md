@@ -118,6 +118,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 - [x] Port backup/import screens to Compose.
 - [x] Port network/debug screens to Compose if still product-relevant.
 - [x] Port route assets management to Compose.
+- [x] Port webview/dashboard panel wrapper to Compose.
 - [ ] Port scanner host shell while keeping camera/scanner implementation stable.
 - [ ] Port app list/app manager UI to Compose.
 - [ ] Delete utility XML layouts after parity.

@@ -3,23 +3,41 @@ package io.nekohasekai.sagernet.ui
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.text.InputType
-import android.view.MenuItem
 import android.view.View
-import android.webkit.*
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.EditText
-import androidx.appcompat.widget.Toolbar
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.databinding.LayoutWebviewBinding
+import io.nekohasekai.sagernet.ui.compose.YokhanButtonGrid
+import io.nekohasekai.sagernet.ui.compose.YokhanComposeRouteFragment
+import io.nekohasekai.sagernet.ui.compose.YokhanMonoValue
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteAction
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteCard
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteSurface
 import moe.matsuri.nb4a.utils.WebViewUtil
 
-// Fragment必须有一个无参public的构造函数，否则在数据恢复的时候，会报crash
+class WebviewFragment : YokhanComposeRouteFragment() {
 
-class WebviewFragment : ToolbarFragment(R.layout.layout_webview), Toolbar.OnMenuItemClickListener {
-
-    lateinit var mWebView: WebView
+    private val panelUrl = mutableStateOf(normalizePanelUrl(DataStore.yacdURL))
+    private val webViewOpen = mutableStateOf(true)
+    private var webView: WebView? = null
 
     private fun normalizePanelUrl(url: String): String {
         return when {
@@ -29,63 +47,144 @@ class WebviewFragment : ToolbarFragment(R.layout.layout_webview), Toolbar.OnMenu
         }
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        // layout
-        toolbar.setTitle(R.string.menu_dashboard)
-        toolbar.inflateMenu(R.menu.yacd_menu)
-        toolbar.setOnMenuItemClickListener(this)
-
-        val binding = LayoutWebviewBinding.bind(view)
-
-        // webview
-        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-        mWebView = binding.webview
-        mWebView.settings.domStorageEnabled = true
-        mWebView.settings.javaScriptEnabled = true
-        mWebView.webViewClient = object : WebViewClient() {
-            override fun onReceivedError(
-                view: WebView?, request: WebResourceRequest?, error: WebResourceError?
-            ) {
-                WebViewUtil.onReceivedError(view, request, error)
-            }
-
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-            }
+        val normalized = normalizePanelUrl(DataStore.yacdURL)
+        if (normalized != DataStore.yacdURL) {
+            DataStore.yacdURL = normalized
         }
-        val panelUrl = normalizePanelUrl(DataStore.yacdURL)
-        if (panelUrl != DataStore.yacdURL) {
-            DataStore.yacdURL = panelUrl
-        }
-        mWebView.loadUrl(panelUrl)
+        panelUrl.value = normalized
     }
 
-    @SuppressLint("CheckResult")
-    override fun onMenuItemClick(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.action_set_url -> {
-                val view = EditText(context).apply {
-                    inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-                    setText(DataStore.yacdURL)
-                }
-                MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.set_panel_url)
-                    .setView(view)
-                    .setPositiveButton(android.R.string.ok) { _, _ ->
-                        DataStore.yacdURL = normalizePanelUrl(view.text.toString())
-                        mWebView.loadUrl(DataStore.yacdURL)
-                    }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show()
+    override fun onDestroyView() {
+        destroyWebView()
+        super.onDestroyView()
+    }
+
+    @Composable
+    override fun Content(spaceActive: Boolean) {
+        YokhanRouteSurface(
+            title = stringResource(R.string.menu_dashboard),
+            systemLabel = stringResource(R.string.dashboard_system_label),
+            spaceActive = spaceActive,
+            onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
+        ) { colors, typography ->
+            YokhanRouteCard(
+                title = stringResource(R.string.menu_dashboard),
+                colors = colors,
+                typography = typography,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
+            ) {
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.set_panel_url),
+                            primary = true,
+                            onClick = ::showSetUrlDialog,
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.mal_close),
+                            onClick = ::closePanel,
+                        ),
+                    ),
+                    colors = colors,
+                    typography = typography,
+                )
             }
-            R.id.close -> {
-                mWebView.onPause()
-                mWebView.removeAllViews()
-                mWebView.destroy()
+
+            if (webViewOpen.value) {
+                AndroidView(
+                    factory = { context ->
+                        createWebView(context).also {
+                            webView = it
+                            it.loadUrl(panelUrl.value)
+                        }
+                    },
+                    update = {
+                        if (it.url != panelUrl.value) {
+                            it.loadUrl(panelUrl.value)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 24.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .border(1.dp, colors.border, RoundedCornerShape(18.dp)),
+                )
+
+                DisposableEffect(Unit) {
+                    onDispose {
+                        destroyWebView()
+                    }
+                }
+            } else {
+                YokhanRouteCard(
+                    title = stringResource(R.string.menu_dashboard),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .weight(1f),
+                ) {
+                    YokhanMonoValue(
+                        text = stringResource(R.string.mal_close),
+                        colors = colors,
+                        typography = typography,
+                    )
+                }
             }
         }
-        return true
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun createWebView(context: android.content.Context): WebView {
+        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
+        return WebView(context).apply {
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            settings.domStorageEnabled = true
+            settings.javaScriptEnabled = true
+            webViewClient = object : WebViewClient() {
+                override fun onReceivedError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    error: WebResourceError?,
+                ) {
+                    WebViewUtil.onReceivedError(view, request, error)
+                }
+            }
+        }
+    }
+
+    private fun showSetUrlDialog() {
+        val input = EditText(context).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setText(DataStore.yacdURL)
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.set_panel_url)
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val normalized = normalizePanelUrl(input.text.toString())
+                DataStore.yacdURL = normalized
+                panelUrl.value = normalized
+                webViewOpen.value = true
+                webView?.loadUrl(normalized)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun destroyWebView() {
+        webView?.onPause()
+        webView?.removeAllViews()
+        webView?.destroy()
+        webView = null
+    }
+
+    private fun closePanel() {
+        destroyWebView()
+        webViewOpen.value = false
     }
 }
