@@ -13,6 +13,7 @@ This file tracks concrete cleanup work that affects build reliability, UI qualit
 - `RouteFragment` is now a Compose route. Route edit forms still need their own Compose migration pass.
 - `AssetsActivity` is now Compose and no longer uses the route assets RecyclerView/XML/menu resources.
 - `WebviewFragment` is now a Compose wrapper around Android `WebView`; `layout_webview.xml` and `yacd_menu.xml` are removed.
+- `ScannerActivity` and `StunActivity` are now Compose-hosted utility screens. The scanner still embeds the native camera preview/viewfinder through `AndroidView`, but its XML layout and menu are gone.
 - CI and Release workflows duplicate libcore/bootstrap steps. Extract shared setup into a composite action or reusable workflow once the release process is stable.
 - Native core source defaults still fall back to `MatsuriDayo/*`. Full detachment requires Yokhan-owned forks or explicit `CORE_*_GIT_URL` repository variables.
 - Closed-source transition and upstream cleanup constraints are tracked in `docs/source-closure-and-cleanup.md`.

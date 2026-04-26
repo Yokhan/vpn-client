@@ -7,75 +7,72 @@ import android.graphics.ImageDecoder
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.view.Menu
-import android.view.MenuItem
+import android.widget.ImageView
 import android.widget.Toast
+import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import com.google.zxing.Result
 import com.king.zxing.CameraScan
 import com.king.zxing.DefaultCameraScan
+import com.king.zxing.ViewfinderView
 import com.king.zxing.analyze.QRCodeAnalyzer
 import com.king.zxing.util.CodeUtils
 import com.king.zxing.util.LogUtils
 import com.king.zxing.util.PermissionUtils
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
-import io.nekohasekai.sagernet.databinding.LayoutScannerBinding
 import io.nekohasekai.sagernet.group.RawUpdater
-import io.nekohasekai.sagernet.ktx.*
+import io.nekohasekai.sagernet.ktx.Logs
+import io.nekohasekai.sagernet.ktx.SubscriptionFoundException
+import io.nekohasekai.sagernet.ktx.app
+import io.nekohasekai.sagernet.ktx.forEachTry
+import io.nekohasekai.sagernet.ktx.onMainDispatcher
+import io.nekohasekai.sagernet.ktx.readableMessage
+import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
+import io.nekohasekai.sagernet.ktx.startFilesForResult
+import io.nekohasekai.sagernet.ui.compose.YokhanButtonGrid
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteAction
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteSurface
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
+class ScannerActivity : ThemedActivity(), CameraScan.OnScanResultCallback {
 
-class ScannerActivity : ThemedActivity(),
-    CameraScan.OnScanResultCallback {
+    private lateinit var cameraScan: CameraScan
+    private val torchEnabled = mutableStateOf(false)
 
-    lateinit var binding: LayoutScannerBinding
-    lateinit var cameraScan: CameraScan
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        if (Build.VERSION.SDK_INT >= 25) getSystemService<ShortcutManager>()!!.reportShortcutUsed("scan")
-        binding = LayoutScannerBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        setSupportActionBar(findViewById(R.id.toolbar))
-        supportActionBar?.apply {
-            setDisplayHomeAsUpEnabled(true)
-            setHomeAsUpIndicator(R.drawable.ic_navigation_close)
-        }
-
-        // 二维码库
-        initCameraScan()
-        startCamera()
-        binding.ivFlashlight.setOnClickListener { toggleTorchState() }
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.scanner_menu, menu)
-        return true
-    }
-
-    val importCodeFile = registerForActivityResult(ActivityResultContracts.GetMultipleContents()) {
+    private val importCodeFile = registerForActivityResult(ActivityResultContracts.GetMultipleContents()) {
         runOnDefaultDispatcher {
             try {
                 it.forEachTry { uri ->
                     val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         ImageDecoder.decodeBitmap(
-                            ImageDecoder.createSource(
-                                contentResolver, uri
-                            )
+                            ImageDecoder.createSource(contentResolver, uri),
                         ) { decoder, _, _ ->
                             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
                             decoder.isMutableRequired = true
                         }
                     } else {
-                        @Suppress("DEPRECATION") MediaStore.Images.Media.getBitmap(
-                            contentResolver, uri
-                        )
+                        @Suppress("DEPRECATION")
+                        MediaStore.Images.Media.getBitmap(contentResolver, uri)
                     }
                     val result = CodeUtils.parseCodeResult(bitmap)
                     onMainDispatcher {
@@ -92,28 +89,83 @@ class ScannerActivity : ThemedActivity(),
         }
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return if (item.itemId == R.id.action_import_file) {
-            startFilesForResult(importCodeFile, "image/*")
-            true
-        } else {
-            super.onOptionsItemSelected(item)
+    private val finished = AtomicBoolean(false)
+    private val importedN = AtomicInteger(0)
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        if (Build.VERSION.SDK_INT >= 25) {
+            getSystemService<ShortcutManager>()!!.reportShortcutUsed("scan")
+        }
+        setContent {
+            Content()
         }
     }
 
-    var finished = AtomicBoolean(false)
-    var importedN = AtomicInteger(0)
+    @Composable
+    private fun Content() {
+        YokhanRouteSurface(
+            title = stringResource(R.string.add_profile_methods_scan_qr_code),
+            systemLabel = stringResource(R.string.dashboard_system_label),
+            spaceActive = DataStore.serviceState.isSpaceActive(),
+            onMenuClick = ::finish,
+        ) { colors, typography ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+            ) {
+                AndroidView(
+                    factory = { context ->
+                        PreviewView(context).also { preview ->
+                            initCameraScan(preview)
+                            startCamera()
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+                AndroidView(
+                    factory = { context -> ViewfinderView(context) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+                AndroidView(
+                    factory = { context ->
+                        ImageView(context).apply {
+                            setImageResource(R.drawable.zxl_flashlight_selector)
+                            isClickable = true
+                            isFocusable = true
+                            setOnClickListener { toggleTorchState() }
+                        }
+                    },
+                    update = { image -> image.isSelected = torchEnabled.value },
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(top = dimensionResource(R.dimen.zxl_flashlight_margin_top)),
+                )
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.action_import_file),
+                            primary = true,
+                            onClick = { startFilesForResult(importCodeFile, "image/*") },
+                        ),
+                    ),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 24.dp, vertical = 28.dp),
+                )
+            }
+        }
+    }
 
-    /**
-     * 接收扫码结果回调
-     * @param result 扫码结果
-     * @return 返回true表示拦截，将不自动执行后续逻辑，为false表示不拦截，默认不拦截
-     */
     override fun onScanResultCallback(result: Result?): Boolean {
         return onScanResultCallback(result, false)
     }
 
-    fun onScanResultCallback(result: Result?, multi: Boolean): Boolean {
+    private fun onScanResultCallback(result: Result?, multi: Boolean): Boolean {
         if (!multi && finished.getAndSet(true)) return true
         if (!multi) finish()
         runOnDefaultDispatcher {
@@ -152,50 +204,43 @@ class ScannerActivity : ThemedActivity(),
         return true
     }
 
-    /**
-     * 初始化CameraScan
-     */
-    fun initCameraScan() {
-        cameraScan = DefaultCameraScan(this, binding.previewView)
+    private fun initCameraScan(previewView: PreviewView) {
+        if (::cameraScan.isInitialized) return
+        cameraScan = DefaultCameraScan(this, previewView)
         cameraScan.setAnalyzer(QRCodeAnalyzer())
         cameraScan.setOnScanResultCallback(this)
         cameraScan.setNeedAutoZoom(true)
     }
 
-    /**
-     * 启动相机预览
-     */
-    fun startCamera() {
+    private fun startCamera() {
+        if (!::cameraScan.isInitialized) return
         if (PermissionUtils.checkPermission(this, Manifest.permission.CAMERA)) {
             cameraScan.startCamera()
         } else {
             LogUtils.d("checkPermissionResult != PERMISSION_GRANTED")
             PermissionUtils.requestPermission(
-                this, Manifest.permission.CAMERA, CAMERA_PERMISSION_REQUEST_CODE
+                this,
+                Manifest.permission.CAMERA,
+                CAMERA_PERMISSION_REQUEST_CODE,
             )
         }
     }
 
-    /**
-     * 释放相机
-     */
     private fun releaseCamera() {
-        cameraScan.release()
+        if (::cameraScan.isInitialized) cameraScan.release()
     }
 
-    /**
-     * 切换闪光灯状态（开启/关闭）
-     */
-    protected fun toggleTorchState() {
-        val isTorch = cameraScan.isTorchEnabled
-        cameraScan.enableTorch(!isTorch)
-        binding.ivFlashlight.isSelected = !isTorch
+    private fun toggleTorchState() {
+        if (!::cameraScan.isInitialized) return
+        val next = !cameraScan.isTorchEnabled
+        cameraScan.enableTorch(next)
+        torchEnabled.value = next
     }
-
-    val CAMERA_PERMISSION_REQUEST_CODE = 0X86
 
     override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<String>, grantResults: IntArray
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
@@ -203,14 +248,11 @@ class ScannerActivity : ThemedActivity(),
         }
     }
 
-    /**
-     * 请求Camera权限回调结果
-     * @param permissions
-     * @param grantResults
-     */
-    fun requestCameraPermissionResult(permissions: Array<String>, grantResults: IntArray) {
+    private fun requestCameraPermissionResult(permissions: Array<String>, grantResults: IntArray) {
         if (PermissionUtils.requestPermissionsResult(
-                Manifest.permission.CAMERA, permissions, grantResults
+                Manifest.permission.CAMERA,
+                permissions,
+                grantResults,
             )
         ) {
             startCamera()
@@ -227,5 +269,15 @@ class ScannerActivity : ThemedActivity(),
             text += "\n" + importedN.get() + " profile(s)"
             Toast.makeText(app, text, Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun BaseService.State.isSpaceActive(): Boolean {
+        return this == BaseService.State.Connecting ||
+            this == BaseService.State.Connected ||
+            this == BaseService.State.Stopping
+    }
+
+    private companion object {
+        const val CAMERA_PERMISSION_REQUEST_CODE = 0X86
     }
 }
