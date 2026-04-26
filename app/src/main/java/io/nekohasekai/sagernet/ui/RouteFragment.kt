@@ -2,309 +2,356 @@ package io.nekohasekai.sagernet.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.MenuItem
 import android.view.View
-import android.view.ViewGroup
-import androidx.appcompat.widget.Toolbar
-import androidx.core.view.ViewCompat
-import androidx.recyclerview.widget.ItemTouchHelper
-import androidx.recyclerview.widget.RecyclerView
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanTypography
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.RuleEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
-import io.nekohasekai.sagernet.databinding.LayoutEmptyRouteBinding
-import io.nekohasekai.sagernet.databinding.LayoutRouteItemBinding
-import io.nekohasekai.sagernet.ktx.*
-import io.nekohasekai.sagernet.widget.ListListener
-import io.nekohasekai.sagernet.widget.UndoSnackbarManager
+import io.nekohasekai.sagernet.ktx.launchCustomTab
+import io.nekohasekai.sagernet.ktx.needReload
+import io.nekohasekai.sagernet.ktx.onMainDispatcher
+import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
+import io.nekohasekai.sagernet.ui.compose.YokhanBody
+import io.nekohasekai.sagernet.ui.compose.YokhanButtonGrid
+import io.nekohasekai.sagernet.ui.compose.YokhanCaption
+import io.nekohasekai.sagernet.ui.compose.YokhanComposeRouteFragment
+import io.nekohasekai.sagernet.ui.compose.YokhanDivider
+import io.nekohasekai.sagernet.ui.compose.YokhanMonoValue
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteAction
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteCard
+import io.nekohasekai.sagernet.ui.compose.YokhanRouteLazyFrame
+import io.nekohasekai.sagernet.ui.compose.YokhanStatusPill
+import io.nekohasekai.sagernet.ui.compose.YokhanToggleRow
 
-class RouteFragment : ToolbarFragment(R.layout.layout_route), Toolbar.OnMenuItemClickListener {
+class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener {
 
-    lateinit var activity: MainActivity
-    lateinit var ruleListView: RecyclerView
-    lateinit var ruleAdapter: RuleAdapter
-    lateinit var undoManager: UndoSnackbarManager<RuleEntity>
+    private val uiState = mutableStateOf(RouteUiState())
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        ProfileManager.addListener(this)
+        reloadRules()
+    }
 
-        activity = requireActivity() as MainActivity
+    override fun onResume() {
+        super.onResume()
+        reloadRules()
+    }
 
-        ViewCompat.setOnApplyWindowInsetsListener(view, ListListener)
-        toolbar.setTitle(R.string.menu_route)
-        toolbar.inflateMenu(R.menu.add_route_menu)
-        toolbar.setOnMenuItemClickListener(this)
+    override fun onDestroyView() {
+        ProfileManager.removeListener(this)
+        super.onDestroyView()
+    }
 
-        ruleListView = view.findViewById(R.id.route_list)
-        ruleListView.layoutManager = FixedLinearLayoutManager(ruleListView)
-        ruleAdapter = RuleAdapter()
-        ProfileManager.addListener(ruleAdapter)
-        ruleListView.adapter = ruleAdapter
-        undoManager = UndoSnackbarManager(activity, ruleAdapter)
-
-        ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, ItemTouchHelper.START) {
-
-            override fun getSwipeDirs(
-                recyclerView: RecyclerView,
-                viewHolder: RecyclerView.ViewHolder,
-            ) = if (viewHolder is RuleAdapter.DocumentHolder) {
-                0
-            } else {
-                super.getSwipeDirs(recyclerView, viewHolder)
-            }
-
-            override fun getDragDirs(
-                recyclerView: RecyclerView,
-                viewHolder: RecyclerView.ViewHolder,
-            ) = if (viewHolder is RuleAdapter.DocumentHolder) {
-                0
-            } else {
-                super.getDragDirs(recyclerView, viewHolder)
-            }
-
-            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                val index = viewHolder.bindingAdapterPosition
-                ruleAdapter.remove(index)
-                undoManager.remove(index to (viewHolder as RuleAdapter.RuleHolder).rule)
-            }
-
-            override fun onMove(
-                recyclerView: RecyclerView,
-                viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder,
-            ): Boolean {
-                return if (target is RuleAdapter.DocumentHolder) {
-                    false
-                } else {
-                    ruleAdapter.move(viewHolder.bindingAdapterPosition, target.bindingAdapterPosition)
-                    true
+    @Composable
+    override fun Content(spaceActive: Boolean) {
+        val state = uiState.value
+        YokhanRouteLazyFrame(
+            title = stringResource(R.string.menu_route),
+            systemLabel = stringResource(R.string.dashboard_system_label),
+            spaceActive = spaceActive,
+            onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
+        ) { colors, typography ->
+            item(key = "route-actions") {
+                YokhanRouteCard(
+                    title = stringResource(R.string.route_hub_actions_title),
+                    colors = colors,
+                    typography = typography,
+                ) {
+                    YokhanButtonGrid(
+                        actions = listOf(
+                            YokhanRouteAction(
+                                title = stringResource(R.string.route_add),
+                                primary = true,
+                                onClick = {
+                                    startActivity(
+                                        Intent(requireActivity(), RouteSettingsActivity::class.java),
+                                    )
+                                },
+                            ),
+                            YokhanRouteAction(
+                                title = stringResource(R.string.route_manage_assets),
+                                onClick = {
+                                    startActivity(Intent(requireActivity(), AssetsActivity::class.java))
+                                },
+                            ),
+                            YokhanRouteAction(
+                                title = stringResource(R.string.route_reset),
+                                enabled = state.rules.isNotEmpty(),
+                                onClick = ::confirmResetRoutes,
+                            ),
+                        ),
+                        colors = colors,
+                        typography = typography,
+                    )
                 }
             }
 
-            override fun clearView(
-                recyclerView: RecyclerView,
-                viewHolder: RecyclerView.ViewHolder,
-            ) {
-                super.clearView(recyclerView, viewHolder)
-                ruleAdapter.commitMove()
+            item(key = "route-docs") {
+                RouteDocsCard(colors, typography)
             }
-        }).attachToRecyclerView(ruleListView)
-    }
 
-    override fun onDestroy() {
-        if (::ruleAdapter.isInitialized) {
-            ProfileManager.removeListener(ruleAdapter)
-        }
-        super.onDestroy()
-    }
-
-    override fun onMenuItemClick(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.action_new_route -> {
-                startActivity(Intent(context, RouteSettingsActivity::class.java))
-            }
-            R.id.action_reset_route -> {
-                MaterialAlertDialogBuilder(activity).setTitle(R.string.confirm)
-                    .setMessage(R.string.clear_profiles_message)
-                    .setPositiveButton(R.string.yes) { _, _ ->
-                        runOnDefaultDispatcher {
-                            SagerDatabase.rulesDao.reset()
-                            DataStore.rulesFirstCreate = false
-                            ruleAdapter.reload()
-                        }
+            if (state.rules.isEmpty()) {
+                item(key = "empty-routes") {
+                    YokhanRouteCard(
+                        title = stringResource(R.string.route_hub_rule_totals_title),
+                        colors = colors,
+                        typography = typography,
+                    ) {
+                        YokhanMonoValue(
+                            text = stringResource(R.string.empty_route_notice),
+                            colors = colors,
+                            typography = typography,
+                        )
                     }
-                    .setNegativeButton(R.string.no, null)
-                    .show()
-            }
-            R.id.action_manage_assets -> {
-                startActivity(Intent(requireContext(), AssetsActivity::class.java))
+                }
+            } else {
+                itemsIndexed(
+                    items = state.rules,
+                    key = { _, rule -> rule.id },
+                ) { index, rule ->
+                    RuleCard(
+                        rule = rule,
+                        index = index,
+                        total = state.rules.size,
+                        colors = colors,
+                        typography = typography,
+                    )
+                }
             }
         }
-        return true
     }
 
-    inner class RuleAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>(), ProfileManager.RuleListener, UndoSnackbarManager.Interface<RuleEntity> {
+    @Composable
+    private fun RouteDocsCard(
+        colors: YokhanPalette,
+        typography: YokhanTypography,
+    ) {
+        YokhanRouteCard(
+            title = stringResource(R.string.route_hub_overview_title),
+            colors = colors,
+            typography = typography,
+        ) {
+            YokhanBody(
+                text = stringResource(R.string.route_warn),
+                colors = colors,
+                typography = typography,
+                maxLines = 4,
+            )
+            YokhanButtonGrid(
+                actions = listOf(
+                    YokhanRouteAction(
+                        title = "GitHub",
+                        onClick = { requireContext().launchCustomTab("https://github.com/Yokhan/YokhanVPN") },
+                    ),
+                ),
+                colors = colors,
+                typography = typography,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        }
+    }
 
-        val ruleList = ArrayList<RuleEntity>()
-        suspend fun reload() {
+    @Composable
+    private fun RuleCard(
+        rule: RuleEntity,
+        index: Int,
+        total: Int,
+        colors: YokhanPalette,
+        typography: YokhanTypography,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .border(1.dp, colors.border, RoundedCornerShape(18.dp))
+                .clickable { toggleRule(rule, !rule.enabled) }
+                .padding(16.dp),
+        ) {
+            Row(Modifier.fillMaxWidth()) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = rule.displayName(),
+                        color = colors.primary,
+                        fontFamily = typography.text,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    YokhanCaption(
+                        text = rule.displayOutbound(),
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
+                YokhanStatusPill(
+                    text = stringResource(if (rule.enabled) R.string.enable else R.string.disable),
+                    active = rule.enabled,
+                    colors = colors,
+                    typography = typography,
+                )
+            }
+
+            val summary = rule.mkSummary()
+            if (summary.isNotBlank()) {
+                YokhanDivider(colors, Modifier.padding(vertical = 14.dp))
+                YokhanMonoValue(
+                    text = summary,
+                    colors = colors,
+                    typography = typography,
+                    sizeSp = 11,
+                    maxLines = 4,
+                )
+            }
+
+            YokhanToggleRow(
+                title = stringResource(if (rule.enabled) R.string.quick_disable else R.string.quick_enable),
+                summary = stringResource(R.string.route_for, rule.displayName()),
+                checked = rule.enabled,
+                colors = colors,
+                typography = typography,
+                onCheckedChange = { checked -> toggleRule(rule, checked) },
+                modifier = Modifier.padding(top = 14.dp),
+            )
+
+            YokhanButtonGrid(
+                actions = listOf(
+                    YokhanRouteAction(
+                        title = stringResource(R.string.edit),
+                        primary = true,
+                        onClick = { editRule(rule) },
+                    ),
+                    YokhanRouteAction(
+                        title = stringResource(R.string.delete),
+                        onClick = { confirmDeleteRule(rule) },
+                    ),
+                    YokhanRouteAction(
+                        title = stringResource(R.string.route_move_up),
+                        enabled = index > 0,
+                        onClick = { moveRule(index, index - 1) },
+                    ),
+                    YokhanRouteAction(
+                        title = stringResource(R.string.route_move_down),
+                        enabled = index < total - 1,
+                        onClick = { moveRule(index, index + 1) },
+                    ),
+                ),
+                colors = colors,
+                typography = typography,
+                modifier = Modifier.padding(top = 14.dp),
+            )
+        }
+    }
+
+    private fun reloadRules() {
+        runOnDefaultDispatcher {
             val rules = ProfileManager.getRules()
-            ruleListView.post {
-                ruleList.clear()
-                ruleList.addAll(rules)
-                ruleAdapter.notifyDataSetChanged()
+            onMainDispatcher {
+                uiState.value = RouteUiState(rules = rules)
             }
         }
-
-        init {
-            runOnDefaultDispatcher {
-                reload()
-            }
-        }
-
-        override fun onCreateViewHolder(
-            parent: ViewGroup,
-            viewType: Int,
-        ): RecyclerView.ViewHolder {
-            return if (viewType == 0) {
-                DocumentHolder(LayoutEmptyRouteBinding.inflate(layoutInflater, parent, false))
-            } else {
-                RuleHolder(LayoutRouteItemBinding.inflate(layoutInflater, parent, false))
-            }
-        }
-
-        override fun getItemViewType(position: Int): Int {
-            if (position == 0) return 0
-            return 1
-        }
-
-        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-            if (holder is DocumentHolder) {
-                holder.bind()
-            } else if (holder is RuleHolder) {
-                holder.bind(ruleList[position - 1])
-            }
-        }
-
-        override fun getItemCount(): Int {
-            return ruleList.size + 1
-        }
-
-        override fun getItemId(position: Int): Long {
-            if (position == 0) return 0L
-            return ruleList[position - 1].id
-        }
-
-        private val updated = HashSet<RuleEntity>()
-        fun move(from: Int, to: Int) {
-            val first = ruleList[from - 1]
-            var previousOrder = first.userOrder
-            val (step, range) = if (from < to) Pair(1, from - 1 until to - 1) else Pair(-1, to downTo from - 1)
-            for (i in range) {
-                val next = ruleList[i + step]
-                val order = next.userOrder
-                next.userOrder = previousOrder
-                previousOrder = order
-                ruleList[i] = next
-                updated.add(next)
-            }
-            first.userOrder = previousOrder
-            ruleList[to - 1] = first
-            updated.add(first)
-            notifyItemMoved(from, to)
-        }
-
-        fun commitMove() = runOnDefaultDispatcher {
-            if (updated.isNotEmpty()) {
-                SagerDatabase.rulesDao.updateRules(updated.toList())
-                updated.clear()
-                needReload()
-            }
-        }
-
-        fun remove(index: Int) {
-            ruleList.removeAt(index - 1)
-            notifyItemRemoved(index)
-        }
-
-        override fun undo(actions: List<Pair<Int, RuleEntity>>) {
-            for ((index, item) in actions) {
-                ruleList.add(index - 1, item)
-                notifyItemInserted(index)
-            }
-        }
-
-        override fun commit(actions: List<Pair<Int, RuleEntity>>) {
-            val rules = actions.map { it.second }
-            runOnDefaultDispatcher {
-                ProfileManager.deleteRules(rules)
-            }
-        }
-
-        override suspend fun onAdd(rule: RuleEntity) {
-            ruleListView.post {
-                ruleList.add(rule)
-                ruleAdapter.notifyItemInserted(ruleList.size)
-                needReload()
-            }
-        }
-
-        override suspend fun onUpdated(rule: RuleEntity) {
-            val index = ruleList.indexOfFirst { it.id == rule.id }
-            if (index == -1) return
-            ruleListView.post {
-                ruleList[index] = rule
-                ruleAdapter.notifyItemChanged(index + 1)
-                needReload()
-            }
-        }
-
-        override suspend fun onRemoved(ruleId: Long) {
-            val index = ruleList.indexOfFirst { it.id == ruleId }
-            if (index == -1) {
-                onMainDispatcher {
-                    needReload()
-                }
-            } else ruleListView.post {
-                ruleList.removeAt(index)
-                ruleAdapter.notifyItemRemoved(index + 1)
-                needReload()
-            }
-        }
-
-        override suspend fun onCleared() {
-            ruleListView.post {
-                ruleList.clear()
-                ruleAdapter.notifyDataSetChanged()
-                needReload()
-            }
-        }
-
-        inner class DocumentHolder(binding: LayoutEmptyRouteBinding) : RecyclerView.ViewHolder(binding.root) {
-            fun bind() {
-                itemView.setOnClickListener {
-                    it.context.launchCustomTab("https://github.com/Yokhan/YokhanVPN")
-                }
-            }
-        }
-
-        inner class RuleHolder(binding: LayoutRouteItemBinding) : RecyclerView.ViewHolder(binding.root) {
-
-            lateinit var rule: RuleEntity
-            val profileName = binding.profileName
-            val profileType = binding.profileType
-            val routeOutbound = binding.routeOutbound
-            val editButton = binding.edit
-            val shareLayout = binding.share
-            val enableSwitch = binding.enable
-
-            fun bind(ruleEntity: RuleEntity) {
-                rule = ruleEntity
-                profileName.text = rule.displayName()
-                profileType.text = rule.mkSummary()
-                routeOutbound.text = rule.displayOutbound()
-                itemView.setOnClickListener {
-                    enableSwitch.performClick()
-                }
-                enableSwitch.isChecked = rule.enabled
-                enableSwitch.setOnCheckedChangeListener { _, isChecked ->
-                    runOnDefaultDispatcher {
-                        rule.enabled = isChecked
-                        SagerDatabase.rulesDao.updateRule(rule)
-                        onMainDispatcher {
-                            needReload()
-                        }
-                    }
-                }
-                editButton.setOnClickListener {
-                    startActivity(Intent(it.context, RouteSettingsActivity::class.java).apply {
-                        putExtra(RouteSettingsActivity.EXTRA_ROUTE_ID, rule.id)
-                    })
-                }
-            }
-        }
-
     }
 
+    private fun editRule(rule: RuleEntity) {
+        startActivity(Intent(requireActivity(), RouteSettingsActivity::class.java).apply {
+            putExtra(RouteSettingsActivity.EXTRA_ROUTE_ID, rule.id)
+        })
+    }
+
+    private fun toggleRule(rule: RuleEntity, enabled: Boolean) {
+        if (rule.enabled == enabled) return
+        runOnDefaultDispatcher {
+            ProfileManager.updateRule(rule.copy(enabled = enabled))
+            onMainDispatcher { needReload() }
+        }
+    }
+
+    private fun moveRule(from: Int, to: Int) {
+        val rules = uiState.value.rules
+        if (from !in rules.indices || to !in rules.indices) return
+        val source = rules[from].copy()
+        val target = rules[to].copy()
+        val sourceOrder = source.userOrder
+        source.userOrder = target.userOrder
+        target.userOrder = sourceOrder
+        runOnDefaultDispatcher {
+            SagerDatabase.rulesDao.updateRules(listOf(source, target))
+            reloadRules()
+            onMainDispatcher { needReload() }
+        }
+    }
+
+    private fun confirmDeleteRule(rule: RuleEntity) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.confirm)
+            .setMessage(R.string.delete_route_prompt)
+            .setPositiveButton(R.string.yes) { _, _ ->
+                runOnDefaultDispatcher {
+                    ProfileManager.deleteRule(rule.id)
+                    onMainDispatcher { needReload() }
+                }
+            }
+            .setNegativeButton(R.string.no, null)
+            .show()
+    }
+
+    private fun confirmResetRoutes() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.confirm)
+            .setMessage(R.string.route_reset)
+            .setPositiveButton(R.string.yes) { _, _ ->
+                runOnDefaultDispatcher {
+                    SagerDatabase.rulesDao.reset()
+                    DataStore.rulesFirstCreate = false
+                    reloadRules()
+                    onMainDispatcher { needReload() }
+                }
+            }
+            .setNegativeButton(R.string.no, null)
+            .show()
+    }
+
+    override suspend fun onAdd(rule: RuleEntity) {
+        reloadRules()
+    }
+
+    override suspend fun onUpdated(rule: RuleEntity) {
+        reloadRules()
+    }
+
+    override suspend fun onRemoved(ruleId: Long) {
+        reloadRules()
+    }
+
+    override suspend fun onCleared() {
+        reloadRules()
+    }
+
+    private data class RouteUiState(
+        val rules: List<RuleEntity> = emptyList(),
+    )
 }

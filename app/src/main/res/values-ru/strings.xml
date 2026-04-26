@@ -381,6 +381,8 @@
 <string name="route_profile">Выбрать профиль…</string>
 <string name="route_proxy">Прокси</string>
 <string name="route_reset">Сброс</string>
+<string name="route_move_up">Переместить выше</string>
+<string name="route_move_down">Переместить ниже</string>
 <string name="route_rules_official">Официальный</string>
 <string name="route_rules_provider">Поставщик ресурсов правил</string>
 <string name="route_warn">Перед добавлением собственных правил убедитесь, что вы прочитали документацию, иначе подключение к Интернету может не удасться.</string>

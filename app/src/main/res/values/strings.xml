@@ -277,6 +277,8 @@
     <string name="route_play_store">Play store rule for %s</string>
     <string name="route_bypass_ip">IP rule for %s</string>
     <string name="route_reset">Reset</string>
+    <string name="route_move_up">Move up</string>
+    <string name="route_move_down">Move down</string>
     <string name="route_manage_assets">Manage Route Assets</string>
     <string name="route_assets">Assets</string>
     <string name="route_rules_provider">Rule Assets Provider</string>

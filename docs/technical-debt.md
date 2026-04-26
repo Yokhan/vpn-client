@@ -10,6 +10,7 @@ This file tracks concrete cleanup work that affects build reliability, UI qualit
 - Dashboard layout still has fixed spacing in secondary sections, but the central launch scene dimensions now live in `dimens.xml`.
 - `ConfigurationFragment` is now a Compose route for the active group/profile list. `layout_profile.xml` remains only because `ChainSettingsActivity` still uses ViewBinding for chain editing.
 - `GroupFragment` is now a Compose route. `layout_group_item.xml` remains only because `ProfileSettingsActivity` still inflates it for group selection.
+- `RouteFragment` is now a Compose route. Route edit forms and assets management still need their own Compose migration passes.
 - CI and Release workflows duplicate libcore/bootstrap steps. Extract shared setup into a composite action or reusable workflow once the release process is stable.
 - Native core source defaults still fall back to `MatsuriDayo/*`. Full detachment requires Yokhan-owned forks or explicit `CORE_*_GIT_URL` repository variables.
 - Closed-source transition and upstream cleanup constraints are tracked in `docs/source-closure-and-cleanup.md`.

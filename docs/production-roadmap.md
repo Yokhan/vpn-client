@@ -91,13 +91,13 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 ## 09. Route Screens
 
 - [x] Port route hub to Compose.
-- [ ] Port route list to Compose.
+- [x] Port route list to Compose.
 - [ ] Port route edit forms to Compose.
 - [ ] Preserve route import/export behavior.
 - [ ] Preserve unsaved changes confirmation.
-- [ ] Preserve route deletion confirmation.
 - [ ] Add validation messages inline.
-- [ ] Remove route XML layouts after parity.
+- [x] Preserve route deletion confirmation.
+- [x] Remove route XML layouts after parity.
 
 ## 10. Settings Screens
 
