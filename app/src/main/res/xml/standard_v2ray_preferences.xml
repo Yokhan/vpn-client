@@ -23,11 +23,11 @@
             app:key="username"
             app:title="@string/username_opt"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.PasswordPreference
+        <com.yokhan.vpn.app.widget.PasswordPreference
             app:icon="@drawable/ic_settings_password"
             app:key="password"
             app:title="@string/password_opt" />
-        <io.nekohasekai.sagernet.widget.PasswordPreference
+        <com.yokhan.vpn.app.widget.PasswordPreference
             app:icon="@drawable/ic_baseline_person_24"
             app:key="uuid"
             app:title="@string/uuid" />

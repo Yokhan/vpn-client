@@ -27,7 +27,7 @@
             app:key="serverPorts"
             app:title="@string/server_port"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.PasswordPreference
+        <com.yokhan.vpn.app.widget.PasswordPreference
             app:icon="@drawable/ic_baseline_texture_24"
             app:key="serverObfs"
             app:title="@string/hysteria_obfs"
@@ -39,7 +39,7 @@
             app:key="serverAuthType"
             app:title="@string/hysteria_auth_type"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.PasswordPreference
+        <com.yokhan.vpn.app.widget.PasswordPreference
             app:icon="@drawable/ic_settings_password"
             app:key="serverPassword"
             app:title="@string/hysteria_auth_payload" />

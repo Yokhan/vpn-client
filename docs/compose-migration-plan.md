@@ -13,6 +13,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 - The main navigation still uses a temporary fragment bridge. Edit forms and preference subroutes remain legacy until their typed Compose form parity is complete.
 - Preference screens still use `PreferenceFragmentCompat`, so they cannot fully follow the animated connected/disconnected Compose theme, but their Android host views and custom dialog surfaces are now programmatic.
 - Dashboard content is Compose-only. It is still hosted by `DashboardFragment`, and the fragment now creates its `ComposeView` programmatically.
+- Yokhan-owned Compose shell, route kit, selectable-apps screen, dashboard adapter, settings host, password dialog/preference helpers, and Android UI entrypoints now live under `com.yokhan.vpn.app.ui.*` / `com.yokhan.vpn.app.widget.*`.
 - Removed top-level legacy route layouts: `layout_configuration_hub.xml`, `layout_group_hub.xml`, `layout_route_hub.xml`, `layout_settings_hub.xml`, `layout_tools.xml`, `layout_about.xml`, `layout_logcat.xml`, `layout_backup.xml`, and `layout_network.xml`.
 - Removed backup import/progress dialog layouts; `ToolsFragment` now renders backup import confirmation and progress dialogs through ComposeView.
 - Removed XML settings host layouts for group, route, profile, chain, and advanced settings. These screens still use `PreferenceFragmentCompat`, but toolbar/container/list hosting is programmatic through `YokhanSettingsHost`.
@@ -26,6 +27,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 - Do not create new XML layouts for product UI; `app/src/main/res/layout` is intentionally empty.
 - Keep business logic separate from composables: database/service/profile operations belong in Android controllers/viewmodels, while visual tokens/components live in `shared-ui`.
 - Shared tokens must live in `com.yokhan.vpn.shared.ui.design`.
+- App-specific Compose adapters and product shell code must live in `com.yokhan.vpn.app.ui.*`; do not add new UI code under upstream-derived namespaces.
 - Android-specific string/resources adapters may stay in `app`, but visual styling must not be duplicated there.
 
 ## Execution Order
@@ -54,6 +56,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 ## Legacy UI Inventory
 
 - Main shell: `MainActivity`, `YokhanMainShell`.
+- Product UI package roots: `com.yokhan.vpn.app.ui`, `com.yokhan.vpn.app.ui.profile`, `com.yokhan.vpn.app.ui.compose`, `com.yokhan.vpn.app.ui.dashboard`, `com.yokhan.vpn.app.ui.shell`.
 - Removed shell legacy widgets: `layout_main.xml`, `StatsBar`, `ServiceButton`, `FabProgressBehavior`, `main_drawer_menu.xml`.
 - Dashboard host: `DashboardFragment`.
 - Removed dashboard legacy renderers: `DashboardViewRenderer`, `DashboardProfileListRenderer`, `DashboardOrbMotionController`.

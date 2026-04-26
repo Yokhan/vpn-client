@@ -131,6 +131,7 @@ data class DashboardUiLabels(
     val disconnecting: String,
     val tapConnect: String,
     val checkConnection: String,
+    val checkingConnection: String = "ПРОВЕРКА...",
     val configurations: String,
     val add: String,
     val latency: String,
@@ -580,6 +581,44 @@ private fun ConnectionTestButton(
     actions: DashboardUiActions,
     tuning: DashboardUiTuning,
 ) {
+    val enabled = state.canRunConnectionTest && !state.isConnectionTestRunning
+    val foreground = when {
+        state.isConnectionTestRunning -> colors.accent
+        enabled -> colors.secondary
+        else -> colors.secondary.copy(alpha = 0.46f)
+    }
+    val animatedForeground by animateColorAsState(
+        targetValue = foreground,
+        animationSpec = tween(220, easing = CssEase),
+        label = "connection-test-foreground",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (state.isConnectionTestRunning) {
+            colors.accent.copy(alpha = 0.62f)
+        } else {
+            colors.border
+        },
+        animationSpec = tween(220, easing = CssEase),
+        label = "connection-test-border",
+    )
+    val backgroundAlpha by animateFloatAsState(
+        targetValue = when {
+            state.isConnectionTestRunning -> 0.12f
+            enabled -> 0.055f
+            else -> 0.028f
+        },
+        animationSpec = tween(260, easing = CssEase),
+        label = "connection-test-bg",
+    )
+    val pulse by rememberInfiniteTransition(label = "connection-test-pulse").animateFloat(
+        initialValue = 0.72f,
+        targetValue = if (state.isConnectionTestRunning) 1f else 0.72f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(620, easing = CssEaseInOut),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "connection-test-dot",
+    )
     Box(
         modifier = Modifier
             .padding(top = tuning.testButtonTopPadding.dp)
@@ -588,41 +627,46 @@ private fun ConnectionTestButton(
     ) {
         Row(
             modifier = Modifier
-                .shadow(2.dp, RoundedCornerShape(20.dp), clip = false)
-                .clip(RoundedCornerShape(20.dp))
+                .shadow(if (state.isConnectionTestRunning) 5.dp else 3.dp, RoundedCornerShape(22.dp), clip = false)
+                .height(38.dp)
+                .clip(RoundedCornerShape(22.dp))
                 .background(
-                    Brush.linearGradient(
+                    Brush.verticalGradient(
                         listOf(
-                            colors.primary.copy(alpha = if (state.canRunConnectionTest) 0.055f else 0.028f),
-                            colors.background.copy(alpha = 0.08f),
+                            colors.primary.copy(alpha = backgroundAlpha + 0.035f),
+                            colors.background.copy(alpha = 0.065f),
+                            colors.primary.copy(alpha = backgroundAlpha * 0.55f),
                         )
                     )
                 )
-                .border(1.dp, colors.border, RoundedCornerShape(20.dp))
-                .clickable(onClick = actions.onRunConnectionTest)
-                .padding(horizontal = 16.dp, vertical = 9.dp),
+                .border(1.dp, borderColor, RoundedCornerShape(22.dp))
+                .clickable(enabled = enabled, onClick = actions.onRunConnectionTest)
+                .padding(horizontal = 17.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
                     .size(14.dp)
-                    .border(1.dp, colors.secondary, CircleShape),
+                    .border(1.dp, animatedForeground, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
                     Modifier
-                        .size(3.dp)
+                        .size(if (state.isConnectionTestRunning) 5.dp else 3.dp)
+                        .scale(pulse)
                         .clip(CircleShape)
-                        .background(colors.secondary)
+                        .background(animatedForeground)
                 )
             }
             Text(
-                text = labels.checkConnection,
-                color = colors.secondary,
+                text = if (state.isConnectionTestRunning) labels.checkingConnection else labels.checkConnection,
+                color = animatedForeground,
                 fontFamily = typography.text,
                 fontSize = 10.sp,
                 lineHeight = 10.sp,
                 fontWeight = FontWeight.Bold,
+                letterSpacing = 0.55.sp,
+                maxLines = 1,
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
@@ -769,7 +813,7 @@ private fun DashboardStatsBar(
                 .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = tuning.statsBarBottomPadding.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            StatsSegment("◷", state.latencyLabel, labels.latency, colors, typography)
+            StatsSegment("◷", if (state.isConnectionTestRunning) "..." else state.latencyLabel, labels.latency, colors, typography)
             StatsDivider(colors)
             StatsSegment(
                 "●",

@@ -65,11 +65,11 @@
             android:resource="@xml/shortcuts" />
 
         <activity
-            android:name="io.nekohasekai.sagernet.ui.BlankActivity"
+            android:name="com.yokhan.vpn.app.ui.BlankActivity"
             android:configChanges="uiMode" />
 
         <activity
-            android:name="io.nekohasekai.sagernet.ui.MainActivity"
+            android:name="com.yokhan.vpn.app.ui.MainActivity"
             android:configChanges="uiMode"
             android:exported="true"
             android:launchMode="singleTask">
@@ -138,50 +138,50 @@
                 android:resource="@xml/shortcuts" />
         </activity>
         <activity
-            android:name="io.nekohasekai.sagernet.ui.VpnRequestActivity"
+            android:name="com.yokhan.vpn.app.ui.VpnRequestActivity"
             android:excludeFromRecents="true"
             android:taskAffinity="" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.ConfigEditActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.ConfigEditActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.SocksSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.SocksSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.HttpSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.HttpSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.ShadowsocksSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.ShadowsocksSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.VMessSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.VMessSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.TrojanSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.TrojanSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.TrojanGoSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.TrojanGoSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.MieruSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.MieruSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.NaiveSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.NaiveSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.HysteriaSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.HysteriaSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.SSHSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.SSHSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.WireGuardSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.WireGuardSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.TuicSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.TuicSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.profile.ChainSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.profile.ChainSettingsActivity"
             android:configChanges="uiMode" />
         <activity
             android:name="moe.matsuri.nb4a.proxy.shadowtls.ShadowTLSSettingsActivity"
@@ -193,16 +193,16 @@
             android:name="moe.matsuri.nb4a.proxy.config.ConfigSettingActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.GroupSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.GroupSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.RouteSettingsActivity"
+            android:name="com.yokhan.vpn.app.ui.RouteSettingsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.AssetsActivity"
+            android:name="com.yokhan.vpn.app.ui.AssetsActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.AppListActivity"
+            android:name="com.yokhan.vpn.app.ui.AppListActivity"
             android:configChanges="uiMode" />
         <activity
             android:name=".QuickToggleShortcut"
@@ -218,7 +218,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name="io.nekohasekai.sagernet.ui.QuickEnableShortcut"
+            android:name="com.yokhan.vpn.app.ui.QuickEnableShortcut"
             android:excludeFromRecents="true"
             android:exported="true"
             android:label="@string/quick_enable"
@@ -227,7 +227,7 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.QuickDisableShortcut"
+            android:name="com.yokhan.vpn.app.ui.QuickDisableShortcut"
             android:excludeFromRecents="true"
             android:exported="true"
             android:label="@string/quick_disable"
@@ -236,33 +236,33 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.AppManagerActivity"
+            android:name="com.yokhan.vpn.app.ui.AppManagerActivity"
             android:configChanges="uiMode"
             android:excludeFromRecents="true"
             android:label="@string/proxied_apps"
             android:launchMode="singleTask"
-            android:parentActivityName=".ui.MainActivity" />
+            android:parentActivityName="com.yokhan.vpn.app.ui.MainActivity" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.ScannerActivity"
+            android:name="com.yokhan.vpn.app.ui.ScannerActivity"
             android:configChanges="uiMode"
             android:excludeFromRecents="true"
             android:label="@string/add_profile_methods_scan_qr_code"
             android:launchMode="singleTask"
-            android:parentActivityName="io.nekohasekai.sagernet.ui.MainActivity" />
+            android:parentActivityName="com.yokhan.vpn.app.ui.MainActivity" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.ProfileSelectActivity"
+            android:name="com.yokhan.vpn.app.ui.ProfileSelectActivity"
             android:configChanges="uiMode"
             android:label="@string/select_profile"
             android:launchMode="singleTask"
-            android:parentActivityName="io.nekohasekai.sagernet.ui.MainActivity" />
+            android:parentActivityName="com.yokhan.vpn.app.ui.MainActivity" />
         <activity
-            android:name="io.nekohasekai.sagernet.ui.StunActivity"
+            android:name="com.yokhan.vpn.app.ui.StunActivity"
             android:configChanges="uiMode"
             android:launchMode="singleTask"
-            android:parentActivityName="io.nekohasekai.sagernet.ui.MainActivity" />
+            android:parentActivityName="com.yokhan.vpn.app.ui.MainActivity" />
 
         <activity
-            android:name="io.nekohasekai.sagernet.ui.SwitchActivity"
+            android:name="com.yokhan.vpn.app.ui.SwitchActivity"
             android:configChanges="uiMode"
             android:excludeFromRecents="true"
             android:launchMode="singleInstance"

@@ -15,7 +15,7 @@ import moe.matsuri.nb4a.utils.NGUtil
 import io.nekohasekai.sagernet.fmt.LOCALHOST
 import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
 import io.nekohasekai.sagernet.ktx.*
-import io.nekohasekai.sagernet.ui.VpnRequestActivity
+import com.yokhan.vpn.app.ui.VpnRequestActivity
 import io.nekohasekai.sagernet.utils.Subnet
 import android.net.VpnService as BaseVpnService
 

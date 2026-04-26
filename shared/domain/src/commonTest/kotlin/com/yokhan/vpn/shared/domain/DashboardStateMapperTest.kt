@@ -40,6 +40,7 @@ class DashboardStateMapperTest {
         assertEquals("00:01:24", state.timerLabel)
         assertTrue(state.shouldAnimateSpace)
         assertTrue(state.canRunConnectionTest)
+        assertFalse(state.isConnectionTestRunning)
     }
 
     @Test

@@ -19,7 +19,7 @@ import com.google.zxing.WriterException
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.readableMessage
-import io.nekohasekai.sagernet.ui.MainActivity
+import com.yokhan.vpn.app.ui.MainActivity
 import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
 

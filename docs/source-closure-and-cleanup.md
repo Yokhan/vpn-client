@@ -29,7 +29,7 @@ References:
 
 1. UI shell ownership
 
-- Move dashboard into Yokhan-owned UI package names and components.
+- Keep dashboard, route kit, shell, settings host, and product-only helper widgets in Yokhan-owned UI package names and components.
 - Replace fork-era fragments gradually with feature-owned screens.
 - Keep visual tokens in resources and renderer/controller classes, not inside monolithic fragments.
 
@@ -41,7 +41,8 @@ References:
 
 3. Package and namespace cleanup
 
-- Plan a package namespace migration away from `io.nekohasekai.sagernet`.
+- Product-owned UI entrypoints and helpers already use `com.yokhan.vpn.app.*`.
+- Plan the remaining non-UI namespace migration away from `io.nekohasekai.sagernet`.
 - Avoid breaking persisted app data until migration code exists.
 - Rename only leaf packages first; database/entity namespaces last.
 

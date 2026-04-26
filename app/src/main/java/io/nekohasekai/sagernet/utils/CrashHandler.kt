@@ -10,7 +10,7 @@ import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
-import io.nekohasekai.sagernet.ui.BlankActivity
+import com.yokhan.vpn.app.ui.BlankActivity
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader

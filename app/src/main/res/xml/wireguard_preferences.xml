@@ -32,7 +32,7 @@
             app:key="peerPublicKey"
             app:title="@string/wireguard_public_key"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.PasswordPreference
+        <com.yokhan.vpn.app.widget.PasswordPreference
             app:icon="@drawable/ic_settings_password"
             app:key="peerPreSharedKey"
             app:title="@string/wireguard_psk" />

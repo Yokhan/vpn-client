@@ -22,6 +22,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +57,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import javax.imageio.ImageIO
 import javax.swing.JFrame
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 private val IPhone15ProMaxWidth = 430.dp
@@ -79,11 +81,18 @@ fun main() = application {
 @Composable
 private fun DashboardPreviewApp(window: AwtWindow) {
     var connected by remember { mutableStateOf(true) }
+    var testingConnection by remember { mutableStateOf(false) }
     var phoneBounds by remember { mutableStateOf<Rectangle?>(null) }
     var screenshotStatus by remember { mutableStateOf("No screenshot yet") }
     var tuning by remember { mutableStateOf(DashboardUiTuning()) }
     val status = if (connected) ConnectionStatus.Connected else ConnectionStatus.Disconnected
-    val state = previewDashboardState(status)
+    val state = previewDashboardState(status, testingConnection)
+    LaunchedEffect(testingConnection) {
+        if (testingConnection) {
+            delay(900)
+            testingConnection = false
+        }
+    }
     val profiles = remember {
         listOf(
             DashboardProfileUiItem(1L, "Bridge-igor", "VLESS", true),
@@ -120,7 +129,12 @@ private fun DashboardPreviewApp(window: AwtWindow) {
                     state = state,
                     profiles = profiles,
                     labels = DashboardUiLabels.Russian,
-                    actions = DashboardUiActions(onToggleConnection = { connected = !connected }),
+                    actions = DashboardUiActions(
+                        onToggleConnection = { connected = !connected },
+                        onRunConnectionTest = {
+                            if (connected) testingConnection = true
+                        },
+                    ),
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     tuning = tuning,
                 )
@@ -326,7 +340,10 @@ private fun findProjectRoot(): File {
         ?: File(System.getProperty("user.dir")).absoluteFile
 }
 
-private fun previewDashboardState(status: ConnectionStatus): DashboardState {
+private fun previewDashboardState(
+    status: ConnectionStatus,
+    testingConnection: Boolean = false,
+): DashboardState {
     val connected = status == ConnectionStatus.Connected
     return DashboardState(
         connectionStatus = status,
@@ -338,10 +355,11 @@ private fun previewDashboardState(status: ConnectionStatus): DashboardState {
         latency = LatencyDisplay(if (connected) 103L else null),
         uploadLabel = if (connected) "12.4 KB/s" else "0 B/s",
         downloadLabel = if (connected) "48.7 KB/s" else "0 B/s",
-        latencyLabel = if (connected) "103 MS" else "--",
+        latencyLabel = if (testingConnection) "..." else if (connected) "103 MS" else "--",
         timerLabel = if (connected) "00:01:24" else "00:00:00",
         shouldAnimateSpace = connected,
         canRunConnectionTest = connected,
+        isConnectionTestRunning = testingConnection,
         errorMessage = null,
     )
 }

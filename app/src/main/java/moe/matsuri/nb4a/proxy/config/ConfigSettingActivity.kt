@@ -7,7 +7,7 @@ import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener
-import io.nekohasekai.sagernet.ui.profile.ProfileSettingsActivity
+import com.yokhan.vpn.app.ui.profile.ProfileSettingsActivity
 import moe.matsuri.nb4a.ui.EditConfigPreference
 
 class ConfigSettingActivity :

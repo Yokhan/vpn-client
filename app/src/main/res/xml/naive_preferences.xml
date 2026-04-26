@@ -24,7 +24,7 @@
             app:key="serverUsername"
             app:title="@string/username_opt"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.PasswordPreference
+        <com.yokhan.vpn.app.widget.PasswordPreference
             app:icon="@drawable/ic_settings_password"
             app:key="serverPassword"
             app:title="@string/password_opt" />

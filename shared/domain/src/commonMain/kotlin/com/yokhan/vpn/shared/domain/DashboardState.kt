@@ -14,6 +14,7 @@ data class DashboardState(
     val timerLabel: String,
     val shouldAnimateSpace: Boolean,
     val canRunConnectionTest: Boolean,
+    val isConnectionTestRunning: Boolean = false,
     val errorMessage: String?,
 )
 
@@ -34,6 +35,7 @@ object DashboardStateMapper {
             timerLabel = snapshot.connectedForMillis.toTimerLabel(),
             shouldAnimateSpace = snapshot.isRunning,
             canRunConnectionTest = snapshot.status == ConnectionStatus.Connected,
+            isConnectionTestRunning = false,
             errorMessage = snapshot.errorMessage,
         )
     }
