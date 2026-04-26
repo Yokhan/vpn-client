@@ -494,6 +494,7 @@ private fun OrbScene(
     Box(
         modifier = Modifier
             .size(192.dp)
+            .graphicsLayer { clip = false }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -990,6 +991,13 @@ private fun DashboardRocket(
     var visible by remember { mutableStateOf(initiallyVisible) }
     val yOffset = remember { Animatable(if (initiallyVisible) 0f else 1.15f) }
     val alpha = remember { Animatable(if (initiallyVisible) 1f else 0f) }
+    val flameDrawHeight = (tuning.flameHeight * 1.25f).toInt() + 12
+    val sceneHeight = maxOf(tuning.rocketHeight, tuning.flameY + flameDrawHeight)
+    val sceneWidth = maxOf(
+        tuning.rocketWidth,
+        (kotlin.math.abs(tuning.leftFlameX) + tuning.flameWidth) * 2,
+        (kotlin.math.abs(tuning.rightFlameX) + tuning.flameWidth) * 2,
+    ) + 24
 
     LaunchedEffect(connectionStatus) {
         val shouldDock = connectionStatus == ConnectionStatus.Connecting ||
@@ -1005,8 +1013,11 @@ private fun DashboardRocket(
             }
         } else if (visible) {
             coroutineScope {
-                launch { alpha.animateTo(0f, tween(800, easing = CssEaseIn)) }
-                launch { yOffset.animateTo(-1.25f, tween(1400, easing = RocketDisconnectEasing)) }
+                launch { yOffset.animateTo(-1.35f, tween(1350, easing = RocketDisconnectEasing)) }
+                launch {
+                    delay(1020)
+                    alpha.animateTo(0f, tween(300, easing = CssEaseIn))
+                }
             }
             visible = false
             yOffset.snapTo(1.15f)
@@ -1016,43 +1027,49 @@ private fun DashboardRocket(
     if (!visible) return
 
     Box(
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.TopCenter,
         modifier = Modifier
+            .size(width = sceneWidth.dp, height = sceneHeight.dp)
             .offset(y = (tuning.rocketHeight * yOffset.value).dp)
-            .alpha(alpha.value),
+            .graphicsLayer {
+                this.alpha = alpha.value
+                clip = false
+            },
     ) {
-    Image(
-        painter = painterResource(Res.drawable.ic_dashboard_spaceship),
-        contentDescription = null,
-        contentScale = ContentScale.Fit,
-        modifier = Modifier.size(width = tuning.rocketWidth.dp, height = tuning.rocketHeight.dp),
-    )
-    Image(
-        painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
-        contentDescription = null,
-        contentScale = ContentScale.Fit,
-        modifier = Modifier
-            .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
-            .offset(x = tuning.leftFlameX.dp, y = tuning.flameY.dp)
-            .graphicsLayer {
-                scaleY = flameScale
-                scaleX = 1f + (flameScale - 1f) * 0.4f
-                transformOrigin = TransformOrigin(0.5f, 0f)
-            },
-    )
-    Image(
-        painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
-        contentDescription = null,
-        contentScale = ContentScale.Fit,
-        modifier = Modifier
-            .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
-            .offset(x = tuning.rightFlameX.dp, y = tuning.flameY.dp)
-            .graphicsLayer {
-                scaleY = flameScale
-                scaleX = 1f + (flameScale - 1f) * 0.4f
-                transformOrigin = TransformOrigin(0.5f, 0f)
-            },
-    )
+        Image(
+            painter = painterResource(Res.drawable.ic_dashboard_spaceship),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.size(width = tuning.rocketWidth.dp, height = tuning.rocketHeight.dp),
+        )
+        Image(
+            painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
+                .offset(x = tuning.leftFlameX.dp, y = tuning.flameY.dp)
+                .graphicsLayer {
+                    scaleY = flameScale
+                    scaleX = 1f + (flameScale - 1f) * 0.4f
+                    transformOrigin = TransformOrigin(0.5f, 0f)
+                    clip = false
+                },
+        )
+        Image(
+            painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
+                .offset(x = tuning.rightFlameX.dp, y = tuning.flameY.dp)
+                .graphicsLayer {
+                    scaleY = flameScale
+                    scaleX = 1f + (flameScale - 1f) * 0.4f
+                    transformOrigin = TransformOrigin(0.5f, 0f)
+                    clip = false
+                },
+        )
     }
 }
 

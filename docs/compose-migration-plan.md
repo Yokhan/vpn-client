@@ -10,7 +10,8 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 - `app` still uses XML for the main shell: `layout_main.xml`, `DrawerLayout`, `NavigationView`, legacy `StatsBar`, and `ServiceButton`.
 - Main navigation still opens legacy fragments: configurations, groups, routes, settings, tools, logcat, about, backup, network, and webview.
 - Preference screens still use `PreferenceFragmentCompat`, so they cannot follow the animated connected/disconnected Compose theme.
-- Dashboard uses Compose for content, but it is still hosted by `DashboardFragment` through `layout_dashboard.xml`.
+- Dashboard content is Compose-only. It is still hosted by `DashboardFragment`, but `layout_dashboard.xml` now contains only a `ComposeView`.
+- Detailed production planning lives in `docs/production-roadmap.md`.
 
 ## Migration Rules
 
@@ -29,7 +30,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
    Replace `layout_main.xml`/drawer/bottom stats/fab with a Compose shell that owns navigation, bottom status, snackbar host, and connected/disconnected theme animation.
 
 3. Dashboard host cleanup.
-   Move dashboard state and actions out of `DashboardFragment`, render `YokhanDashboardScreen` directly from the Compose shell, then delete the XML dashboard host.
+   Move dashboard state and actions out of `DashboardFragment`, render `YokhanDashboardScreen` directly from the Compose shell, then delete the dashboard fragment host.
 
 4. Primary product screens.
    Port configurations, groups, routes, and settings hubs to Compose lists/cards using the shared design system.
@@ -46,7 +47,8 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 ## Legacy UI Inventory
 
 - Main shell: `MainActivity`, `layout_main.xml`, `StatsBar`, `ServiceButton`.
-- Dashboard host: `DashboardFragment`, `layout_dashboard.xml`, `DashboardViewRenderer`, `DashboardProfileListRenderer`, `DashboardOrbMotionController`.
+- Dashboard host: `DashboardFragment`, `layout_dashboard.xml`.
+- Removed dashboard legacy renderers: `DashboardViewRenderer`, `DashboardProfileListRenderer`, `DashboardOrbMotionController`.
 - Navigation fragments: `ConfigurationHubFragment`, `ConfigurationFragment`, `GroupHubFragment`, `GroupFragment`, `RouteHubFragment`, `RouteFragment`, `SettingsFragment`, `ToolsFragment`, `LogcatFragment`, `AboutFragment`, `WebviewFragment`.
 - Form/preference screens: `GroupSettingsActivity`, `RouteSettingsActivity`, `SettingsPreferenceFragment`, `SettingsAdvancedFragment`.
 - Utility activities: `AppListActivity`, `AppManagerActivity`, `AssetsActivity`, `ScannerActivity`, `StunActivity`, `ProfileSelectActivity`, `SwitchActivity`.
