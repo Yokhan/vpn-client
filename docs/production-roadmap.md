@@ -116,6 +116,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 - [x] Port logcat screen to Compose with stable large-text performance.
 - [x] Port about screen to Compose and remove inherited branding noise.
 - [x] Port backup/import screens to Compose.
+- [x] Port backup import/progress dialogs to Compose.
 - [x] Port network/debug screens to Compose if still product-relevant.
 - [x] Port route assets management to Compose.
 - [x] Port webview/dashboard panel wrapper to Compose.

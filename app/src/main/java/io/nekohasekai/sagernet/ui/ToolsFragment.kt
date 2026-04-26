@@ -8,16 +8,27 @@ import android.os.Parcelable
 import android.provider.OpenableColumns
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import androidx.core.view.isVisible
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanTypography
+import com.yokhan.vpn.shared.ui.design.yokhanPalette
+import com.yokhan.vpn.shared.ui.design.yokhanTypography
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -29,8 +40,6 @@ import io.nekohasekai.sagernet.database.RuleEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.database.preference.KeyValuePair
 import io.nekohasekai.sagernet.database.preference.PublicDatabase
-import io.nekohasekai.sagernet.databinding.LayoutImportBinding
-import io.nekohasekai.sagernet.databinding.LayoutProgressBinding
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.alert
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
@@ -47,6 +56,7 @@ import io.nekohasekai.sagernet.ui.compose.YokhanCheckboxRow
 import io.nekohasekai.sagernet.ui.compose.YokhanComposeRouteFragment
 import io.nekohasekai.sagernet.ui.compose.YokhanDivider
 import io.nekohasekai.sagernet.ui.compose.YokhanHeadline
+import io.nekohasekai.sagernet.ui.compose.YokhanMonoValue
 import io.nekohasekai.sagernet.ui.compose.YokhanRouteAction
 import io.nekohasekai.sagernet.ui.compose.YokhanRouteCard
 import io.nekohasekai.sagernet.ui.compose.YokhanRouteFrame
@@ -338,34 +348,29 @@ class ToolsFragment : YokhanComposeRouteFragment() {
         }
 
         onMainDispatcher {
-            val import = LayoutImportBinding.inflate(layoutInflater)
-            if (!imported.has("profiles")) {
-                import.backupConfigurations.isVisible = false
-            }
-            if (!imported.has("rules")) {
-                import.backupRules.isVisible = false
-            }
-            if (!imported.has("settings")) {
-                import.backupSettings.isVisible = false
-            }
+            val available = BackupSelection(
+                profile = imported.has("profiles"),
+                rule = imported.has("rules"),
+                setting = imported.has("settings"),
+            )
+            val importSelection = mutableStateOf(available)
             MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.backup_import)
-                .setView(import.root)
+                .setView(createImportDialogView(available, importSelection))
                 .setPositiveButton(R.string.backup_import) { _, _ ->
                     SagerNet.stopService()
 
-                    val binding = LayoutProgressBinding.inflate(layoutInflater)
-                    binding.content.text = getString(R.string.backup_importing)
-                    val dialog = AlertDialog.Builder(requireContext())
-                        .setView(binding.root)
+                    val selection = importSelection.value
+                    val dialog = MaterialAlertDialogBuilder(requireContext())
+                        .setView(createProgressDialogView(getString(R.string.backup_importing)))
                         .setCancelable(false)
                         .show()
                     runOnDefaultDispatcher {
                         runCatching {
                             finishImport(
                                 imported,
-                                import.backupConfigurations.isChecked,
-                                import.backupRules.isChecked,
-                                import.backupSettings.isChecked
+                                selection.profile,
+                                selection.rule,
+                                selection.setting
                             )
                             delay(500L)
                             triggerFullRestart(requireContext())
@@ -383,6 +388,90 @@ class ToolsFragment : YokhanComposeRouteFragment() {
                 }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
+        }
+    }
+
+    private fun createImportDialogView(
+        available: BackupSelection,
+        selection: MutableState<BackupSelection>,
+    ): ComposeView {
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            setContent {
+                val colors = yokhanPalette(DataStore.serviceState.isRouteSpaceActive())
+                val typography = yokhanTypography()
+                BackupImportDialogContent(available, selection, colors, typography)
+            }
+        }
+    }
+
+    @Composable
+    private fun BackupImportDialogContent(
+        available: BackupSelection,
+        selection: MutableState<BackupSelection>,
+        colors: YokhanPalette,
+        typography: YokhanTypography,
+    ) {
+        Column(Modifier.padding(4.dp)) {
+            if (available.profile) {
+                YokhanCheckboxRow(
+                    title = stringResource(R.string.backup_groups_and_configurations),
+                    checked = selection.value.profile,
+                    colors = colors,
+                    typography = typography,
+                    onCheckedChange = { selection.value = selection.value.copy(profile = it) },
+                )
+            }
+            if (available.rule) {
+                YokhanCheckboxRow(
+                    title = stringResource(R.string.backup_rules),
+                    checked = selection.value.rule,
+                    colors = colors,
+                    typography = typography,
+                    onCheckedChange = { selection.value = selection.value.copy(rule = it) },
+                )
+            }
+            if (available.setting) {
+                YokhanCheckboxRow(
+                    title = stringResource(R.string.backup_settings),
+                    checked = selection.value.setting,
+                    colors = colors,
+                    typography = typography,
+                    onCheckedChange = { selection.value = selection.value.copy(setting = it) },
+                )
+            }
+            YokhanBody(
+                text = stringResource(R.string.backup_import_summary),
+                colors = colors,
+                typography = typography,
+                modifier = Modifier.padding(top = 8.dp),
+                maxLines = 5,
+            )
+        }
+    }
+
+    private fun createProgressDialogView(message: String): ComposeView {
+        return ComposeView(requireContext()).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            setContent {
+                val colors = yokhanPalette(DataStore.serviceState.isRouteSpaceActive())
+                val typography = yokhanTypography()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp)
+                    YokhanMonoValue(
+                        text = message,
+                        colors = colors,
+                        typography = typography,
+                        sizeSp = 13,
+                    )
+                }
+            }
         }
     }
 
