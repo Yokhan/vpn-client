@@ -27,6 +27,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
 import com.yokhan.vpn.app.ui.compose.YokhanStatPair
+import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -123,7 +124,7 @@ class GroupHubFragment : YokhanComposeRouteFragment() {
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.group_hub_open_profiles),
-                            onClick = { (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_configuration) },
+                            onClick = { (activity as? MainActivity)?.displayRoute(YokhanShellRoute.Configuration) },
                         ),
                     ),
                     colors = colors,

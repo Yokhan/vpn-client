@@ -28,6 +28,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteButton
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
 import com.yokhan.vpn.app.ui.compose.YokhanToggleRow
+import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
 
 class SettingsFragment : YokhanComposeRouteFragment(),
     OnPreferenceDataStoreChangeListener {
@@ -220,7 +221,7 @@ class SettingsFragment : YokhanComposeRouteFragment(),
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.settings_open_routes),
-                            onClick = { (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_route) },
+                            onClick = { (activity as? MainActivity)?.displayRoute(YokhanShellRoute.Route) },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.settings_open_advanced),

@@ -9,6 +9,7 @@ import androidx.lifecycle.lifecycleScope
 import com.yokhan.vpn.app.ui.dashboard.DashboardComposeActions
 import com.yokhan.vpn.app.ui.dashboard.DashboardComposeScreen
 import com.yokhan.vpn.app.ui.dashboard.DashboardProfileUiItem
+import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
 import com.yokhan.vpn.shared.domain.ConnectionStatus
 import com.yokhan.vpn.shared.domain.DashboardState
 import io.nekohasekai.sagernet.GroupType
@@ -63,7 +64,7 @@ class DashboardController(
                     onMenuClick = activity::openNavigationMenu,
                     onToggleConnection = activity::toggleConnection,
                     onRunConnectionTest = ::runConnectionTest,
-                    onAddProfile = { activity.displayFragmentWithId(R.id.nav_configuration) },
+                    onAddProfile = { activity.displayRoute(YokhanShellRoute.Configuration) },
                     onSelectProfile = ::selectProfileById,
                     onEditProfile = ::editProfileById,
                     onOpenProfileMenu = ::showProfileMenuById,

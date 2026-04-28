@@ -2,7 +2,6 @@ package com.yokhan.vpn.app.ui.shell
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import androidx.annotation.IdRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,10 +59,10 @@ data class YokhanShellDrawerCommand(
 
 @Composable
 fun YokhanMainShell(
-    selectedRouteId: Int,
+    selectedRoute: YokhanShellRoute,
     serviceState: BaseService.State,
     drawerCommand: YokhanShellDrawerCommand,
-    onRouteSelected: (Int) -> Unit,
+    onRouteSelected: (YokhanShellRoute) -> Unit,
     onDrawerOpenChanged: (Boolean) -> Unit,
     onFragmentHostReady: (FragmentContainerView) -> Unit,
     dashboardContent: @Composable () -> Unit,
@@ -76,7 +75,7 @@ fun YokhanMainShell(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val navItems = rememberShellNavItems()
-    val showingDashboard = selectedRouteId == R.id.nav_home
+    val showingDashboard = selectedRoute == YokhanShellRoute.Home
 
     LaunchedEffect(drawerCommand.sequence) {
         if (drawerCommand.open) drawerState.open() else drawerState.close()
@@ -131,10 +130,10 @@ fun YokhanMainShell(
                     navItems.forEach { item ->
                         ShellNavItem(
                             item = item,
-                            selected = item.id == selectedRouteId,
+                            selected = item.route == selectedRoute,
                             spaceActive = spaceActive,
                             onClick = {
-                                onRouteSelected(item.id)
+                                onRouteSelected(item.route)
                                 scope.launch { drawerState.close() }
                             },
                         )
@@ -248,20 +247,20 @@ private fun ShellNavItem(
 @Composable
 private fun rememberShellNavItems(): List<ShellNavItemModel> {
     return listOf(
-        ShellNavItemModel(R.id.nav_home, stringResource(R.string.dashboard_home), "01"),
-        ShellNavItemModel(R.id.nav_configuration, stringResource(R.string.menu_configuration), "02"),
-        ShellNavItemModel(R.id.nav_group, stringResource(R.string.menu_group), "03"),
-        ShellNavItemModel(R.id.nav_route, stringResource(R.string.menu_route), "04"),
-        ShellNavItemModel(R.id.nav_settings, stringResource(R.string.settings), "05"),
-        ShellNavItemModel(R.id.nav_tools, stringResource(R.string.menu_tools), "06"),
-        ShellNavItemModel(R.id.nav_logcat, stringResource(R.string.menu_log), "07"),
-        ShellNavItemModel(R.id.nav_about, stringResource(R.string.menu_about), "08"),
+        ShellNavItemModel(YokhanShellRoute.Home, stringResource(R.string.dashboard_home), "01"),
+        ShellNavItemModel(YokhanShellRoute.Configuration, stringResource(R.string.menu_configuration), "02"),
+        ShellNavItemModel(YokhanShellRoute.Group, stringResource(R.string.menu_group), "03"),
+        ShellNavItemModel(YokhanShellRoute.Route, stringResource(R.string.menu_route), "04"),
+        ShellNavItemModel(YokhanShellRoute.Settings, stringResource(R.string.settings), "05"),
+        ShellNavItemModel(YokhanShellRoute.Tools, stringResource(R.string.menu_tools), "06"),
+        ShellNavItemModel(YokhanShellRoute.Logcat, stringResource(R.string.menu_log), "07"),
+        ShellNavItemModel(YokhanShellRoute.About, stringResource(R.string.menu_about), "08"),
     )
 }
 
 @Immutable
 private data class ShellNavItemModel(
-    @IdRes val id: Int,
+    val route: YokhanShellRoute,
     val title: String,
     val glyph: String,
 )

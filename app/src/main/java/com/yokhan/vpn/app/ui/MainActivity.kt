@@ -12,7 +12,6 @@ import android.view.KeyEvent
 import android.view.View
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
-import androidx.annotation.IdRes
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -52,6 +51,7 @@ import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import com.yokhan.vpn.app.ui.compose.YokhanServiceStateConsumer
 import com.yokhan.vpn.app.ui.shell.YokhanMainShell
 import com.yokhan.vpn.app.ui.shell.YokhanShellDrawerCommand
+import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
 import moe.matsuri.nb4a.utils.Util
 
 class MainActivity : ThemedActivity(),
@@ -60,7 +60,7 @@ class MainActivity : ThemedActivity(),
     DashboardHost {
 
     private lateinit var fragmentHostView: View
-    private val selectedRouteId = mutableStateOf(R.id.nav_home)
+    private val selectedRoute = mutableStateOf(YokhanShellRoute.Home)
     private val shellServiceState = mutableStateOf(BaseService.State.Idle)
     private val drawerCommand = mutableStateOf(YokhanShellDrawerCommand())
     private var navigationMenuOpen = false
@@ -73,10 +73,10 @@ class MainActivity : ThemedActivity(),
 
         setContent {
             YokhanMainShell(
-                selectedRouteId = selectedRouteId.value,
+                selectedRoute = selectedRoute.value,
                 serviceState = shellServiceState.value,
                 drawerCommand = drawerCommand.value,
-                onRouteSelected = ::displayFragmentWithId,
+                onRouteSelected = { route -> displayRoute(route) },
                 onDrawerOpenChanged = { navigationMenuOpen = it },
                 onFragmentHostReady = { host ->
                     fragmentHostView = host
@@ -94,10 +94,10 @@ class MainActivity : ThemedActivity(),
                 supportFragmentManager.popBackStack()
                 return@addCallback
             }
-            if (selectedRouteId.value == R.id.nav_home) {
+            if (selectedRoute.value == YokhanShellRoute.Home) {
                 moveTaskToBack(true)
             } else {
-                displayFragmentWithId(R.id.nav_home)
+                displayRoute(YokhanShellRoute.Home)
             }
         }
 
@@ -141,7 +141,7 @@ class MainActivity : ThemedActivity(),
                 savedInstanceState == null ||
                 supportFragmentManager.findFragmentById(R.id.fragment_holder) == null
             ) {
-                displayFragmentWithId(R.id.nav_home)
+                displayRoute(YokhanShellRoute.Home)
             }
         }
     }
@@ -209,7 +209,7 @@ class MainActivity : ThemedActivity(),
 
         onMainDispatcher {
 
-            displayFragmentWithId(R.id.nav_group)
+            displayRoute(YokhanShellRoute.Group)
 
             MaterialAlertDialogBuilder(this@MainActivity).setTitle(R.string.subscription_import)
                 .setMessage(getString(R.string.subscription_import_message, name))
@@ -260,7 +260,7 @@ class MainActivity : ThemedActivity(),
         ProfileManager.createProfile(targetId, profile)
 
         onMainDispatcher {
-            displayFragmentWithId(R.id.nav_configuration)
+            displayRoute(YokhanShellRoute.Configuration)
 
             snackbar(resources.getQuantityString(R.plurals.added, 1, 1)).show()
         }
@@ -342,9 +342,9 @@ class MainActivity : ThemedActivity(),
         displayFragment(fragment, addToBackStack = true)
     }
 
-    fun displayFragmentWithId(@IdRes id: Int): Boolean {
-        when (id) {
-            R.id.nav_home -> {
+    fun displayRoute(route: YokhanShellRoute): Boolean {
+        when (route) {
+            YokhanShellRoute.Home -> {
                 if (supportFragmentManager.backStackEntryCount > 0) {
                     supportFragmentManager.popBackStackImmediate(
                         null,
@@ -355,30 +355,29 @@ class MainActivity : ThemedActivity(),
                 closeNavigationMenu()
             }
 
-            R.id.nav_configuration -> {
+            YokhanShellRoute.Configuration -> {
                 displayFragment(ConfigurationHubFragment())
             }
 
-            R.id.nav_group -> displayFragment(GroupHubFragment())
-            R.id.nav_route -> displayFragment(RouteHubFragment())
-            R.id.nav_settings -> displayFragment(SettingsFragment())
-            R.id.nav_traffic -> displayFragment(WebviewFragment())
-            R.id.nav_tools -> displayFragment(ToolsFragment())
-            R.id.nav_logcat -> displayFragment(LogcatFragment())
-            R.id.nav_faq -> {
+            YokhanShellRoute.Group -> displayFragment(GroupHubFragment())
+            YokhanShellRoute.Route -> displayFragment(RouteHubFragment())
+            YokhanShellRoute.Settings -> displayFragment(SettingsFragment())
+            YokhanShellRoute.Traffic -> displayFragment(WebviewFragment())
+            YokhanShellRoute.Tools -> displayFragment(ToolsFragment())
+            YokhanShellRoute.Logcat -> displayFragment(LogcatFragment())
+            YokhanShellRoute.Faq -> {
                 launchCustomTab("https://github.com/Yokhan/YokhanVPN")
                 return false
             }
 
-            R.id.nav_about -> displayFragment(AboutFragment())
-            R.id.nav_tuiguang -> {
+            YokhanShellRoute.About -> displayFragment(AboutFragment())
+            YokhanShellRoute.Promotion -> {
                 launchCustomTab("https://neko-box.pages.dev/喵")
                 return false
             }
 
-            else -> return false
         }
-        selectedRouteId.value = id
+        selectedRoute.value = route
         return true
     }
 
@@ -466,7 +465,7 @@ class MainActivity : ThemedActivity(),
 
     override fun onResume() {
         super.onResume()
-        if (selectedRouteId.value == R.id.nav_home) {
+        if (selectedRoute.value == YokhanShellRoute.Home) {
             dashboardController.onShown()
         }
     }
@@ -548,7 +547,7 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun openDashboardConfiguration() {
-        displayFragmentWithId(R.id.nav_configuration)
+        displayRoute(YokhanShellRoute.Configuration)
     }
 
     override fun updateDashboardProtocol(protocol: String) {

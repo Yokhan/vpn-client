@@ -47,6 +47,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanStatPair
 import com.yokhan.vpn.app.ui.profile.ShadowsocksSettingsActivity
 import com.yokhan.vpn.app.ui.profile.VMessSettingsActivity
 import com.yokhan.vpn.app.ui.profile.WireGuardSettingsActivity
+import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -204,11 +205,11 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.configuration_hub_manage_groups),
-                            onClick = { (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_group) },
+                            onClick = { (activity as? MainActivity)?.displayRoute(YokhanShellRoute.Group) },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.configuration_hub_manage_routes),
-                            onClick = { (activity as? MainActivity)?.displayFragmentWithId(R.id.nav_route) },
+                            onClick = { (activity as? MainActivity)?.displayRoute(YokhanShellRoute.Route) },
                         ),
                     ),
                     colors = colors,
