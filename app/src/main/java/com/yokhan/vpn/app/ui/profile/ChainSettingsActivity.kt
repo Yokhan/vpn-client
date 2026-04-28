@@ -14,15 +14,31 @@ import android.widget.TextView
 import androidx.activity.result.component1
 import androidx.activity.result.component2
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
-import androidx.preference.PreferenceFragmentCompat
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.yokhan.vpn.shared.ui.design.yokhanPalette
+import com.yokhan.vpn.shared.ui.design.yokhanTypography
+import com.yokhan.vpn.shared.ui.form.YokhanFormEvent
+import com.yokhan.vpn.shared.ui.form.YokhanFormField
+import com.yokhan.vpn.shared.ui.form.YokhanFormSection
+import com.yokhan.vpn.shared.ui.form.YokhanFormSectionCard
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
@@ -49,11 +65,48 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
         initializeDefaultValues()
     }
 
-    override fun PreferenceFragmentCompat.createPreferences(
-        savedInstanceState: Bundle?,
-        rootKey: String?,
-    ) {
-        addPreferencesFromResource(R.xml.name_preferences)
+    override fun useComposeProfileForm(): Boolean = true
+
+    @Composable
+    override fun ComposeProfileContent() {
+        val colors = yokhanPalette(spaceActive = true)
+        val typography = yokhanTypography()
+        var section by remember { mutableStateOf(chainNameSection()) }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.background)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            YokhanFormSectionCard(
+                section = section,
+                colors = colors,
+                typography = typography,
+                readOnly = false,
+                onEvent = { event ->
+                    if (event is YokhanFormEvent.TextChanged && event.id == ChainNameField) {
+                        DataStore.profileName = event.value
+                        DataStore.dirty = true
+                        section = chainNameSection(event.value)
+                    }
+                },
+            )
+        }
+    }
+
+    private fun chainNameSection(value: String = DataStore.profileName): YokhanFormSection {
+        return YokhanFormSection(
+            id = "profile",
+            title = getString(R.string.profile_name).uppercase(),
+            fields = listOf(
+                YokhanFormField.Text(
+                    id = ChainNameField,
+                    label = getString(R.string.profile_name),
+                    value = value,
+                    required = true,
+                ),
+            ),
+        )
     }
 
     lateinit var configurationList: RecyclerView
@@ -106,19 +159,8 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
             }
 
         }).attachToRecyclerView(configurationList)
-    }
 
-    override fun PreferenceFragmentCompat.viewCreated(view: View, savedInstanceState: Bundle?) {
-        view.rootView.findViewById<RecyclerView>(R.id.recycler_view).apply {
-            (layoutParams ?: LinearLayout.LayoutParams(-1, -2)).apply {
-                height = -2
-                layoutParams = this
-            }
-        }
-
-        runOnDefaultDispatcher {
-            configurationAdapter.reload()
-        }
+        runOnDefaultDispatcher { configurationAdapter.reload() }
     }
 
     inner class ProxiesAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -405,6 +447,10 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
 
     private fun dp(value: Int): Int {
         return (value * resources.displayMetrics.density).toInt()
+    }
+
+    private companion object {
+        const val ChainNameField = "profileName"
     }
 
 }

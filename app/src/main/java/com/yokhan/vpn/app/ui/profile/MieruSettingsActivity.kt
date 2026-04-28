@@ -1,36 +1,15 @@
-/******************************************************************************
- *                                                                            *
- * Copyright (C) 2021 by nekohasekai <contact-sagernet@sekai.icu>             *
- *                                                                            *
- * This program is free software: you can redistribute it and/or modify       *
- * it under the terms of the GNU General Public License as published by       *
- * the Free Software Foundation, either version 3 of the License, or          *
- *  (at your option) any later version.                                       *
- *                                                                            *
- * This program is distributed in the hope that it will be useful,            *
- * but WITHOUT ANY WARRANTY; without even the implied warranty of             *
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the              *
- * GNU General Public License for more details.                               *
- *                                                                            *
- * You should have received a copy of the GNU General Public License          *
- * along with this program. If not, see <http://www.gnu.org/licenses/>.       *
- *                                                                            *
- ******************************************************************************/
-
 package com.yokhan.vpn.app.ui.profile
 
-import android.os.Bundle
-import androidx.preference.EditTextPreference
-import androidx.preference.PreferenceFragmentCompat
+import com.yokhan.vpn.shared.ui.form.YokhanFormField
+import com.yokhan.vpn.shared.ui.form.YokhanFormSection
+import com.yokhan.vpn.shared.ui.form.YokhanFormState
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.database.preference.EditTextPreferenceModifiers
 import io.nekohasekai.sagernet.fmt.mieru.MieruBean
 import io.nekohasekai.sagernet.ktx.applyDefaultValues
-import com.yokhan.vpn.app.ui.preference.SimpleMenuPreference
 
-class MieruSettingsActivity : ProfileSettingsActivity<MieruBean>() {
+class MieruSettingsActivity : ComposeProfileSettingsActivity<MieruBean>() {
 
     override fun createEntity() = MieruBean().applyDefaultValues()
 
@@ -54,24 +33,91 @@ class MieruSettingsActivity : ProfileSettingsActivity<MieruBean>() {
         mtu = DataStore.serverMTU
     }
 
-    override fun PreferenceFragmentCompat.createPreferences(
-        savedInstanceState: Bundle?,
-        rootKey: String?,
-    ) {
-        addPreferencesFromResource(R.xml.mieru_preferences)
-        findPreference<EditTextPreference>(Key.SERVER_PORT)!!.apply {
-            setOnBindEditTextListener(EditTextPreferenceModifiers.Port)
-        }
-        findPreference<EditTextPreference>(Key.SERVER_PASSWORD)!!.apply {
-            summaryProvider = PasswordSummaryProvider
-        }
-        val protocol = findPreference<SimpleMenuPreference>(Key.SERVER_PROTOCOL)!!
-        val mtu = findPreference<EditTextPreference>(Key.SERVER_MTU)!!
-        mtu.isVisible = protocol.value.equals("UDP")
-        protocol.setOnPreferenceChangeListener { _, newValue ->
-            mtu.isVisible = newValue.equals("UDP")
-            true
-        }
+    override fun buildFormState(): YokhanFormState {
+        return YokhanFormState(
+            title = getString(R.string.profile_config),
+            subtitle = "Mieru",
+            sections = listOf(
+                YokhanFormSection(
+                    id = "profile",
+                    title = getString(R.string.profile_name).uppercase(),
+                    fields = listOf(
+                        YokhanFormField.Text(
+                            id = Key.PROFILE_NAME,
+                            label = getString(R.string.profile_name),
+                            value = DataStore.profileName,
+                            required = true,
+                        ),
+                    ),
+                ),
+                YokhanFormSection(
+                    id = "proxy",
+                    title = getString(R.string.proxy_cat).uppercase(),
+                    fields = listOf(
+                        YokhanFormField.Text(
+                            id = Key.SERVER_ADDRESS,
+                            label = getString(R.string.server_address),
+                            value = DataStore.serverAddress,
+                            required = true,
+                        ),
+                        YokhanFormField.Port(
+                            id = Key.SERVER_PORT,
+                            label = getString(R.string.server_port),
+                            value = DataStore.serverPort.toString(),
+                        ),
+                        YokhanFormField.Select(
+                            id = Key.SERVER_PROTOCOL,
+                            label = getString(R.string.protocol),
+                            options = arrayOptions(R.array.mieru_protocol),
+                            selectedOptionId = DataStore.serverProtocol.ifBlank { "TCP" },
+                        ),
+                        YokhanFormField.Text(
+                            id = Key.SERVER_USERNAME,
+                            label = getString(R.string.username),
+                            value = DataStore.serverUsername,
+                            required = true,
+                        ),
+                        YokhanFormField.Password(
+                            id = Key.SERVER_PASSWORD,
+                            label = getString(R.string.password),
+                            value = DataStore.serverPassword,
+                        ),
+                        YokhanFormField.Number(
+                            id = Key.SERVER_MTU,
+                            label = getString(R.string.mtu),
+                            value = DataStore.serverMTU.toString(),
+                        ),
+                    ),
+                ),
+            ),
+        )
     }
 
+    override fun validateFormState(state: YokhanFormState): YokhanFormState {
+        val showMtu = state.selectValue(Key.SERVER_PROTOCOL) == "UDP"
+        return state.copy(
+            sections = state.sections.map { section ->
+                section.copy(
+                    fields = section.fields.map { field ->
+                        if (field.id == Key.SERVER_MTU && field is YokhanFormField.Number) {
+                            field.copy(visible = showMtu)
+                        } else {
+                            field
+                        }
+                    },
+                )
+            },
+        )
+    }
+
+    override fun writeFormStateToCache(state: YokhanFormState) {
+        DataStore.profileName = state.textValue(Key.PROFILE_NAME)
+        DataStore.serverAddress = state.textValue(Key.SERVER_ADDRESS)
+        DataStore.serverPort = state.textValue(Key.SERVER_PORT).toIntOrNull() ?: 0
+        DataStore.serverProtocol = state.selectValue(Key.SERVER_PROTOCOL).ifBlank { "TCP" }
+        DataStore.serverUsername = state.textValue(Key.SERVER_USERNAME)
+        DataStore.serverPassword = state.passwordValue(Key.SERVER_PASSWORD)
+        DataStore.serverMTU = state.textValue(Key.SERVER_MTU).toIntOrNull() ?: 0
+        DataStore.dirty = state.dirty
+    }
 }

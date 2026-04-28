@@ -68,7 +68,7 @@ fun YokhanFormScreen(
         if (state.loading) {
             YokhanFormLoadingCard(colors, typography)
         } else {
-            state.sections.forEach { section ->
+            state.sections.filter { section -> section.fields.any { it.visible } }.forEach { section ->
                 YokhanFormSectionCard(
                     section = section,
                     colors = colors,
@@ -112,7 +112,7 @@ fun YokhanFormSectionCard(
                 typography = typography,
             )
         }
-        section.fields.forEachIndexed { index, field ->
+        section.fields.filter { it.visible }.forEachIndexed { index, field ->
             if (index > 0) {
                 Box(
                     modifier = Modifier

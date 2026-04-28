@@ -29,6 +29,7 @@ sealed interface YokhanFormField {
     val label: String
     val helper: String?
     val enabled: Boolean
+    val visible: Boolean
     val required: Boolean
     val validation: YokhanFormValidation
 
@@ -41,6 +42,7 @@ sealed interface YokhanFormField {
         val mode: YokhanFormTextMode = YokhanFormTextMode.Text,
         override val helper: String? = null,
         override val enabled: Boolean = true,
+        override val visible: Boolean = true,
         override val required: Boolean = false,
         override val validation: YokhanFormValidation = YokhanFormValidation(),
     ) : YokhanFormField
@@ -53,6 +55,7 @@ sealed interface YokhanFormField {
         val placeholder: String? = null,
         override val helper: String? = null,
         override val enabled: Boolean = true,
+        override val visible: Boolean = true,
         override val required: Boolean = false,
         override val validation: YokhanFormValidation = YokhanFormValidation(),
     ) : YokhanFormField
@@ -65,6 +68,7 @@ sealed interface YokhanFormField {
         val placeholder: String? = null,
         override val helper: String? = null,
         override val enabled: Boolean = true,
+        override val visible: Boolean = true,
         override val required: Boolean = false,
         override val validation: YokhanFormValidation = YokhanFormValidation(),
     ) : YokhanFormField
@@ -77,6 +81,7 @@ sealed interface YokhanFormField {
         val placeholder: String? = "1-65535",
         override val helper: String? = null,
         override val enabled: Boolean = true,
+        override val visible: Boolean = true,
         override val required: Boolean = true,
         override val validation: YokhanFormValidation = YokhanFormValidation(),
     ) : YokhanFormField
@@ -88,6 +93,7 @@ sealed interface YokhanFormField {
         val checked: Boolean,
         override val helper: String? = null,
         override val enabled: Boolean = true,
+        override val visible: Boolean = true,
         override val required: Boolean = false,
         override val validation: YokhanFormValidation = YokhanFormValidation(),
     ) : YokhanFormField
@@ -100,6 +106,7 @@ sealed interface YokhanFormField {
         val selectedOptionId: String,
         override val helper: String? = null,
         override val enabled: Boolean = true,
+        override val visible: Boolean = true,
         override val required: Boolean = false,
         override val validation: YokhanFormValidation = YokhanFormValidation(),
     ) : YokhanFormField
@@ -111,6 +118,7 @@ sealed interface YokhanFormField {
         val value: String,
         override val helper: String? = null,
         override val enabled: Boolean = true,
+        override val visible: Boolean = true,
         override val required: Boolean = false,
         override val validation: YokhanFormValidation = YokhanFormValidation(),
     ) : YokhanFormField

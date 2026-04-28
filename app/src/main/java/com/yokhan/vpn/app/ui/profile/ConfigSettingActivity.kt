@@ -1,31 +1,20 @@
 package com.yokhan.vpn.app.ui.profile
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import com.yokhan.vpn.shared.ui.form.YokhanFormEvent
 import com.yokhan.vpn.shared.ui.form.YokhanFormField
-import com.yokhan.vpn.shared.ui.form.YokhanFormScreen
 import com.yokhan.vpn.shared.ui.form.YokhanFormSection
 import com.yokhan.vpn.shared.ui.form.YokhanFormState
 import com.yokhan.vpn.shared.ui.form.YokhanFormTextMode
 import com.yokhan.vpn.shared.ui.form.YokhanFormValidation
 import com.yokhan.vpn.shared.ui.form.YokhanFormValidationState
-import com.yokhan.vpn.shared.ui.form.withFieldEvent
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import moe.matsuri.nb4a.proxy.config.ConfigBean
 
-class ConfigSettingActivity : ProfileSettingsActivity<ConfigBean>() {
+class ConfigSettingActivity : ComposeProfileSettingsActivity<ConfigBean>() {
 
     private val isOutboundOnlyKey = "isOutboundOnly"
 
     override fun createEntity() = ConfigBean()
-
-    override fun useComposeProfileForm(): Boolean = true
 
     override fun ConfigBean.init() {
         DataStore.profileCacheStore.putBoolean(isOutboundOnlyKey, type == 1)
@@ -39,37 +28,7 @@ class ConfigSettingActivity : ProfileSettingsActivity<ConfigBean>() {
         config = DataStore.serverConfig
     }
 
-    @Composable
-    override fun ComposeProfileContent() {
-        var formState by remember {
-            mutableStateOf(buildFormState().withConfigValidation())
-        }
-        YokhanFormScreen(
-            state = formState,
-            onEvent = { event ->
-                when (event) {
-                    YokhanFormEvent.Save -> {
-                        writeFormToDataStore(formState.copy(dirty = true))
-                        runOnDefaultDispatcher { saveAndExit() }
-                    }
-
-                    YokhanFormEvent.Cancel,
-                    YokhanFormEvent.Reset,
-                    -> {
-                        DataStore.dirty = false
-                        finish()
-                    }
-
-                    else -> {
-                        formState = formState.withFieldEvent(event).withConfigValidation()
-                        writeFormToDataStore(formState)
-                    }
-                }
-            },
-        )
-    }
-
-    private fun buildFormState(): YokhanFormState {
+    override fun buildFormState(): YokhanFormState {
         val config = DataStore.serverConfig
         return YokhanFormState(
             title = getString(R.string.profile_config),
@@ -106,6 +65,10 @@ class ConfigSettingActivity : ProfileSettingsActivity<ConfigBean>() {
                 ),
             ),
         )
+    }
+
+    override fun validateFormState(state: YokhanFormState): YokhanFormState {
+        return state.withConfigValidation()
     }
 
     private fun YokhanFormState.withConfigValidation(): YokhanFormState {
@@ -149,29 +112,11 @@ class ConfigSettingActivity : ProfileSettingsActivity<ConfigBean>() {
         )
     }
 
-    private fun writeFormToDataStore(state: YokhanFormState) {
+    override fun writeFormStateToCache(state: YokhanFormState) {
         DataStore.profileName = state.textValue(FieldProfileName)
         DataStore.profileCacheStore.putBoolean(isOutboundOnlyKey, state.switchValue(FieldOutboundOnly))
         DataStore.serverConfig = state.textValue(FieldServerConfig)
         DataStore.dirty = state.dirty
-    }
-
-    private fun YokhanFormState.textValue(id: String): String {
-        return sections.asSequence()
-            .flatMap { it.fields.asSequence() }
-            .filterIsInstance<YokhanFormField.Text>()
-            .firstOrNull { it.id == id }
-            ?.value
-            .orEmpty()
-    }
-
-    private fun YokhanFormState.switchValue(id: String): Boolean {
-        return sections.asSequence()
-            .flatMap { it.fields.asSequence() }
-            .filterIsInstance<YokhanFormField.Switch>()
-            .firstOrNull { it.id == id }
-            ?.checked
-            ?: false
     }
 
     private companion object {

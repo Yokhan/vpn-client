@@ -15,7 +15,7 @@ This is the execution pipeline for turning the current transition codebase into 
 
 ## Current Cursor
 
-`P04-profile-form-scaling`: migrate the remaining profile forms with the proven shared Compose form pattern.
+`P05-route-form`: migrate group and route edit flows to Compose.
 
 ## Pipeline
 
@@ -52,6 +52,7 @@ This is the execution pipeline for turning the current transition codebase into 
 - Remove migrated `*_preferences.xml` resources one by one.
 - Keep protocol-specific logic in small adapters.
 - Acceptance: no migrated profile screen uses `PreferenceFragmentCompat` or preference XML.
+- Completed: profile edit screens now render with Compose form primitives; profile-specific preference XML files are removed.
 
 ### P05. Group And Route Forms
 
@@ -153,6 +154,6 @@ This is the execution pipeline for turning the current transition codebase into 
 - [x] P01-CI-cleanup: remove CI artifact upload and update process docs.
 - [x] P02-form-kit-skeleton: add Compose form models and primitives.
 - [x] P03-first-form: migrate the first profile form.
-- [ ] P04-profile-form-scaling: migrate remaining profile forms.
-- [ ] P05-route-form: migrate route edit form after profile form pattern is proven.
+- [x] P04-profile-form-scaling: migrate remaining profile forms.
+- [ ] P05-route-form: migrate route/group edit forms after profile form pattern is proven.
 - [ ] P07-dashboard-owner: remove `DashboardFragment` ownership after forms are not blocking navigation.
