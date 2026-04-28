@@ -5,24 +5,16 @@ import android.os.Bundle
 import android.text.format.Formatter
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,8 +48,11 @@ import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
 import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
+import com.yokhan.vpn.app.ui.compose.YokhanRouteProgressBar
+import com.yokhan.vpn.app.ui.compose.YokhanRouteStatusDot
 import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
 import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import moe.matsuri.nb4a.utils.Util
 import moe.matsuri.nb4a.utils.toBytesString
@@ -201,11 +196,10 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
                             modifier = Modifier.padding(top = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isSubscription) colors.accent else colors.secondary),
+                            YokhanRouteStatusDot(
+                                active = isSubscription,
+                                colors = colors,
+                                inactiveColor = colors.secondary,
                             )
                             YokhanCaption(
                                 text = row.typeLabel,
@@ -231,7 +225,7 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
                     )
                 }
 
-                YokhanDivider(colors, Modifier.padding(vertical = 14.dp))
+                YokhanDivider(colors, Modifier.padding(vertical = YokhanSpacing.DividerGap))
 
                 YokhanMonoValue(
                     text = row.status,
@@ -261,19 +255,10 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
 
     @Composable
     private fun GroupProgress(row: GroupRow, colors: YokhanPalette) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(3.dp)
-                .background(colors.divider),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(row.progressFraction ?: 1f)
-                    .height(3.dp)
-                    .background(colors.accent),
-            )
-        }
+        YokhanRouteProgressBar(
+            progressFraction = row.progressFraction ?: 1f,
+            colors = colors,
+        )
     }
 
     @Composable

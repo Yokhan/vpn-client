@@ -19,19 +19,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -83,6 +79,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteButton
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
+import com.yokhan.vpn.app.ui.compose.YokhanRouteStatusDot
 import com.yokhan.vpn.app.ui.compose.YokhanSectionLabel
 import com.yokhan.vpn.app.ui.compose.YokhanComposeRouteFragment
 import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
@@ -93,6 +90,7 @@ import com.yokhan.vpn.shared.ui.design.YokhanGreen
 import com.yokhan.vpn.shared.ui.design.YokhanPalette
 import com.yokhan.vpn.shared.ui.design.YokhanRadius
 import com.yokhan.vpn.shared.ui.design.YokhanRed
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import com.yokhan.vpn.shared.ui.design.YokhanTypography
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -612,12 +610,11 @@ class ConfigurationFragment @JvmOverloads constructor(
                             }
                         }
                         if (selected) {
-                            Box(
+                            YokhanRouteStatusDot(
+                                active = true,
+                                colors = colors,
                                 modifier = Modifier
-                                    .padding(top = 3.dp)
-                                    .size(9.dp)
-                                    .clip(CircleShape)
-                                    .background(colors.accent),
+                                    .padding(top = 3.dp),
                             )
                         }
                     }
@@ -630,7 +627,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                         )
                     }
                     if (!select) {
-                        YokhanDivider(colors, Modifier.padding(vertical = 12.dp))
+                        YokhanDivider(colors, Modifier.padding(vertical = YokhanSpacing.CompactDividerGap))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),

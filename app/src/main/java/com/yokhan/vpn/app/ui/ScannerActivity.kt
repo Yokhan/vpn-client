@@ -51,6 +51,7 @@ import io.nekohasekai.sagernet.ktx.startFilesForResult
 import com.yokhan.vpn.app.ui.compose.YokhanButtonGrid
 import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteSurface
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -155,7 +156,7 @@ class ScannerActivity : ThemedActivity(), CameraScan.OnScanResultCallback {
                     typography = typography,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(horizontal = 24.dp, vertical = 28.dp),
+                        .padding(horizontal = YokhanSpacing.ScreenHorizontal, vertical = 28.dp),
                 )
             }
         }

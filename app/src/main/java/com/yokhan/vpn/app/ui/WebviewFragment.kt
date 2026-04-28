@@ -9,17 +9,13 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.BuildConfig
@@ -32,6 +28,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteSurface
 import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import moe.matsuri.nb4a.utils.WebViewUtil
 
 class WebviewFragment : YokhanComposeRouteFragment() {
@@ -74,7 +71,10 @@ class WebviewFragment : YokhanComposeRouteFragment() {
                 title = stringResource(R.string.menu_dashboard),
                 colors = colors,
                 typography = typography,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
+                modifier = Modifier.padding(
+                    horizontal = YokhanSpacing.ScreenHorizontal,
+                    vertical = YokhanSpacing.ScreenTop,
+                ),
             ) {
                 YokhanButtonGrid(
                     actions = listOf(
@@ -109,8 +109,8 @@ class WebviewFragment : YokhanComposeRouteFragment() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 24.dp)
+                        .padding(horizontal = YokhanSpacing.ScreenHorizontal)
+                        .padding(bottom = YokhanSpacing.ScreenHorizontal)
                         .yokhanOutlinedSurface(colors),
                 )
 
@@ -125,7 +125,7 @@ class WebviewFragment : YokhanComposeRouteFragment() {
                     colors = colors,
                     typography = typography,
                     modifier = Modifier
-                        .padding(horizontal = 24.dp)
+                        .padding(horizontal = YokhanSpacing.ScreenHorizontal)
                         .weight(1f),
                 ) {
                     YokhanMonoValue(

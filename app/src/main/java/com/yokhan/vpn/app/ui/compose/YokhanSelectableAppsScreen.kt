@@ -3,8 +3,6 @@ package com.yokhan.vpn.app.ui.compose
 import android.graphics.drawable.Drawable
 import android.view.View
 import android.widget.ImageView
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,14 +15,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -33,7 +29,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.yokhan.vpn.shared.ui.design.YokhanRadius
 import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import com.yokhan.vpn.shared.ui.design.YokhanTypography
 import io.nekohasekai.sagernet.R
 
@@ -112,7 +110,7 @@ fun YokhanSelectableAppsScreen(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.ControlHorizontal),
                     ) {
                         CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp)
                         YokhanMonoValue(
@@ -193,12 +191,11 @@ private fun YokhanSelectableAppRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
+            .yokhanOutlinedSurface(colors)
             .clickable(onClick = onClick)
-            .padding(14.dp),
+            .padding(YokhanSpacing.ControlHorizontal),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.ControlHorizontal),
     ) {
         AndroidView(
             factory = { context ->
@@ -260,10 +257,15 @@ private fun YokhanTextInput(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(colors.primary.copy(alpha = 0.035f))
-                    .border(1.dp, colors.border, RoundedCornerShape(14.dp))
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .yokhanOutlinedSurface(
+                        colors = colors,
+                        radius = YokhanRadius.Panel,
+                        backgroundColor = colors.primary.copy(alpha = 0.035f),
+                    )
+                    .padding(
+                        horizontal = YokhanSpacing.ControlHorizontal,
+                        vertical = YokhanSpacing.ControlVertical,
+                    ),
             ) {
                 if (value.isBlank()) {
                     YokhanCaption(
@@ -287,7 +289,7 @@ fun YokhanSegmentedActions(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
     ) {
         actions.forEach { action ->
             YokhanRouteButton(

@@ -6,24 +6,19 @@ import android.text.format.DateFormat
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import com.yokhan.vpn.shared.ui.design.YokhanTypography
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.bg.BaseService
@@ -45,6 +40,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
 import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
+import com.yokhan.vpn.app.ui.compose.YokhanRouteProgressBar
 import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
 import libcore.Libcore
 import moe.matsuri.nb4a.utils.Util
@@ -171,11 +167,10 @@ class AssetsActivity : ThemedActivity() {
                 .yokhanOutlinedSurface(colors),
         ) {
             if (updating) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .background(colors.accent),
+                YokhanRouteProgressBar(
+                    progressFraction = 1f,
+                    colors = colors,
+                    showTrack = false,
                 )
             }
             Column(Modifier.padding(16.dp)) {
@@ -185,7 +180,7 @@ class AssetsActivity : ThemedActivity() {
                     typography = typography,
                     sizeSp = 16,
                 )
-                YokhanDivider(colors, Modifier.padding(vertical = 14.dp))
+                YokhanDivider(colors, Modifier.padding(vertical = YokhanSpacing.DividerGap))
                 YokhanCaption(
                     text = stringResource(R.string.route_asset_status, row.localVersion),
                     colors = colors,

@@ -2,19 +2,16 @@ package com.yokhan.vpn.app.ui
 
 import android.os.Bundle
 import android.view.View
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -22,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import com.yokhan.vpn.shared.ui.design.YokhanTypography
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
@@ -220,7 +218,7 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
 
             val summary = rule.mkSummary()
             if (summary.isNotBlank()) {
-                YokhanDivider(colors, Modifier.padding(vertical = 14.dp))
+                YokhanDivider(colors, Modifier.padding(vertical = YokhanSpacing.DividerGap))
                 YokhanMonoValue(
                     text = summary,
                     colors = colors,

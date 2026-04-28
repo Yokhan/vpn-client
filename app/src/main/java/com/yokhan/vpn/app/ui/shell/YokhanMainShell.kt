@@ -3,7 +3,6 @@ package com.yokhan.vpn.app.ui.shell
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,9 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ModalDrawerSheet
@@ -43,8 +40,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentContainerView
+import com.yokhan.vpn.app.ui.compose.YokhanRouteStatusDot
+import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
 import com.yokhan.vpn.shared.ui.design.YokhanAccent
 import com.yokhan.vpn.shared.ui.design.YokhanGreen
+import com.yokhan.vpn.shared.ui.design.YokhanRadius
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import com.yokhan.vpn.shared.ui.design.yokhanPalette
 import com.yokhan.vpn.shared.ui.design.yokhanTypography
 import io.nekohasekai.sagernet.R
@@ -143,15 +144,17 @@ fun YokhanMainShell(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, colors.border, RoundedCornerShape(14.dp))
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .yokhanOutlinedSurface(colors, radius = YokhanRadius.Panel)
+                            .padding(
+                                horizontal = YokhanSpacing.ControlHorizontal,
+                                vertical = YokhanSpacing.ControlVertical,
+                            ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(if (serviceState.connected) YokhanGreen else colors.tertiary),
+                        YokhanRouteStatusDot(
+                            active = serviceState.connected,
+                            colors = colors,
+                            activeColor = YokhanGreen,
                         )
                         Text(
                             text = if (serviceState.connected) {
@@ -163,7 +166,7 @@ fun YokhanMainShell(
                             fontFamily = typography.mono,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 8.dp),
+                            modifier = Modifier.padding(start = YokhanSpacing.CompactGap),
                         )
                     }
                 }
@@ -212,12 +215,12 @@ private fun ShellNavItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(YokhanRadius.Panel))
             .clickable(onClick = onClick)
             .background(if (selected) colors.primary.copy(alpha = 0.06f) else Color.Transparent)
             .padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.InlineGap),
     ) {
         Box(
             Modifier

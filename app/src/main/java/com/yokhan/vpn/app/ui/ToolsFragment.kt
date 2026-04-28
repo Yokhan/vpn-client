@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import com.yokhan.vpn.shared.ui.design.YokhanTypography
 import com.yokhan.vpn.shared.ui.design.yokhanPalette
 import com.yokhan.vpn.shared.ui.design.yokhanTypography
@@ -181,7 +182,7 @@ class ToolsFragment : YokhanComposeRouteFragment() {
                     modifier = Modifier.padding(top = 8.dp),
                     maxLines = 5,
                 )
-                YokhanDivider(colors, Modifier.padding(vertical = 12.dp))
+                YokhanDivider(colors, Modifier.padding(vertical = YokhanSpacing.CompactDividerGap))
                 YokhanButtonGrid(
                     actions = listOf(
                         YokhanRouteAction(

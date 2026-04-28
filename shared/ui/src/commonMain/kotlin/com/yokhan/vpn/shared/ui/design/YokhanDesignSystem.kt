@@ -91,6 +91,7 @@ object YokhanRadius {
 
 object YokhanSpacing {
     val Hairline = 1.dp
+    val ProgressBar = 3.dp
     val SectionMarker = 5.dp
     val StatusDot = 7.dp
     val ControlDot = 9.dp
@@ -103,6 +104,8 @@ object YokhanSpacing {
     val SectionGap = 10.dp
     val CardPadding = 16.dp
     val CardTitleGap = 12.dp
+    val DividerGap = 14.dp
+    val CompactDividerGap = 12.dp
     val CompactGap = 8.dp
     val InlineGap = 12.dp
     val ControlHorizontal = 14.dp

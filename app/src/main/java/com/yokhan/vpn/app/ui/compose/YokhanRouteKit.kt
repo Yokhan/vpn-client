@@ -217,8 +217,7 @@ fun YokhanRouteCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(YokhanRadius.Card))
-            .border(YokhanStroke.Thin, colors.border, RoundedCornerShape(YokhanRadius.Card))
+            .yokhanOutlinedSurface(colors)
             .padding(YokhanSpacing.CardPadding),
     ) {
         YokhanSectionLabel(title, colors, typography)
@@ -347,6 +346,46 @@ fun YokhanDivider(colors: YokhanPalette, modifier: Modifier = Modifier) {
             .height(YokhanStroke.Thin)
             .background(colors.divider),
     )
+}
+
+@Composable
+fun YokhanRouteStatusDot(
+    active: Boolean,
+    colors: YokhanPalette,
+    modifier: Modifier = Modifier,
+    size: Dp = YokhanSpacing.StatusDot,
+    activeColor: Color = colors.accent,
+    inactiveColor: Color = colors.tertiary,
+) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(if (active) activeColor else inactiveColor),
+    )
+}
+
+@Composable
+fun YokhanRouteProgressBar(
+    progressFraction: Float,
+    colors: YokhanPalette,
+    modifier: Modifier = Modifier,
+    showTrack: Boolean = true,
+) {
+    val fraction = progressFraction.coerceIn(0f, 1f)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(YokhanSpacing.ProgressBar)
+            .background(if (showTrack) colors.divider else Color.Transparent),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(fraction)
+                .height(YokhanSpacing.ProgressBar)
+                .background(colors.accent),
+        )
+    }
 }
 
 fun Modifier.yokhanOutlinedSurface(
@@ -541,11 +580,10 @@ fun YokhanStatusPill(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
     ) {
-        Box(
-            modifier = Modifier
-                .size(7.dp)
-                .clip(CircleShape)
-                .background(if (active) YokhanGreen else colors.tertiary),
+        YokhanRouteStatusDot(
+            active = active,
+            colors = colors,
+            activeColor = YokhanGreen,
         )
         Text(
             text = text,
@@ -599,11 +637,10 @@ private fun YokhanRouteTopBar(
                 letterSpacing = 1.2.sp,
                 maxLines = 1,
             )
-            Box(
-                modifier = Modifier
-                    .size(9.dp)
-                    .clip(CircleShape)
-                    .background(colors.accent),
+            YokhanRouteStatusDot(
+                active = true,
+                colors = colors,
+                size = YokhanSpacing.ControlDot,
             )
         }
     }

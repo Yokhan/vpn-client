@@ -47,6 +47,7 @@ import com.yokhan.vpn.app.ui.shell.YokhanManualProfileProtocol
 import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
 import com.yokhan.vpn.app.ui.shell.YokhanShellSubRoute
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -156,7 +157,7 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                     typography = typography,
                     modifier = Modifier.padding(top = 4.dp),
                 )
-                YokhanDivider(colors, Modifier.padding(vertical = 12.dp))
+                YokhanDivider(colors, Modifier.padding(vertical = YokhanSpacing.CompactDividerGap))
                 YokhanMonoValue(
                     text = summary?.groupName ?: "--",
                     colors = colors,
