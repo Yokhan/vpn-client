@@ -15,7 +15,7 @@ This is the execution pipeline for turning the current transition codebase into 
 
 ## Current Cursor
 
-`P08-navigation-ownership`: replace legacy menu/fragment routing with typed route ownership.
+`P09-visual-system-consolidation`: consolidate shared visual tokens/components across Compose screens.
 
 ## Pipeline
 
@@ -89,6 +89,7 @@ This is the execution pipeline for turning the current transition codebase into 
 - Define route args for dashboard, configurations, groups, routes, settings, tools, logcat, about, scanner, and profile edit.
 - Preserve back navigation and deep-link/import flows.
 - Acceptance: main shell navigation no longer depends on legacy fragment routing except platform-only wrappers if any remain.
+- Completed: top-level shell routes, child routes, activity routes, profile edit, and manual profile creation now route through typed models; legacy `nav_*` resources and direct sub-fragment routing are removed.
 
 ### P09. Visual System Consolidation
 
@@ -165,4 +166,5 @@ This is the execution pipeline for turning the current transition codebase into 
 - [x] P05-route-form: migrate route/group edit forms after profile form pattern is proven.
 - [x] P06-app-settings-forms: migrate app/global settings screens to Compose.
 - [x] P07-dashboard-owner: remove `DashboardFragment` ownership after forms are not blocking navigation.
-- [ ] P08-navigation-ownership: replace legacy fragment route IDs with typed shell routes.
+- [x] P08-navigation-ownership: replace legacy fragment route IDs with typed shell routes.
+- [ ] P09-visual-system-consolidation: consolidate shared visual tokens and route components.
