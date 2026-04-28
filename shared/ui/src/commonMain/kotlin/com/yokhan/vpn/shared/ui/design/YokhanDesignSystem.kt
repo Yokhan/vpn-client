@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
 import nb4a.shared_ui.generated.resources.Res
 import nb4a.shared_ui.generated.resources.golos_text
 import nb4a.shared_ui.generated.resources.jetbrains_mono_regular
@@ -76,4 +77,38 @@ object YokhanMotion {
     val CssEaseInOut = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)
     val RocketLaunch = CubicBezierEasing(0.2f, 0.8f, 0.3f, 1f)
     val RocketDisconnect = CubicBezierEasing(0.4f, 0f, 0.8f, 0.2f)
+}
+
+object YokhanRadius {
+    val Tiny = 1.dp
+    val SectionMarker = 1.5.dp
+    val Small = 5.dp
+    val MenuGlyph = 8.dp
+    val Panel = 14.dp
+    val Card = 18.dp
+    val Pill = 999.dp
+}
+
+object YokhanSpacing {
+    val Hairline = 1.dp
+    val SectionMarker = 5.dp
+    val StatusDot = 7.dp
+    val ControlDot = 9.dp
+    val Icon = 18.dp
+    val MenuGlyph = 32.dp
+    val TopBarHeight = 58.dp
+    val ScreenHorizontal = 24.dp
+    val ScreenTop = 10.dp
+    val ScreenBottom = 44.dp
+    val SectionGap = 10.dp
+    val CardPadding = 16.dp
+    val CardTitleGap = 12.dp
+    val CompactGap = 8.dp
+    val InlineGap = 12.dp
+    val ControlHorizontal = 14.dp
+    val ControlVertical = 12.dp
+}
+
+object YokhanStroke {
+    val Thin = 1.dp
 }

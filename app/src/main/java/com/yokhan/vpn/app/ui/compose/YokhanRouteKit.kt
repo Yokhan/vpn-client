@@ -47,6 +47,9 @@ import androidx.compose.ui.unit.sp
 import com.yokhan.vpn.shared.ui.design.YokhanGreen
 import com.yokhan.vpn.shared.ui.design.YokhanMotion
 import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanRadius
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
+import com.yokhan.vpn.shared.ui.design.YokhanStroke
 import com.yokhan.vpn.shared.ui.design.YokhanTypography
 import com.yokhan.vpn.shared.ui.design.yokhanPalette
 import com.yokhan.vpn.shared.ui.design.yokhanTypography
@@ -98,9 +101,12 @@ fun YokhanRouteFrame(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp)
-                    .padding(top = 10.dp, bottom = 44.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                    .padding(horizontal = YokhanSpacing.ScreenHorizontal)
+                    .padding(
+                        top = YokhanSpacing.ScreenTop,
+                        bottom = YokhanSpacing.ScreenBottom,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap),
             ) {
                 content(colors, typography)
             }
@@ -145,12 +151,12 @@ fun YokhanRouteLazyFrame(
             )
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = 24.dp,
-                    top = 10.dp,
-                    end = 24.dp,
-                    bottom = 44.dp,
+                    start = YokhanSpacing.ScreenHorizontal,
+                    top = YokhanSpacing.ScreenTop,
+                    end = YokhanSpacing.ScreenHorizontal,
+                    bottom = YokhanSpacing.ScreenBottom,
                 ),
             ) {
                 content(colors, typography)
@@ -210,12 +216,12 @@ fun YokhanRouteCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
-            .padding(16.dp),
+            .clip(RoundedCornerShape(YokhanRadius.Card))
+            .border(YokhanStroke.Thin, colors.border, RoundedCornerShape(YokhanRadius.Card))
+            .padding(YokhanSpacing.CardPadding),
     ) {
         YokhanSectionLabel(title, colors, typography)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(YokhanSpacing.CardTitleGap))
         content()
     }
 }
@@ -228,15 +234,15 @@ fun YokhanSectionLabel(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.heightIn(min = 18.dp),
+        modifier = modifier.heightIn(min = YokhanSpacing.Icon),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.StatusDot),
     ) {
         Box(
             modifier = Modifier
-                .size(5.dp)
+                .size(YokhanSpacing.SectionMarker)
                 .offset(y = 0.5.dp)
-                .clip(RoundedCornerShape(1.5.dp))
+                .clip(RoundedCornerShape(YokhanRadius.SectionMarker))
                 .background(colors.primary.copy(alpha = 0.72f)),
         )
         Text(
@@ -337,7 +343,7 @@ fun YokhanDivider(colors: YokhanPalette, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(1.dp)
+            .height(YokhanStroke.Thin)
             .background(colors.divider),
     )
 }
@@ -354,7 +360,7 @@ fun YokhanStatPair(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.InlineGap),
     ) {
         Column(Modifier.weight(1f)) {
             YokhanMonoValue(firstValue, colors, typography, sizeSp = 12, maxLines = 2)
@@ -362,7 +368,7 @@ fun YokhanStatPair(
         }
         Box(
             modifier = Modifier
-                .width(1.dp)
+                .width(YokhanStroke.Thin)
                 .height(42.dp)
                 .background(colors.divider),
         )
@@ -382,12 +388,12 @@ fun YokhanButtonGrid(
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
     ) {
         actions.chunked(2).forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
             ) {
                 row.forEach { action ->
                     YokhanRouteButton(
@@ -426,12 +432,15 @@ fun YokhanRouteButton(
     Box(
         modifier = modifier
             .heightIn(min = 44.dp)
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(YokhanRadius.Pill))
             .background(background)
-            .border(1.dp, border, RoundedCornerShape(999.dp))
+            .border(YokhanStroke.Thin, border, RoundedCornerShape(YokhanRadius.Pill))
             .clickable(enabled = enabled, onClick = onClick)
             .alpha(alpha)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(
+                horizontal = YokhanSpacing.ControlHorizontal,
+                vertical = YokhanSpacing.ControlVertical,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -460,11 +469,11 @@ fun YokhanToggleRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(YokhanRadius.Panel))
             .clickable { onCheckedChange(!checked) }
             .padding(vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.ControlHorizontal),
     ) {
         Column(Modifier.weight(1f)) {
             YokhanMonoValue(title, colors, typography, sizeSp = 13)
@@ -486,17 +495,17 @@ fun YokhanCheckboxRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(YokhanRadius.Panel))
             .clickable { onCheckedChange(!checked) }
             .padding(vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.InlineGap),
     ) {
         Box(
             modifier = Modifier
                 .size(18.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .border(1.dp, colors.border, RoundedCornerShape(5.dp))
+                .clip(RoundedCornerShape(YokhanRadius.Small))
+                .border(YokhanStroke.Thin, colors.border, RoundedCornerShape(YokhanRadius.Small))
                 .background(if (checked) colors.accent.copy(alpha = 0.9f) else Color.Transparent),
         )
         YokhanMonoValue(title, colors, typography, sizeSp = 13, modifier = Modifier.weight(1f))
@@ -513,11 +522,11 @@ fun YokhanStatusPill(
 ) {
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(999.dp))
-            .border(1.dp, colors.border, RoundedCornerShape(999.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .clip(RoundedCornerShape(YokhanRadius.Pill))
+            .border(YokhanStroke.Thin, colors.border, RoundedCornerShape(YokhanRadius.Pill))
+            .padding(horizontal = YokhanSpacing.InlineGap, vertical = YokhanSpacing.CompactGap),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
     ) {
         Box(
             modifier = Modifier
@@ -547,10 +556,10 @@ private fun YokhanRouteTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
-            .padding(horizontal = 24.dp),
+            .height(YokhanSpacing.TopBarHeight)
+            .padding(horizontal = YokhanSpacing.ScreenHorizontal),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.Icon),
     ) {
         YokhanMenuGlyph(colors = colors, onClick = onMenuClick)
         Text(
@@ -594,8 +603,8 @@ private fun YokhanMenuGlyph(
 ) {
     Canvas(
         modifier = Modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .size(YokhanSpacing.MenuGlyph)
+            .clip(RoundedCornerShape(YokhanRadius.MenuGlyph))
             .clickable(onClick = onClick)
             .padding(3.dp),
     ) {
