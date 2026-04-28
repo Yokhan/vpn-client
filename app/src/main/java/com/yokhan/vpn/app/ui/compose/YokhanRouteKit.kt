@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yokhan.vpn.shared.ui.design.YokhanGreen
@@ -346,6 +347,18 @@ fun YokhanDivider(colors: YokhanPalette, modifier: Modifier = Modifier) {
             .height(YokhanStroke.Thin)
             .background(colors.divider),
     )
+}
+
+fun Modifier.yokhanOutlinedSurface(
+    colors: YokhanPalette,
+    radius: Dp = YokhanRadius.Card,
+    borderColor: Color = colors.border,
+    backgroundColor: Color = Color.Transparent,
+): Modifier {
+    val shape = RoundedCornerShape(radius)
+    return clip(shape)
+        .background(backgroundColor)
+        .border(YokhanStroke.Thin, borderColor, shape)
 }
 
 @Composable

@@ -45,6 +45,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
 import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
+import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
 import libcore.Libcore
 import moe.matsuri.nb4a.utils.Util
 import org.json.JSONObject
@@ -167,8 +168,7 @@ class AssetsActivity : ThemedActivity() {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .border(1.dp, colors.border, RoundedCornerShape(18.dp)),
+                .yokhanOutlinedSurface(colors),
         ) {
             if (updating) {
                 Box(

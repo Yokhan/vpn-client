@@ -56,6 +56,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
 import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
+import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
 import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import moe.matsuri.nb4a.utils.Util
@@ -176,8 +177,7 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .border(1.dp, colors.border, RoundedCornerShape(18.dp)),
+                .yokhanOutlinedSurface(colors),
         ) {
             if (updating) {
                 GroupProgress(row, colors)

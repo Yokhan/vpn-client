@@ -40,6 +40,8 @@ import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
 import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
+import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
+import com.yokhan.vpn.shared.ui.design.YokhanRadius
 import libcore.Libcore
 
 class StunActivity : ThemedActivity() {
@@ -155,9 +157,11 @@ class StunActivity : ThemedActivity() {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(colors.primary.copy(alpha = 0.035f))
-                        .border(1.dp, colors.border, RoundedCornerShape(14.dp))
+                        .yokhanOutlinedSurface(
+                            colors = colors,
+                            radius = YokhanRadius.Panel,
+                            backgroundColor = colors.primary.copy(alpha = 0.035f),
+                        )
                         .padding(horizontal = 14.dp, vertical = 13.dp),
                 ) {
                     if (server.value.isBlank()) {

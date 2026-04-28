@@ -43,6 +43,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
 import com.yokhan.vpn.app.ui.compose.YokhanStatusPill
 import com.yokhan.vpn.app.ui.compose.YokhanToggleRow
+import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
 import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 
 class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener {
@@ -187,8 +188,7 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .border(1.dp, colors.border, RoundedCornerShape(18.dp))
+                .yokhanOutlinedSurface(colors)
                 .clickable { toggleRule(rule, !rule.enabled) }
                 .padding(16.dp),
         ) {

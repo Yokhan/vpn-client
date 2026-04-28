@@ -85,11 +85,13 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
 import com.yokhan.vpn.app.ui.compose.YokhanSectionLabel
 import com.yokhan.vpn.app.ui.compose.YokhanComposeRouteFragment
+import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
 import com.yokhan.vpn.app.ui.profile.ConfigSettingActivity
 import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import com.yokhan.vpn.shared.ui.design.YokhanGreen
 import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanRadius
 import com.yokhan.vpn.shared.ui.design.YokhanRed
 import com.yokhan.vpn.shared.ui.design.YokhanTypography
 import kotlinx.coroutines.Dispatchers
@@ -546,8 +548,7 @@ class ConfigurationFragment @JvmOverloads constructor(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .border(1.dp, colors.border, RoundedCornerShape(18.dp))
+                .yokhanOutlinedSurface(colors)
                 .clickable { onProfileSelected(profile) },
         ) {
             Row {
@@ -692,8 +693,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 44.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .border(1.dp, colors.border, RoundedCornerShape(999.dp))
+                        .yokhanOutlinedSurface(colors, radius = YokhanRadius.Pill)
                         .padding(horizontal = 16.dp, vertical = 13.dp),
                     contentAlignment = Alignment.CenterStart,
                 ) {
@@ -722,12 +722,11 @@ class ConfigurationFragment @JvmOverloads constructor(
     ) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(if (selected) colors.accent.copy(alpha = 0.22f) else Color.Transparent)
-                .border(
-                    1.dp,
-                    if (selected) colors.accent.copy(alpha = 0.7f) else colors.border,
-                    RoundedCornerShape(999.dp),
+                .yokhanOutlinedSurface(
+                    colors = colors,
+                    radius = YokhanRadius.Pill,
+                    borderColor = if (selected) colors.accent.copy(alpha = 0.7f) else colors.border,
+                    backgroundColor = if (selected) colors.accent.copy(alpha = 0.22f) else Color.Transparent,
                 )
                 .clickable(onClick = onClick)
                 .padding(horizontal = 12.dp, vertical = 8.dp),

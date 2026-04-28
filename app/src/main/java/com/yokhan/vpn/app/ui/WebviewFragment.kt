@@ -31,6 +31,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
 import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteSurface
+import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
 import moe.matsuri.nb4a.utils.WebViewUtil
 
 class WebviewFragment : YokhanComposeRouteFragment() {
@@ -110,8 +111,7 @@ class WebviewFragment : YokhanComposeRouteFragment() {
                         .weight(1f)
                         .padding(horizontal = 24.dp)
                         .padding(bottom = 24.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .border(1.dp, colors.border, RoundedCornerShape(18.dp)),
+                        .yokhanOutlinedSurface(colors),
                 )
 
                 DisposableEffect(Unit) {
