@@ -1,16 +1,14 @@
 package com.yokhan.vpn.app.ui
 
-import android.os.Bundle
 import android.os.SystemClock
-import android.view.LayoutInflater
 import android.view.MenuItem
-import android.view.View
-import android.view.ViewGroup
 import androidx.appcompat.widget.PopupMenu
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.lifecycleScope
+import com.yokhan.vpn.app.ui.dashboard.DashboardComposeActions
+import com.yokhan.vpn.app.ui.dashboard.DashboardComposeScreen
+import com.yokhan.vpn.app.ui.dashboard.DashboardProfileUiItem
 import com.yokhan.vpn.shared.domain.ConnectionStatus
 import com.yokhan.vpn.shared.domain.DashboardState
 import io.nekohasekai.sagernet.GroupType
@@ -24,9 +22,6 @@ import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.fmt.toUniversalLink
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.showAllowingStateLoss
-import com.yokhan.vpn.app.ui.dashboard.DashboardComposeActions
-import com.yokhan.vpn.app.ui.dashboard.DashboardComposeScreen
-import com.yokhan.vpn.app.ui.dashboard.DashboardProfileUiItem
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,9 +30,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class DashboardFragment : ToolbarFragment() {
-
-    private var composeView: ComposeView? = null
+class DashboardController(
+    private val activity: MainActivity,
+) {
 
     private var latestProfiles: List<ProxyEntity> = emptyList()
     private var latestProfile: ProxyEntity? = null
@@ -49,86 +44,75 @@ class DashboardFragment : ToolbarFragment() {
     private var currentGroupIsSubscription = false
     private var currentState = BaseService.State.Idle
     private var connectionTestRunning = false
-    private var hasCompletedInitialResume = false
+    private var hasCompletedInitialShow = false
     private var scrollToTopSignal = 0
-
     private var timerJob: Job? = null
     private var connectionTestJob: Job? = null
     private var connectionStartTime = 0L
     private val composeModel = mutableStateOf<DashboardComposeModel?>(null)
-    private var composeContentInstalled = false
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?,
-    ): View {
-        return ComposeView(requireContext()).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-            composeView = this
+    @Composable
+    fun Content() {
+        val model = composeModel.value
+        if (model != null) {
+            DashboardComposeScreen(
+                state = model.state,
+                profiles = model.profiles,
+                scrollToTopSignal = model.scrollToTopSignal,
+                actions = DashboardComposeActions(
+                    onMenuClick = activity::openNavigationMenu,
+                    onToggleConnection = activity::toggleConnection,
+                    onRunConnectionTest = ::runConnectionTest,
+                    onAddProfile = { activity.displayFragmentWithId(R.id.nav_configuration) },
+                    onSelectProfile = ::selectProfileById,
+                    onEditProfile = ::editProfileById,
+                    onOpenProfileMenu = ::showProfileMenuById,
+                ),
+            )
         }
     }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        updateConnectionState(DataStore.serviceState)
-        updateSpeeds(0L, 0L)
-        refreshDashboard()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (hasCompletedInitialResume) {
+    fun onShown() {
+        if (hasCompletedInitialShow) {
             scrollToTopSignal += 1
-            renderComposeDashboard()
+            renderDashboard()
         } else {
-            hasCompletedInitialResume = true
+            hasCompletedInitialShow = true
         }
         refreshDashboard()
         updateConnectionState(DataStore.serviceState)
     }
 
-    override fun onDestroyView() {
+    fun dispose() {
         timerJob?.cancel()
         connectionTestJob?.cancel()
         connectionTestJob = null
         connectionTestRunning = false
-        composeContentInstalled = false
         composeModel.value = null
-        composeView = null
-        super.onDestroyView()
     }
 
     fun refreshDashboard() {
-        viewLifecycleOwner.lifecycleScope.launch {
+        activity.lifecycleScope.launch {
             val summary = withContext(Dispatchers.IO) {
                 DataStore.ensureGroupsLoaded()
                 val groupId = DataStore.currentGroupId()
                 val groupEntity = DataStore.currentGroup()
-                val group = groupEntity.displayName()
                 val profile = ProfileManager.getProfile(DataStore.selectedProxy)
-                val profiles = SagerDatabase.proxyDao.getByGroup(groupId)
                 DashboardSummary(
-                    profile,
-                    group,
-                    groupEntity.type == GroupType.SUBSCRIPTION,
-                    profiles,
+                    profile = profile,
+                    groupName = groupEntity.displayName(),
+                    isSubscriptionGroup = groupEntity.type == GroupType.SUBSCRIPTION,
+                    profiles = SagerDatabase.proxyDao.getByGroup(groupId),
                 )
             }
 
-            if (composeView == null) return@launch
             latestProfiles = summary.profiles
             latestProfile = summary.profile
             latestProfileId = summary.profile?.id ?: 0L
             latestGroupName = summary.groupName
             currentGroupIsSubscription = summary.isSubscriptionGroup
-            val dashboardState = buildDashboardState()
-
-            renderComposeDashboard(dashboardState)
-            dashboardHost()?.updateDashboardProtocol(
-                summary.profile?.displayType() ?: "--"
-            )
-
+            renderDashboard(buildDashboardState())
+            activity.updateDashboardProtocol(summary.profile?.displayType() ?: "--")
             updateConnectionState(currentState)
         }
     }
@@ -142,7 +126,7 @@ class DashboardFragment : ToolbarFragment() {
             connectionTestJob = null
         }
         val dashboardState = buildDashboardState()
-        renderComposeDashboard(dashboardState)
+        renderDashboard(dashboardState)
         if (dashboardState.connectionStatus == ConnectionStatus.Connected) {
             startTimer()
         } else {
@@ -153,16 +137,53 @@ class DashboardFragment : ToolbarFragment() {
     fun updateSpeeds(txRate: Long, rxRate: Long) {
         latestTxRate = txRate
         latestRxRate = rxRate
-        renderComposeDashboard(buildDashboardState())
+        renderDashboard(buildDashboardState())
+    }
+
+    fun runConnectionTest() {
+        if (!DataStore.serviceState.connected) {
+            activity.showDashboardMessage(R.string.not_connected)
+            return
+        }
+        if (connectionTestJob?.isActive == true) return
+
+        connectionTestRunning = true
+        renderDashboard()
+        activity.showDashboardMessage(R.string.connection_test_testing)
+        connectionTestJob = activity.lifecycleScope.launch {
+            try {
+                val elapsed = withContext(Dispatchers.IO) {
+                    activity.urlTest()
+                }
+                if (elapsed > 0) {
+                    latestLatencyMs = elapsed.toLong()
+                    activity.showDashboardMessage(
+                        activity.getString(R.string.connection_test_available, elapsed),
+                    )
+                } else {
+                    latestLatencyMs = null
+                    activity.showDashboardMessage(R.string.connection_test_fail)
+                }
+            } catch (e: Exception) {
+                latestLatencyMs = null
+                activity.showDashboardMessage(
+                    activity.getString(R.string.connection_test_error, e.readableMessage),
+                )
+            } finally {
+                connectionTestRunning = false
+                connectionTestJob = null
+                renderDashboard()
+            }
+        }
     }
 
     private fun startTimer() {
         if (timerJob?.isActive == true) return
         connectionStartTime = SystemClock.elapsedRealtime()
-        timerJob = viewLifecycleOwner.lifecycleScope.launch {
+        timerJob = activity.lifecycleScope.launch {
             while (isActive) {
                 val elapsed = SystemClock.elapsedRealtime() - connectionStartTime
-                renderComposeDashboard(buildDashboardState(elapsed))
+                renderDashboard(buildDashboardState(elapsed))
                 delay(1000)
             }
         }
@@ -179,11 +200,10 @@ class DashboardFragment : ToolbarFragment() {
         latestProfileId = profile.id
         latestProfile = profile
         latestLatencyMs = null
-        val dashboardState = buildDashboardState()
-        renderComposeDashboard(dashboardState)
-        dashboardHost()?.updateDashboardProtocol(profile.displayType())
+        renderDashboard(buildDashboardState())
+        activity.updateDashboardProtocol(profile.displayType())
 
-        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+        activity.lifecycleScope.launch(Dispatchers.IO) {
             val previous = DataStore.selectedProxy
             DataStore.selectedProxy = profile.id
             DataStore.currentProfile = profile.id
@@ -193,7 +213,7 @@ class DashboardFragment : ToolbarFragment() {
                 SagerNet.reloadService()
             }
             withContext(Dispatchers.Main) {
-                if (composeView != null) refreshDashboard()
+                refreshDashboard()
             }
         }
     }
@@ -203,21 +223,22 @@ class DashboardFragment : ToolbarFragment() {
     }
 
     private fun editProfile(profile: ProxyEntity) {
-        startActivity(profile.settingIntent(requireContext(), currentGroupIsSubscription))
+        activity.startActivity(profile.settingIntent(activity, currentGroupIsSubscription))
     }
 
     private fun editProfileById(profileId: Long) {
         latestProfiles.firstOrNull { it.id == profileId }?.let(::editProfile)
     }
 
-    private fun showProfileMenu(anchor: View, profile: ProxyEntity) {
-        val popup = PopupMenu(requireContext(), anchor)
+    private fun showProfileMenuById(profileId: Long) {
+        val profile = latestProfiles.firstOrNull { it.id == profileId } ?: return
+        val popup = PopupMenu(activity, activity.window.decorView)
         popup.menuInflater.inflate(R.menu.profile_share_menu, popup.menu)
 
         if (!profile.haveStandardLink()) {
             popup.menu.findItem(R.id.action_group_qr).subMenu?.removeItem(R.id.action_standard_qr)
             popup.menu.findItem(R.id.action_group_clipboard).subMenu?.removeItem(
-                R.id.action_standard_clipboard
+                R.id.action_standard_clipboard,
             )
         }
         if (!profile.haveLink()) {
@@ -228,18 +249,12 @@ class DashboardFragment : ToolbarFragment() {
             popup.menu.removeItem(R.id.action_group_configuration)
         } else {
             popup.menu.findItem(R.id.action_group_configuration).subMenu?.removeItem(
-                R.id.action_config_export_file
+                R.id.action_config_export_file,
             )
         }
 
         popup.setOnMenuItemClickListener { item -> handleProfileMenuItem(profile, item) }
         popup.show()
-    }
-
-    private fun showProfileMenuById(anchor: View, profileId: Long) {
-        latestProfiles.firstOrNull { it.id == profileId }?.let { profile ->
-            showProfileMenu(anchor, profile)
-        }
     }
 
     private fun handleProfileMenuItem(profile: ProxyEntity, item: MenuItem): Boolean {
@@ -249,100 +264,30 @@ class DashboardFragment : ToolbarFragment() {
                 R.id.action_standard_qr -> showProfileQr(profile.toStdLink(), name)
                 R.id.action_standard_clipboard -> exportProfile(profile.toStdLink())
                 R.id.action_universal_qr -> showProfileQr(profile.requireBean().toUniversalLink(), name)
-                R.id.action_universal_clipboard -> exportProfile(
-                    profile.requireBean().toUniversalLink()
-                )
+                R.id.action_universal_clipboard -> exportProfile(profile.requireBean().toUniversalLink())
                 R.id.action_config_export_clipboard -> exportProfile(profile.exportConfig().first)
             }
             true
         } catch (e: Exception) {
-            dashboardHost()?.showDashboardMessage(e.readableMessage)
+            activity.showDashboardMessage(e.readableMessage)
             true
         }
     }
 
     private fun showProfileQr(link: String, name: String) {
-        QRCodeDialog(link, name).showAllowingStateLoss(parentFragmentManager)
+        QRCodeDialog(link, name).showAllowingStateLoss(activity.supportFragmentManager)
     }
 
     private fun exportProfile(link: String) {
         val success = SagerNet.trySetPrimaryClip(link)
-        dashboardHost()?.showDashboardMessage(
-            if (success) R.string.action_export_msg else R.string.action_export_err
+        activity.showDashboardMessage(
+            if (success) R.string.action_export_msg else R.string.action_export_err,
         )
     }
 
-    fun runConnectionTest() {
-        if (!DataStore.serviceState.connected) {
-            dashboardHost()?.showDashboardMessage(R.string.not_connected)
-            return
-        }
-        if (connectionTestJob?.isActive == true) return
-
-        val activity = requireActivity() as MainActivity
-        connectionTestRunning = true
-        renderComposeDashboard()
-        dashboardHost()?.showDashboardMessage(R.string.connection_test_testing)
-        connectionTestJob = viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                val elapsed = withContext(Dispatchers.IO) {
-                    activity.urlTest()
-                }
-                if (elapsed > 0) {
-                    latestLatencyMs = elapsed.toLong()
-                    dashboardHost()?.showDashboardMessage(
-                        getString(R.string.connection_test_available, elapsed)
-                    )
-                } else {
-                    latestLatencyMs = null
-                    dashboardHost()?.showDashboardMessage(R.string.connection_test_fail)
-                }
-            } catch (e: Exception) {
-                latestLatencyMs = null
-                dashboardHost()?.showDashboardMessage(
-                    getString(R.string.connection_test_error, e.readableMessage)
-                )
-            } finally {
-                connectionTestRunning = false
-                connectionTestJob = null
-                renderComposeDashboard()
-            }
-        }
-    }
-
-    private fun dashboardHost(): DashboardHost? {
-        return activity as? DashboardHost
-    }
-
-    private fun renderComposeDashboard(
+    private fun renderDashboard(
         dashboardState: DashboardState = buildDashboardState(),
     ) {
-        val root = composeView ?: return
-
-        if (!composeContentInstalled) {
-            composeContentInstalled = true
-            root.setContent {
-                val model = composeModel.value ?: return@setContent
-                DashboardComposeScreen(
-                    state = model.state,
-                    profiles = model.profiles,
-                    scrollToTopSignal = model.scrollToTopSignal,
-                    actions = DashboardComposeActions(
-                        onMenuClick = { dashboardHost()?.openDashboardMenu() },
-                        onToggleConnection = { dashboardHost()?.toggleDashboardConnection() },
-                        onRunConnectionTest = ::runConnectionTest,
-                        onAddProfile = { dashboardHost()?.openDashboardConfiguration() },
-                        onSelectProfile = ::selectProfileById,
-                        onEditProfile = ::editProfileById,
-                        onOpenProfileMenu = { profileId ->
-                            composeView?.let { anchor ->
-                                showProfileMenuById(anchor, profileId)
-                            }
-                        },
-                    ),
-                )
-            }
-        }
         composeModel.value = DashboardComposeModel(
             state = dashboardState,
             profiles = latestProfiles.toDashboardComposeProfileItems(latestProfileId),

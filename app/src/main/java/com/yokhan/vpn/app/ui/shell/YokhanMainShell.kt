@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -65,6 +66,7 @@ fun YokhanMainShell(
     onRouteSelected: (Int) -> Unit,
     onDrawerOpenChanged: (Boolean) -> Unit,
     onFragmentHostReady: (FragmentContainerView) -> Unit,
+    dashboardContent: @Composable () -> Unit,
 ) {
     val spaceActive = serviceState == BaseService.State.Connecting ||
         serviceState == BaseService.State.Connected ||
@@ -74,6 +76,7 @@ fun YokhanMainShell(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val navItems = rememberShellNavItems()
+    val showingDashboard = selectedRouteId == R.id.nav_home
 
     LaunchedEffect(drawerCommand.sequence) {
         if (drawerCommand.open) drawerState.open() else drawerState.close()
@@ -185,8 +188,13 @@ fun YokhanMainShell(
                         onFragmentHostReady(this)
                     }
                 },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(if (showingDashboard) 0f else 1f),
             )
+            if (showingDashboard) {
+                dashboardContent()
+            }
         }
     }
 }

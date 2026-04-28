@@ -66,6 +66,7 @@ class MainActivity : ThemedActivity(),
     private var navigationMenuOpen = false
     private var fragmentHostReady = false
     private var pendingInitialFragment = true
+    private val dashboardController by lazy { DashboardController(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,6 +82,7 @@ class MainActivity : ThemedActivity(),
                     fragmentHostView = host
                     onFragmentHostReady(host, savedInstanceState)
                 },
+                dashboardContent = { dashboardController.Content() },
             )
         }
         onBackPressedDispatcher.addCallback {
@@ -92,7 +94,7 @@ class MainActivity : ThemedActivity(),
                 supportFragmentManager.popBackStack()
                 return@addCallback
             }
-            if (supportFragmentManager.findFragmentById(R.id.fragment_holder) is DashboardFragment) {
+            if (selectedRouteId.value == R.id.nav_home) {
                 moveTaskToBack(true)
             } else {
                 displayFragmentWithId(R.id.nav_home)
@@ -343,7 +345,14 @@ class MainActivity : ThemedActivity(),
     fun displayFragmentWithId(@IdRes id: Int): Boolean {
         when (id) {
             R.id.nav_home -> {
-                displayFragment(DashboardFragment())
+                if (supportFragmentManager.backStackEntryCount > 0) {
+                    supportFragmentManager.popBackStackImmediate(
+                        null,
+                        FragmentManager.POP_BACK_STACK_INCLUSIVE,
+                    )
+                }
+                dashboardController.onShown()
+                closeNavigationMenu()
             }
 
             R.id.nav_configuration -> {
@@ -380,8 +389,7 @@ class MainActivity : ThemedActivity(),
         DataStore.serviceState = state
         shellServiceState.value = state
 
-        (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
-            ?.updateConnectionState(state)
+        dashboardController.updateConnectionState(state)
         (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? YokhanServiceStateConsumer)
             ?.onShellServiceStateChanged(state)
         if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
@@ -418,8 +426,7 @@ class MainActivity : ThemedActivity(),
     // may NOT called when app is in background
     // ONLY do UI update here, write DB in bg process
     override fun cbSpeedUpdate(stats: SpeedDisplayData) {
-        (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
-            ?.updateSpeeds(stats.txRateProxy, stats.rxRateProxy)
+        dashboardController.updateSpeeds(stats.txRateProxy, stats.rxRateProxy)
     }
 
     override fun cbTrafficUpdate(data: TrafficData) {
@@ -436,8 +443,7 @@ class MainActivity : ThemedActivity(),
             ProfileManager.postUpdate(old, true)
             ProfileManager.postUpdate(id, true)
         }
-        (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
-            ?.refreshDashboard()
+        dashboardController.refreshDashboard()
     }
 
     override fun onPreferenceDataStoreChanged(store: PreferenceDataStore, key: String) {
@@ -453,9 +459,15 @@ class MainActivity : ThemedActivity(),
         }
         when (key) {
             Key.SERVICE_MODE, Key.PROFILE_ID, Key.PROFILE_GROUP -> {
-                (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment)
-                    ?.refreshDashboard()
+                dashboardController.refreshDashboard()
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (selectedRouteId.value == R.id.nav_home) {
+            dashboardController.onShown()
         }
     }
 
@@ -471,6 +483,7 @@ class MainActivity : ThemedActivity(),
 
     override fun onDestroy() {
         super.onDestroy()
+        dashboardController.dispose()
         GroupManager.userInterface = null
         DataStore.configurationStore.unregisterChangeListener(this)
         connection.disconnect(this)
@@ -527,15 +540,11 @@ class MainActivity : ThemedActivity(),
     }
 
     fun runConnectionTest() {
-        currentDashboardFragment()?.runConnectionTest() ?: snackbar(R.string.not_connected).show()
+        dashboardController.runConnectionTest()
     }
 
     override fun runDashboardConnectionTest() {
-        currentDashboardFragment()?.runConnectionTest() ?: runConnectionTest()
-    }
-
-    private fun currentDashboardFragment(): DashboardFragment? {
-        return supportFragmentManager.findFragmentById(R.id.fragment_holder) as? DashboardFragment
+        dashboardController.runConnectionTest()
     }
 
     override fun openDashboardConfiguration() {

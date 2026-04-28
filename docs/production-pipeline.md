@@ -15,7 +15,7 @@ This is the execution pipeline for turning the current transition codebase into 
 
 ## Current Cursor
 
-`P07-dashboard-owner`: move dashboard ownership from the legacy fragment bridge into the Compose shell.
+`P08-navigation-ownership`: replace legacy menu/fragment routing with typed route ownership.
 
 ## Pipeline
 
@@ -77,6 +77,7 @@ This is the execution pipeline for turning the current transition codebase into 
 - Delete `DashboardFragment` and the temporary dashboard fragment bridge.
 - Preserve connect/disconnect, selector, edit, profile menu, connection test, timer, speed, stars, rocket, flames, and scroll-to-top.
 - Acceptance: dashboard is shell-owned Compose and device smoke test passes.
+- Completed: dashboard state/actions are owned by `DashboardController`, `YokhanMainShell` renders dashboard directly for home, and `DashboardFragment` is removed.
 
 ### P08. Navigation Ownership
 
@@ -159,4 +160,5 @@ This is the execution pipeline for turning the current transition codebase into 
 - [x] P04-profile-form-scaling: migrate remaining profile forms.
 - [x] P05-route-form: migrate route/group edit forms after profile form pattern is proven.
 - [x] P06-app-settings-forms: migrate app/global settings screens to Compose.
-- [ ] P07-dashboard-owner: remove `DashboardFragment` ownership after forms are not blocking navigation.
+- [x] P07-dashboard-owner: remove `DashboardFragment` ownership after forms are not blocking navigation.
+- [ ] P08-navigation-ownership: replace legacy fragment route IDs with typed shell routes.
