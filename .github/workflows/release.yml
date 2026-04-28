@@ -93,6 +93,16 @@ jobs:
       - name: Native Build
         if: steps.cache.outputs.cache-hit != 'true'
         run: ./run lib core
+      - name: Verify LibCore artifact
+        shell: bash
+        run: test -s app/libs/libcore.aar
+      - name: Upload LibCore artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libcore-aar-${{ github.run_id }}
+          path: app/libs/libcore.aar
+          if-no-files-found: error
+          retention-days: 1
   build:
     name: Build OSS APK
     runs-on: ubuntu-latest
@@ -117,16 +127,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Golang Status
-        run: find buildScript libcore/*.sh | xargs cat | sha1sum > golang_status
-      - name: Libcore Status
-        run: git ls-files libcore | xargs cat | sha1sum > libcore_status
-      - name: LibCore Cache
-        uses: actions/cache@v4
+      - name: Download LibCore artifact
+        uses: actions/download-artifact@v4
         with:
-          path: |
-            app/libs/libcore.aar
-          key: ${{ hashFiles('.github/workflows/*', 'golang_status', 'libcore_status') }}
+          name: libcore-aar-${{ github.run_id }}
+          path: app/libs
+      - name: Verify LibCore artifact
+        shell: bash
+        run: test -s app/libs/libcore.aar
       - name: Gradle cache
         uses: actions/cache@v4
         with:
@@ -214,16 +222,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Golang Status
-        run: find buildScript libcore/*.sh | xargs cat | sha1sum > golang_status
-      - name: Libcore Status
-        run: git ls-files libcore | xargs cat | sha1sum > libcore_status
-      - name: LibCore Cache
-        uses: actions/cache@v4
+      - name: Download LibCore artifact
+        uses: actions/download-artifact@v4
         with:
-          path: |
-            app/libs/libcore.aar
-          key: ${{ hashFiles('.github/workflows/*', 'golang_status', 'libcore_status') }}
+          name: libcore-aar-${{ github.run_id }}
+          path: app/libs
+      - name: Verify LibCore artifact
+        shell: bash
+        run: test -s app/libs/libcore.aar
       - name: Gradle cache
         uses: actions/cache@v4
         with:
