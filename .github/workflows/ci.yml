@@ -97,7 +97,10 @@ jobs:
         run: |
           mkdir -p dist/apk
           find app/build/outputs/apk -type f \( -name "*.apk" -o -name "*.dm" -o -name "output-metadata.json" \) -exec cp --parents {} dist/apk \;
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK artifact
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
         with:
           name: apk-${{ github.run_number }}
           path: dist/apk
