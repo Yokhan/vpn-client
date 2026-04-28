@@ -15,7 +15,7 @@ This is the execution pipeline for turning the current transition codebase into 
 
 ## Current Cursor
 
-`P05-route-form`: migrate group and route edit flows to Compose.
+`P06-app-settings-forms`: migrate app settings and advanced settings out of PreferenceFragmentCompat.
 
 ## Pipeline
 
@@ -60,6 +60,7 @@ This is the execution pipeline for turning the current transition codebase into 
 - Migrate route edit forms to Compose.
 - Preserve import/export, delete confirmation, unsaved changes guard, and service reload rules.
 - Acceptance: group/route settings no longer depend on preference XML.
+- Completed: group and route edit screens now render with the shared Compose form kit; route keeps app/profile/config editor actions without preference XML.
 
 ### P06. App Settings Forms
 
@@ -155,5 +156,6 @@ This is the execution pipeline for turning the current transition codebase into 
 - [x] P02-form-kit-skeleton: add Compose form models and primitives.
 - [x] P03-first-form: migrate the first profile form.
 - [x] P04-profile-form-scaling: migrate remaining profile forms.
-- [ ] P05-route-form: migrate route/group edit forms after profile form pattern is proven.
+- [x] P05-route-form: migrate route/group edit forms after profile form pattern is proven.
+- [ ] P06-app-settings-forms: migrate app/global settings screens to Compose.
 - [ ] P07-dashboard-owner: remove `DashboardFragment` ownership after forms are not blocking navigation.

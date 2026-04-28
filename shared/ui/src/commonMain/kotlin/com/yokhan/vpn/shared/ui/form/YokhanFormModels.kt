@@ -122,6 +122,19 @@ sealed interface YokhanFormField {
         override val required: Boolean = false,
         override val validation: YokhanFormValidation = YokhanFormValidation(),
     ) : YokhanFormField
+
+    @Immutable
+    data class Action(
+        override val id: String,
+        override val label: String,
+        val value: String? = null,
+        val actionLabel: String = "OPEN",
+        override val helper: String? = null,
+        override val enabled: Boolean = true,
+        override val visible: Boolean = true,
+        override val required: Boolean = false,
+        override val validation: YokhanFormValidation = YokhanFormValidation(),
+    ) : YokhanFormField
 }
 
 @Immutable
@@ -163,6 +176,7 @@ sealed interface YokhanFormEvent {
     data class TextChanged(val id: String, val value: String) : YokhanFormEvent
     data class SwitchChanged(val id: String, val value: Boolean) : YokhanFormEvent
     data class OptionSelected(val id: String, val optionId: String) : YokhanFormEvent
+    data class ActionInvoked(val id: String) : YokhanFormEvent
     object Save : YokhanFormEvent
     object Cancel : YokhanFormEvent
     object Reset : YokhanFormEvent
@@ -196,11 +210,20 @@ fun YokhanFormState.withFieldEvent(event: YokhanFormEvent): YokhanFormState {
             }
         }
 
+        is YokhanFormEvent.ActionInvoked,
         YokhanFormEvent.Save,
         YokhanFormEvent.Cancel,
         YokhanFormEvent.Reset,
         -> this
     }
+}
+
+fun YokhanFormState.hasBlockingValidationErrors(): Boolean {
+    return sections.asSequence()
+        .flatMap { it.fields.asSequence() }
+        .any { field ->
+            field.visible && field.validation.state == YokhanFormValidationState.Error
+        }
 }
 
 private fun YokhanFormState.updateField(

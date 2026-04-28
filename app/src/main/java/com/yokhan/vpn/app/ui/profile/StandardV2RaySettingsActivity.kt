@@ -385,6 +385,7 @@ abstract class StandardV2RaySettingsActivity : ComposeProfileSettingsActivity<St
             is YokhanFormField.Switch -> field.copy(visible = visible)
             is YokhanFormField.Select -> field.copy(visible = visible)
             is YokhanFormField.Info -> field.copy(visible = visible)
+            is YokhanFormField.Action -> field.copy(visible = visible)
         }
     }
 

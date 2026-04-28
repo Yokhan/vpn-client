@@ -208,6 +208,14 @@ fun YokhanFormSectionCard(
                     colors = colors,
                     typography = typography,
                 )
+
+                is YokhanFormField.Action -> YokhanFormActionRow(
+                    field = field,
+                    readOnly = readOnly,
+                    colors = colors,
+                    typography = typography,
+                    onEvent = onEvent,
+                )
             }
         }
     }
@@ -257,7 +265,7 @@ private fun YokhanFormLoadingCard(
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "ЗАГРУЗКА...",
+            text = "LOADING...",
             color = colors.secondary,
             fontFamily = typography.mono,
             fontSize = 12.sp,
@@ -471,6 +479,61 @@ private fun YokhanFormInfoRow(
 }
 
 @Composable
+private fun YokhanFormActionRow(
+    field: YokhanFormField.Action,
+    readOnly: Boolean,
+    colors: YokhanPalette,
+    typography: YokhanTypography,
+    onEvent: (YokhanFormEvent) -> Unit,
+) {
+    val canOpen = field.enabled && !readOnly
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (field.enabled) 1f else 0.48f)
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.primary.copy(alpha = 0.028f))
+            .border(1.dp, colors.border, RoundedCornerShape(14.dp))
+            .clickable(enabled = canOpen) {
+                onEvent(YokhanFormEvent.ActionInvoked(field.id))
+            }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            YokhanFormFieldLabel(field.label, field.required, colors, typography)
+            field.value?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = it,
+                    color = colors.secondary,
+                    fontFamily = typography.mono,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            field.helper?.let { YokhanFormCaption(it, colors, typography) }
+            YokhanFormValidationText(field.validation, colors, typography)
+        }
+        Text(
+            text = field.actionLabel,
+            color = if (canOpen) colors.accent else colors.tertiary,
+            fontFamily = typography.mono,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.5.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 12.dp),
+        )
+    }
+}
+
+@Composable
 private fun YokhanFormActionBar(
     state: YokhanFormState,
     colors: YokhanPalette,
@@ -478,7 +541,7 @@ private fun YokhanFormActionBar(
     onEvent: (YokhanFormEvent) -> Unit,
 ) {
     val busy = state.loading || state.saving
-    val primaryEnabled = state.dirty && !busy && !state.readOnly
+    val primaryEnabled = state.dirty && !busy && !state.readOnly && !state.hasBlockingValidationErrors()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -495,7 +558,7 @@ private fun YokhanFormActionBar(
             modifier = Modifier.weight(1f),
         )
         YokhanFormActionButton(
-            text = if (state.saving) "СОХРАНЕНИЕ..." else state.primaryAction.label(),
+            text = if (state.saving) "SAVING..." else state.primaryAction.label(),
             primary = true,
             enabled = primaryEnabled,
             colors = colors,
@@ -707,10 +770,10 @@ private fun YokhanFormCaption(
 
 private fun YokhanFormAction.label(): String {
     return when (this) {
-        YokhanFormAction.Save -> "СОХРАНИТЬ"
-        YokhanFormAction.Apply -> "ПРИМЕНИТЬ"
-        YokhanFormAction.Cancel -> "ОТМЕНА"
-        YokhanFormAction.Reset -> "СБРОСИТЬ"
+        YokhanFormAction.Save -> "SAVE"
+        YokhanFormAction.Apply -> "APPLY"
+        YokhanFormAction.Cancel -> "CANCEL"
+        YokhanFormAction.Reset -> "RESET"
     }
 }
 
