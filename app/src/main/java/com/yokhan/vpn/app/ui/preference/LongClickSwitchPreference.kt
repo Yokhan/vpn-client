@@ -1,15 +1,21 @@
-package moe.matsuri.nb4a.ui
+package com.yokhan.vpn.app.ui.preference
 
 import android.content.Context
 import android.util.AttributeSet
 import android.view.View
+import androidx.core.content.res.TypedArrayUtils
 import androidx.preference.PreferenceViewHolder
-import io.nekohasekai.sagernet.R
+import androidx.preference.R
+import androidx.preference.SwitchPreference
 
-class LongClickMenuPreference
+class LongClickSwitchPreference
 @JvmOverloads constructor(
-    context: Context, attrs: AttributeSet? = null, defStyle: Int = R.attr.dropdownPreferenceStyle
-) : SimpleMenuPreference(context, attrs, defStyle, 0) {
+    context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = TypedArrayUtils.getAttr(
+        context, R.attr.switchPreferenceStyle, android.R.attr.switchPreferenceStyle
+    ), defStyleRes: Int = 0
+) : SwitchPreference(
+    context, attrs, defStyleAttr, defStyleRes
+) {
     private var mLongClickListener: View.OnLongClickListener? = null
 
     override fun onBindViewHolder(holder: PreferenceViewHolder) {

@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.AttributeSet
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
-import moe.matsuri.nb4a.ui.SimpleMenuPreference
+import com.yokhan.vpn.app.ui.preference.SimpleMenuPreference
 
 class OutboundPreference
 @JvmOverloads constructor(

@@ -14,7 +14,7 @@ import io.nekohasekai.sagernet.fmt.v2ray.VMessBean
 import moe.matsuri.nb4a.proxy.PreferenceBinding
 import moe.matsuri.nb4a.proxy.PreferenceBindingManager
 import moe.matsuri.nb4a.proxy.Type
-import moe.matsuri.nb4a.ui.SimpleMenuPreference
+import com.yokhan.vpn.app.ui.preference.SimpleMenuPreference
 
 abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV2RayBean>() {
 

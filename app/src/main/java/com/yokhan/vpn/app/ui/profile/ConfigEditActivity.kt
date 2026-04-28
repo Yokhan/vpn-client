@@ -36,7 +36,7 @@ import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.toStringPretty
 import com.yokhan.vpn.app.ui.ThemedActivity
 import io.nekohasekai.sagernet.widget.ListListener
-import moe.matsuri.nb4a.ui.ExtendedKeyboard
+import com.yokhan.vpn.app.ui.preference.ExtendedKeyboard
 import org.json.JSONObject
 
 class ConfigEditActivity : ThemedActivity() {

@@ -173,10 +173,17 @@ fun YokhanDashboardScreen(
     actions: DashboardUiActions,
     modifier: Modifier = Modifier,
     tuning: DashboardUiTuning = DashboardUiTuning(),
+    scrollToTopSignal: Int = 0,
 ) {
     val connected = state.connectionStatus == ConnectionStatus.Connected
+    val scrollState = rememberScrollState()
     var visualSpaceActive by remember { mutableStateOf(state.shouldAnimateSpace) }
     var starfieldMounted by remember { mutableStateOf(state.shouldAnimateSpace) }
+    LaunchedEffect(scrollToTopSignal) {
+        if (scrollToTopSignal > 0 && scrollState.value > 0) {
+            scrollState.animateScrollTo(0, tween(520, easing = CssEaseOut))
+        }
+    }
     LaunchedEffect(state.connectionStatus, state.shouldAnimateSpace) {
         if (state.shouldAnimateSpace || state.connectionStatus == ConnectionStatus.Disconnecting) {
             visualSpaceActive = true
@@ -252,7 +259,7 @@ fun YokhanDashboardScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(start = 12.dp, end = 12.dp, bottom = tuning.contentBottomPadding.dp),
         ) {
             DashboardToolbar(colors, labels, typography, actions)
@@ -1036,12 +1043,13 @@ private fun DashboardRocket(
     val yOffset = remember { Animatable(if (initiallyVisible) 0f else 1.15f) }
     val alpha = remember { Animatable(if (initiallyVisible) 1f else 0f) }
     val flameDrawHeight = (tuning.flameHeight * 1.25f).toInt() + 12
+    val rocketHorizontalBleed = 12
+    val rocketLeft = rocketHorizontalBleed
+    val rocketCenterX = rocketLeft + tuning.rocketWidth / 2
+    val leftFlameLeft = rocketCenterX + tuning.leftFlameX - tuning.flameWidth / 2
+    val rightFlameLeft = rocketCenterX + tuning.rightFlameX - tuning.flameWidth / 2
     val sceneHeight = maxOf(tuning.rocketHeight, tuning.flameY + flameDrawHeight)
-    val sceneWidth = maxOf(
-        tuning.rocketWidth,
-        (kotlin.math.abs(tuning.leftFlameX) + tuning.flameWidth) * 2,
-        (kotlin.math.abs(tuning.rightFlameX) + tuning.flameWidth) * 2,
-    ) + 24
+    val sceneWidth = tuning.rocketWidth + rocketHorizontalBleed * 2
 
     LaunchedEffect(connectionStatus) {
         val shouldDock = connectionStatus == ConnectionStatus.Connecting ||
@@ -1071,7 +1079,7 @@ private fun DashboardRocket(
     if (!visible) return
 
     Box(
-        contentAlignment = Alignment.TopCenter,
+        contentAlignment = Alignment.TopStart,
         modifier = Modifier
             .size(width = sceneWidth.dp, height = sceneHeight.dp)
             .offset(y = (tuning.rocketHeight * yOffset.value).dp)
@@ -1084,7 +1092,9 @@ private fun DashboardRocket(
             painter = painterResource(Res.drawable.ic_dashboard_spaceship),
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            modifier = Modifier.size(width = tuning.rocketWidth.dp, height = tuning.rocketHeight.dp),
+            modifier = Modifier
+                .offset(x = rocketLeft.dp)
+                .size(width = tuning.rocketWidth.dp, height = tuning.rocketHeight.dp),
         )
         Image(
             painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
@@ -1092,7 +1102,7 @@ private fun DashboardRocket(
             contentScale = ContentScale.Fit,
             modifier = Modifier
                 .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
-                .offset(x = tuning.leftFlameX.dp, y = tuning.flameY.dp)
+                .offset(x = leftFlameLeft.dp, y = tuning.flameY.dp)
                 .graphicsLayer {
                     scaleY = flameScale
                     scaleX = 1f + (flameScale - 1f) * 0.4f
@@ -1106,7 +1116,7 @@ private fun DashboardRocket(
             contentScale = ContentScale.Fit,
             modifier = Modifier
                 .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
-                .offset(x = tuning.rightFlameX.dp, y = tuning.flameY.dp)
+                .offset(x = rightFlameLeft.dp, y = tuning.flameY.dp)
                 .graphicsLayer {
                     scaleY = flameScale
                     scaleX = 1f + (flameScale - 1f) * 0.4f

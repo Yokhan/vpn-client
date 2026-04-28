@@ -1,4 +1,4 @@
-package moe.matsuri.nb4a.ui
+package com.yokhan.vpn.app.ui.preference
 
 import android.content.Context
 import androidx.core.app.NotificationCompat

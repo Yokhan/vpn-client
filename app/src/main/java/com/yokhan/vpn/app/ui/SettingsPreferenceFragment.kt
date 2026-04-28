@@ -17,7 +17,7 @@ import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.preference.EditTextPreferenceModifiers
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.utils.Theme
-import moe.matsuri.nb4a.ui.*
+import com.yokhan.vpn.app.ui.preference.*
 
 class SettingsPreferenceFragment : PreferenceFragmentCompat() {
 

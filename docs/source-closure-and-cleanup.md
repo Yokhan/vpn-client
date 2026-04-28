@@ -41,7 +41,7 @@ References:
 
 3. Package and namespace cleanup
 
-- Product-owned UI entrypoints and helpers already use `com.yokhan.vpn.app.*`.
+- Product-owned UI entrypoints, preference widgets, and helpers already use `com.yokhan.vpn.app.*`.
 - Plan the remaining non-UI namespace migration away from `io.nekohasekai.sagernet`.
 - Avoid breaking persisted app data until migration code exists.
 - Rename only leaf packages first; database/entity namespaces last.

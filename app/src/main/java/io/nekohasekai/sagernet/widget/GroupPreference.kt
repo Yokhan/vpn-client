@@ -10,7 +10,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import moe.matsuri.nb4a.ui.SimpleMenuPreference
+import com.yokhan.vpn.app.ui.preference.SimpleMenuPreference
 
 class GroupPreference
 @JvmOverloads constructor(

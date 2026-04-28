@@ -49,6 +49,8 @@ class DashboardFragment : ToolbarFragment() {
     private var currentGroupIsSubscription = false
     private var currentState = BaseService.State.Idle
     private var connectionTestRunning = false
+    private var hasCompletedInitialResume = false
+    private var scrollToTopSignal = 0
 
     private var timerJob: Job? = null
     private var connectionTestJob: Job? = null
@@ -76,6 +78,12 @@ class DashboardFragment : ToolbarFragment() {
 
     override fun onResume() {
         super.onResume()
+        if (hasCompletedInitialResume) {
+            scrollToTopSignal += 1
+            renderComposeDashboard()
+        } else {
+            hasCompletedInitialResume = true
+        }
         refreshDashboard()
         updateConnectionState(DataStore.serviceState)
     }
@@ -318,6 +326,7 @@ class DashboardFragment : ToolbarFragment() {
                 DashboardComposeScreen(
                     state = model.state,
                     profiles = model.profiles,
+                    scrollToTopSignal = model.scrollToTopSignal,
                     actions = DashboardComposeActions(
                         onMenuClick = { dashboardHost()?.openDashboardMenu() },
                         onToggleConnection = { dashboardHost()?.toggleDashboardConnection() },
@@ -337,6 +346,7 @@ class DashboardFragment : ToolbarFragment() {
         composeModel.value = DashboardComposeModel(
             state = dashboardState,
             profiles = latestProfiles.toDashboardComposeProfileItems(latestProfileId),
+            scrollToTopSignal = scrollToTopSignal,
         )
     }
 
@@ -372,6 +382,7 @@ class DashboardFragment : ToolbarFragment() {
     private data class DashboardComposeModel(
         val state: DashboardState,
         val profiles: List<DashboardProfileUiItem>,
+        val scrollToTopSignal: Int,
     )
 
     private fun List<ProxyEntity>.toDashboardComposeProfileItems(

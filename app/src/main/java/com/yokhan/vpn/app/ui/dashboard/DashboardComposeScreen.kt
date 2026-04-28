@@ -23,6 +23,7 @@ fun DashboardComposeScreen(
     profiles: List<DashboardProfileUiItem>,
     actions: DashboardComposeActions,
     modifier: Modifier = Modifier,
+    scrollToTopSignal: Int = 0,
 ) {
     YokhanDashboardScreen(
         state = state,
@@ -30,6 +31,7 @@ fun DashboardComposeScreen(
         labels = dashboardLabels(),
         actions = actions,
         modifier = modifier,
+        scrollToTopSignal = scrollToTopSignal,
     )
 }
 
