@@ -43,7 +43,10 @@ import com.yokhan.vpn.shared.ui.design.YokhanAccent
 import com.yokhan.vpn.shared.ui.design.YokhanGreen
 import com.yokhan.vpn.shared.ui.design.YokhanMotion
 import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanRadius
 import com.yokhan.vpn.shared.ui.design.YokhanRed
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
+import com.yokhan.vpn.shared.ui.design.YokhanStroke
 import com.yokhan.vpn.shared.ui.design.YokhanTypography
 import com.yokhan.vpn.shared.ui.design.yokhanPalette
 import com.yokhan.vpn.shared.ui.design.yokhanTypography
@@ -61,8 +64,11 @@ fun YokhanFormScreen(
             .fillMaxSize()
             .background(colors.background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(
+                horizontal = YokhanSpacing.CardPadding,
+                vertical = YokhanSpacing.Icon,
+            ),
+        verticalArrangement = Arrangement.spacedBy(YokhanSpacing.ControlHorizontal),
     ) {
         YokhanFormHeader(state, colors, typography)
         if (state.loading) {
@@ -84,7 +90,7 @@ fun YokhanFormScreen(
             typography = typography,
             onEvent = onEvent,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(YokhanSpacing.ScreenHorizontal))
     }
 }
 
@@ -100,9 +106,9 @@ fun YokhanFormSectionCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .border(YokhanStroke.Thin, colors.border, RoundedCornerShape(YokhanRadius.Card))
+            .padding(YokhanSpacing.ControlHorizontal),
+        verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CardTitleGap),
     ) {
         YokhanFormSectionLabel(section.title, colors, typography)
         section.description?.let {
@@ -117,7 +123,7 @@ fun YokhanFormSectionCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(1.dp)
+                        .height(YokhanStroke.Thin)
                         .background(colors.divider),
                 )
             }
@@ -261,7 +267,7 @@ private fun YokhanFormLoadingCard(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 112.dp)
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp)),
+            .border(YokhanStroke.Thin, colors.border, RoundedCornerShape(YokhanRadius.Card)),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -323,7 +329,10 @@ private fun YokhanFormTextFieldRow(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = if (mode == YokhanFormTextMode.Multiline) 86.dp else 42.dp)
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .padding(
+                                horizontal = YokhanSpacing.ControlHorizontal,
+                                vertical = YokhanSpacing.ControlVertical,
+                            ),
                         contentAlignment = Alignment.CenterStart,
                     ) {
                         if (value.isBlank() && placeholder != null) {
@@ -402,17 +411,20 @@ private fun YokhanFormSelectRow(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(YokhanRadius.Panel))
                         .background(if (selected) colors.accent.copy(alpha = 0.14f) else Color.Transparent)
                         .border(
-                            1.dp,
+                            YokhanStroke.Thin,
                             if (selected) colors.accent.copy(alpha = 0.72f) else colors.border,
-                            RoundedCornerShape(14.dp),
+                            RoundedCornerShape(YokhanRadius.Panel),
                         )
                         .clickable(enabled = canChange) {
                             onEvent(YokhanFormEvent.OptionSelected(field.id, option.id))
                         }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(
+                            horizontal = YokhanSpacing.InlineGap,
+                            vertical = YokhanSpacing.ScreenTop,
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
@@ -491,13 +503,16 @@ private fun YokhanFormActionRow(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (field.enabled) 1f else 0.48f)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(YokhanRadius.Panel))
             .background(colors.primary.copy(alpha = 0.028f))
-            .border(1.dp, colors.border, RoundedCornerShape(14.dp))
+            .border(YokhanStroke.Thin, colors.border, RoundedCornerShape(YokhanRadius.Panel))
             .clickable(enabled = canOpen) {
                 onEvent(YokhanFormEvent.ActionInvoked(field.id))
             }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(
+                horizontal = YokhanSpacing.ControlHorizontal,
+                vertical = YokhanSpacing.ControlVertical,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
@@ -584,9 +599,9 @@ private fun YokhanFormActionButton(
     Box(
         modifier = modifier
             .height(46.dp)
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(YokhanRadius.Pill))
             .background(background)
-            .border(1.dp, borderColor, RoundedCornerShape(999.dp))
+            .border(YokhanStroke.Thin, borderColor, RoundedCornerShape(YokhanRadius.Pill))
             .alpha(if (enabled) 1f else 0.44f)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -613,9 +628,9 @@ private fun YokhanFieldFrame(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(YokhanRadius.Panel))
             .background(colors.primary.copy(alpha = if (enabled) 0.028f else 0.015f))
-            .border(1.dp, colors.border, RoundedCornerShape(14.dp)),
+            .border(YokhanStroke.Thin, colors.border, RoundedCornerShape(YokhanRadius.Panel)),
     ) {
         content()
     }
@@ -636,12 +651,12 @@ private fun YokhanFormToggle(
         modifier = Modifier
             .width(46.dp)
             .height(26.dp)
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(YokhanRadius.Pill))
             .background(if (checked) colors.accent.copy(alpha = 0.18f) else colors.primary.copy(alpha = 0.035f))
             .border(
-                1.dp,
+                YokhanStroke.Thin,
                 if (checked) colors.accent.copy(alpha = 0.65f) else colors.border,
-                RoundedCornerShape(999.dp),
+                RoundedCornerShape(YokhanRadius.Pill),
             )
             .alpha(if (enabled) 1f else 0.58f),
     ) {
@@ -666,7 +681,7 @@ private fun YokhanFormSectionLabel(
             modifier = Modifier
                 .offset(y = (-0.5f).dp)
                 .size(6.dp)
-                .clip(RoundedCornerShape(1.dp))
+                .clip(RoundedCornerShape(YokhanRadius.Tiny))
                 .background(colors.tertiary),
         )
         Text(

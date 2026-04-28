@@ -95,6 +95,7 @@ This is the execution pipeline for turning the current transition codebase into 
 
 - Move repeated colors, spacing, radius, typography, dividers, and card styles into shared tokens/components.
 - Progress: shared spacing/radius/stroke tokens added and the Android route kit now consumes them instead of local magic dimensions.
+- Progress: shared Compose form containers, fields, select rows, action rows, toggles, and buttons now consume the same visual tokens.
 - Normalize transparent cards, bottom safe-area spacing, status rows, and action buttons.
 - Keep dashboard tuning separate from global tokens.
 - Acceptance: new screens compose from shared components with minimal local styling.
