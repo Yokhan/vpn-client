@@ -189,7 +189,7 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                     secondLabel = stringResource(R.string.configuration_hub_group_count_label),
                     colors = colors,
                     typography = typography,
-                    modifier = Modifier.padding(top = 14.dp),
+                    modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
                 )
                 YokhanButtonGrid(
                     actions = listOf(
@@ -214,7 +214,7 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                     ),
                     colors = colors,
                     typography = typography,
-                    modifier = Modifier.padding(top = 14.dp),
+                    modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
                 )
             }
 

@@ -104,9 +104,9 @@ data class DashboardUiActions(
 
 @Immutable
 data class DashboardUiTuning(
-    val contentBottomPadding: Int = 120,
+    val contentBottomPadding: Int = 132,
     val testButtonTopPadding: Int = 12,
-    val statsBarBottomPadding: Int = 22,
+    val statsBarBottomPadding: Int = 28,
     val rocketWidth: Int = 132,
     val rocketHeight: Int = 228,
     val flameWidth: Int = 22,
@@ -480,6 +480,9 @@ private fun OrbScene(
     tuning: DashboardUiTuning,
 ) {
     val infinite = rememberInfiniteTransition(label = "dashboard-orb")
+    val rocketRunning = connectionStatus == ConnectionStatus.Connecting ||
+        connectionStatus == ConnectionStatus.Connected ||
+        connectionStatus == ConnectionStatus.Disconnecting
     val ringScale by infinite.animateFloat(
         initialValue = 1f,
         targetValue = if (connected) 1.04f else 1f,
@@ -491,7 +494,7 @@ private fun OrbScene(
     )
     val flameScale by infinite.animateFloat(
         initialValue = 1f,
-        targetValue = if (connected) 1.15f else 1f,
+        targetValue = if (rocketRunning) 1.15f else 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(420, easing = CssEaseInOut),
             repeatMode = RepeatMode.Reverse,
@@ -1044,19 +1047,23 @@ private fun DashboardRocket(
     val alpha = remember { Animatable(if (initiallyVisible) 1f else 0f) }
     val flameDrawHeight = (tuning.flameHeight * 1.25f).toInt() + 12
     val rocketHorizontalBleed = 12
+    val rocketVerticalBleed = 28
     val rocketLeft = rocketHorizontalBleed
+    val rocketTop = rocketVerticalBleed
     val rocketCenterX = rocketLeft + tuning.rocketWidth / 2
     val leftFlameLeft = rocketCenterX + tuning.leftFlameX - tuning.flameWidth / 2
     val rightFlameLeft = rocketCenterX + tuning.rightFlameX - tuning.flameWidth / 2
-    val sceneHeight = maxOf(tuning.rocketHeight, tuning.flameY + flameDrawHeight)
+    val sceneHeight = maxOf(tuning.rocketHeight, tuning.flameY + flameDrawHeight) + rocketVerticalBleed * 2
     val sceneWidth = tuning.rocketWidth + rocketHorizontalBleed * 2
+    val rocketPainter = painterResource(Res.drawable.ic_dashboard_spaceship)
+    val flamePainter = painterResource(Res.drawable.ic_dashboard_spaceship_flame)
 
     LaunchedEffect(connectionStatus) {
         val shouldDock = connectionStatus == ConnectionStatus.Connecting ||
             connectionStatus == ConnectionStatus.Connected
         if (shouldDock) {
             visible = true
-            if (yOffset.value < -1f || alpha.value == 0f) {
+            if (yOffset.value < -1f || alpha.value < 0.05f) {
                 yOffset.snapTo(1.15f)
             }
             coroutineScope {
@@ -1065,14 +1072,15 @@ private fun DashboardRocket(
             }
         } else if (visible) {
             coroutineScope {
-                launch { yOffset.animateTo(-1.35f, tween(1350, easing = RocketDisconnectEasing)) }
+                launch { yOffset.animateTo(-1.55f, tween(1350, easing = RocketDisconnectEasing)) }
                 launch {
-                    delay(1020)
-                    alpha.animateTo(0f, tween(300, easing = CssEaseIn))
+                    delay(1260)
+                    alpha.animateTo(0f, tween(180, easing = CssEaseIn))
                 }
             }
             visible = false
             yOffset.snapTo(1.15f)
+            alpha.snapTo(0f)
         }
     }
 
@@ -1082,27 +1090,27 @@ private fun DashboardRocket(
         contentAlignment = Alignment.TopStart,
         modifier = Modifier
             .size(width = sceneWidth.dp, height = sceneHeight.dp)
-            .offset(y = (tuning.rocketHeight * yOffset.value).dp)
+            .offset(y = ((tuning.rocketHeight + rocketVerticalBleed) * yOffset.value).dp)
             .graphicsLayer {
                 this.alpha = alpha.value
                 clip = false
             },
     ) {
         Image(
-            painter = painterResource(Res.drawable.ic_dashboard_spaceship),
+            painter = rocketPainter,
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier
-                .offset(x = rocketLeft.dp)
+                .offset(x = rocketLeft.dp, y = rocketTop.dp)
                 .size(width = tuning.rocketWidth.dp, height = tuning.rocketHeight.dp),
         )
         Image(
-            painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
+            painter = flamePainter,
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier
                 .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
-                .offset(x = leftFlameLeft.dp, y = tuning.flameY.dp)
+                .offset(x = leftFlameLeft.dp, y = (rocketTop + tuning.flameY).dp)
                 .graphicsLayer {
                     scaleY = flameScale
                     scaleX = 1f + (flameScale - 1f) * 0.4f
@@ -1111,12 +1119,12 @@ private fun DashboardRocket(
                 },
         )
         Image(
-            painter = painterResource(Res.drawable.ic_dashboard_spaceship_flame),
+            painter = flamePainter,
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier
                 .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
-                .offset(x = rightFlameLeft.dp, y = tuning.flameY.dp)
+                .offset(x = rightFlameLeft.dp, y = (rocketTop + tuning.flameY).dp)
                 .graphicsLayer {
                     scaleY = flameScale
                     scaleX = 1f + (flameScale - 1f) * 0.4f

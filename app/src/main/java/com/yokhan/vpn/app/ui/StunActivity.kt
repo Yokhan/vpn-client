@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.yokhan.vpn.shared.ui.design.YokhanPalette
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import com.yokhan.vpn.shared.ui.design.YokhanTypography
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.bg.BaseService
@@ -77,7 +78,7 @@ class StunActivity : ThemedActivity() {
                     typography = typography,
                     maxLines = 4,
                 )
-                ServerInput(colors, typography, Modifier.padding(top = 14.dp))
+                    ServerInput(colors, typography, Modifier.padding(top = YokhanSpacing.ActionTopGap))
             }
 
             YokhanRouteCard(

@@ -483,7 +483,7 @@ fun YokhanRouteButton(
 
     Box(
         modifier = modifier
-            .heightIn(min = 44.dp)
+            .heightIn(min = YokhanSpacing.ControlMinHeight)
             .clip(RoundedCornerShape(YokhanRadius.Pill))
             .background(background)
             .border(YokhanStroke.Thin, border, RoundedCornerShape(YokhanRadius.Pill))

@@ -247,7 +247,7 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
                     actions = groupActions(group, index, total, canModify, isSubscription),
                     colors = colors,
                     typography = typography,
-                    modifier = Modifier.padding(top = 14.dp),
+                    modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
                 )
             }
         }

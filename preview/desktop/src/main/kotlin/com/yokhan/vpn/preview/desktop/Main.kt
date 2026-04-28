@@ -93,18 +93,34 @@ fun main() = application {
 @Composable
 private fun DashboardPreviewApp(window: AwtWindow) {
     var previewMode by remember { mutableStateOf(PreviewMode.Dashboard) }
-    var connected by remember { mutableStateOf(true) }
+    var connectionStatus by remember { mutableStateOf(ConnectionStatus.Connected) }
     var testingConnection by remember { mutableStateOf(false) }
     var phoneBounds by remember { mutableStateOf<Rectangle?>(null) }
     var screenshotStatus by remember { mutableStateOf("No screenshot yet") }
     var tuning by remember { mutableStateOf(DashboardUiTuning()) }
     var formState by remember { mutableStateOf(yokhanSampleProfileFormState()) }
-    val status = if (connected) ConnectionStatus.Connected else ConnectionStatus.Disconnected
-    val state = previewDashboardState(status, testingConnection)
+    val connected = connectionStatus == ConnectionStatus.Connected
+    val state = previewDashboardState(connectionStatus, testingConnection && connected)
     LaunchedEffect(testingConnection) {
         if (testingConnection) {
             delay(900)
             testingConnection = false
+        }
+    }
+    LaunchedEffect(connectionStatus) {
+        when (connectionStatus) {
+            ConnectionStatus.Connecting -> {
+                delay(900)
+                connectionStatus = ConnectionStatus.Connected
+            }
+
+            ConnectionStatus.Disconnecting -> {
+                testingConnection = false
+                delay(1350)
+                connectionStatus = ConnectionStatus.Disconnected
+            }
+
+            else -> Unit
         }
     }
     val profiles = remember {
@@ -145,7 +161,13 @@ private fun DashboardPreviewApp(window: AwtWindow) {
                         profiles = profiles,
                         labels = DashboardUiLabels.Russian,
                         actions = DashboardUiActions(
-                            onToggleConnection = { connected = !connected },
+                            onToggleConnection = {
+                                connectionStatus = if (connected) {
+                                    ConnectionStatus.Disconnecting
+                                } else {
+                                    ConnectionStatus.Connecting
+                                }
+                            },
                             onRunConnectionTest = {
                                 if (connected) testingConnection = true
                             },
@@ -174,8 +196,14 @@ private fun DashboardPreviewApp(window: AwtWindow) {
         PreviewControlPanel(
             previewMode = previewMode,
             onPreviewModeChange = { previewMode = it },
-            connected = connected,
-            onToggle = { connected = !connected },
+            connectionStatus = connectionStatus,
+            onToggle = {
+                connectionStatus = if (connected) {
+                    ConnectionStatus.Disconnecting
+                } else {
+                    ConnectionStatus.Connecting
+                }
+            },
             tuning = tuning,
             onTuningChange = { tuning = it },
             screenshotStatus = screenshotStatus,
@@ -242,7 +270,7 @@ private fun FakeIPhoneStatusBar() {
 private fun PreviewControlPanel(
     previewMode: PreviewMode,
     onPreviewModeChange: (PreviewMode) -> Unit,
-    connected: Boolean,
+    connectionStatus: ConnectionStatus,
     onToggle: () -> Unit,
     tuning: DashboardUiTuning,
     onTuningChange: (DashboardUiTuning) -> Unit,
@@ -250,6 +278,9 @@ private fun PreviewControlPanel(
     onScreenshot: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val connected = connectionStatus == ConnectionStatus.Connected
+    val transitioning = connectionStatus == ConnectionStatus.Connecting ||
+        connectionStatus == ConnectionStatus.Disconnecting
     Column(
         modifier = modifier
             .padding(24.dp)
@@ -287,9 +318,17 @@ private fun PreviewControlPanel(
         }
         Button(
             onClick = onToggle,
+            enabled = !transitioning,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE55A1B)),
         ) {
-            Text(if (connected) "Switch to disconnected" else "Switch to connected")
+            Text(
+                when {
+                    connectionStatus == ConnectionStatus.Connecting -> "Connecting..."
+                    connectionStatus == ConnectionStatus.Disconnecting -> "Disconnecting..."
+                    connected -> "Animate disconnect"
+                    else -> "Animate connect"
+                },
+            )
         }
         Button(
             onClick = onScreenshot,
@@ -325,7 +364,7 @@ private fun PreviewControlPanel(
             onTuningChange(tuning.copy(statsBarBottomPadding = it))
         }
         Text(
-            text = "Current mode: ${previewMode.label}; VPN state: ${if (connected) "connected" else "disconnected"}",
+            text = "Current mode: ${previewMode.label}; VPN state: ${connectionStatus.name.lowercase()}",
             color = Color(0xFFB7B7C8),
             fontFamily = FontFamily.Monospace,
         )
@@ -408,6 +447,7 @@ private fun previewDashboardState(
     testingConnection: Boolean = false,
 ): DashboardState {
     val connected = status == ConnectionStatus.Connected
+    val running = status == ConnectionStatus.Connecting || status == ConnectionStatus.Connected
     return DashboardState(
         connectionStatus = status,
         activeProfileName = "Bridge-igor",
@@ -420,7 +460,7 @@ private fun previewDashboardState(
         downloadLabel = if (connected) "48.7 KB/s" else "0 B/s",
         latencyLabel = if (testingConnection) "..." else if (connected) "103 MS" else "--",
         timerLabel = if (connected) "00:01:24" else "00:00:00",
-        shouldAnimateSpace = connected,
+        shouldAnimateSpace = running,
         canRunConnectionTest = connected,
         isConnectionTestRunning = testingConnection,
         errorMessage = null,

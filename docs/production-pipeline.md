@@ -98,6 +98,7 @@ This is the execution pipeline for turning the current transition codebase into 
 - Progress: shared Compose form containers, fields, select rows, action rows, toggles, and buttons now consume the same visual tokens.
 - Progress: transparent outlined panels and pill controls now use a common `yokhanOutlinedSurface` modifier across route screens.
 - Progress: status dots, progress bars, divider gaps, app selector fields, drawer status rows, scanner/WebView padding, and route list separators now use shared visual primitives/tokens.
+- Progress: route action top gaps and route button minimum heights now use shared spacing tokens across migrated screens.
 - Normalize transparent cards, bottom safe-area spacing, status rows, and action buttons.
 - Keep dashboard tuning separate from global tokens.
 - Acceptance: new screens compose from shared components with minimal local styling.
@@ -108,6 +109,8 @@ This is the execution pipeline for turning the current transition codebase into 
 - Keep rocket and flames as one coordinated scene.
 - Measure dashboard recomposition during speed/timer updates.
 - Avoid repeated bitmap loads and full model replacement for hot updates.
+- Progress: rocket/flame scene now keeps flame alive through disconnect flight, adds vertical bleed to avoid clipping, and desktop preview animates connecting/disconnecting states.
+- Progress: dashboard hot updates reuse cached profile UI rows instead of remapping the profile list for timer/speed ticks.
 - Acceptance: dashboard remains smooth on Android device and desktop preview.
 
 ### P11. Legacy Resource Cleanup

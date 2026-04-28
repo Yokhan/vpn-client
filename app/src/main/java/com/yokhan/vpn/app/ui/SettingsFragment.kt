@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.preference.PreferenceDataStore
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -240,7 +241,7 @@ class SettingsFragment : YokhanComposeRouteFragment(),
                     ),
                     colors = colors,
                     typography = typography,
-                    modifier = Modifier.padding(top = 14.dp),
+                        modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
                 )
             }
         }

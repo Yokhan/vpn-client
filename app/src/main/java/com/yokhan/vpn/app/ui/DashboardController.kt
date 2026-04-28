@@ -48,6 +48,7 @@ class DashboardController(
     private var connectionTestRunning = false
     private var hasCompletedInitialShow = false
     private var scrollToTopSignal = 0
+    private var latestProfileItems: List<DashboardProfileUiItem> = emptyList()
     private var timerJob: Job? = null
     private var connectionTestJob: Job? = null
     private var connectionStartTime = 0L
@@ -113,6 +114,7 @@ class DashboardController(
             latestProfileId = summary.profile?.id ?: 0L
             latestGroupName = summary.groupName
             currentGroupIsSubscription = summary.isSubscriptionGroup
+            latestProfileItems = latestProfiles.toDashboardComposeProfileItems(latestProfileId)
             renderDashboard(buildDashboardState())
             activity.updateDashboardProtocol(summary.profile?.displayType() ?: "--")
             updateConnectionState(currentState)
@@ -202,6 +204,7 @@ class DashboardController(
         latestProfileId = profile.id
         latestProfile = profile
         latestLatencyMs = null
+        latestProfileItems = latestProfiles.toDashboardComposeProfileItems(latestProfileId)
         renderDashboard(buildDashboardState())
         activity.updateDashboardProtocol(profile.displayType())
 
@@ -294,7 +297,7 @@ class DashboardController(
     ) {
         composeModel.value = DashboardComposeModel(
             state = dashboardState,
-            profiles = latestProfiles.toDashboardComposeProfileItems(latestProfileId),
+            profiles = latestProfileItems,
             scrollToTopSignal = scrollToTopSignal,
         )
     }

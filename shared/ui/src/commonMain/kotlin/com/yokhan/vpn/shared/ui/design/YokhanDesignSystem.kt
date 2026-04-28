@@ -106,6 +106,8 @@ object YokhanSpacing {
     val CardTitleGap = 12.dp
     val DividerGap = 14.dp
     val CompactDividerGap = 12.dp
+    val ActionTopGap = 14.dp
+    val ControlMinHeight = 44.dp
     val CompactGap = 8.dp
     val InlineGap = 12.dp
     val ControlHorizontal = 14.dp

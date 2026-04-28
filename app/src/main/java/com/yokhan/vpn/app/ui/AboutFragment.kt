@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -125,7 +126,7 @@ class AboutFragment : YokhanComposeRouteFragment() {
                     ),
                     colors = colors,
                     typography = typography,
-                    modifier = Modifier.padding(top = 14.dp),
+                    modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
                 )
             }
 
@@ -155,7 +156,7 @@ class AboutFragment : YokhanComposeRouteFragment() {
                     ),
                     colors = colors,
                     typography = typography,
-                    modifier = Modifier.padding(top = 14.dp),
+                    modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
                 )
             }
 
@@ -180,7 +181,7 @@ class AboutFragment : YokhanComposeRouteFragment() {
                         ),
                         colors = colors,
                         typography = typography,
-                        modifier = Modifier.padding(top = 14.dp),
+                    modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
                     )
                 }
             }

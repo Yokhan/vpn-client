@@ -11,6 +11,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.readableMessage
@@ -73,7 +74,7 @@ class LogcatFragment : YokhanComposeRouteFragment() {
                     fontSize = 10.sp,
                     lineHeight = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 14.dp),
+                    modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
                 )
             }
         }

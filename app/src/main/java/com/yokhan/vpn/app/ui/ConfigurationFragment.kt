@@ -689,7 +689,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 44.dp)
+                        .heightIn(min = YokhanSpacing.ControlMinHeight)
                         .yokhanOutlinedSurface(colors, radius = YokhanRadius.Pill)
                         .padding(horizontal = 16.dp, vertical = 13.dp),
                     contentAlignment = Alignment.CenterStart,

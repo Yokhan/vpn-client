@@ -235,7 +235,7 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
                 colors = colors,
                 typography = typography,
                 onCheckedChange = { checked -> toggleRule(rule, checked) },
-                modifier = Modifier.padding(top = 14.dp),
+                modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
             )
 
             YokhanButtonGrid(
@@ -262,7 +262,7 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
                 ),
                 colors = colors,
                 typography = typography,
-                modifier = Modifier.padding(top = 14.dp),
+                modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
             )
         }
     }
