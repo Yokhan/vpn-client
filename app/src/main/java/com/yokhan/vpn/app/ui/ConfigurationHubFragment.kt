@@ -48,6 +48,7 @@ import com.yokhan.vpn.app.ui.profile.ShadowsocksSettingsActivity
 import com.yokhan.vpn.app.ui.profile.VMessSettingsActivity
 import com.yokhan.vpn.app.ui.profile.WireGuardSettingsActivity
 import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
+import com.yokhan.vpn.app.ui.shell.YokhanShellSubRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -196,7 +197,7 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                         YokhanRouteAction(
                             title = stringResource(R.string.configuration_hub_manage_profiles),
                             primary = true,
-                            onClick = { (activity as? MainActivity)?.openSubFragment(ConfigurationFragment()) },
+                            onClick = { (activity as? MainActivity)?.openSubRoute(YokhanShellSubRoute.Profiles) },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.configuration_hub_update_subscription),
@@ -239,7 +240,7 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.configuration_hub_open_profiles),
-                            onClick = { (activity as? MainActivity)?.openSubFragment(ConfigurationFragment()) },
+                            onClick = { (activity as? MainActivity)?.openSubRoute(YokhanShellSubRoute.Profiles) },
                         ),
                     ),
                     colors = colors,
@@ -360,7 +361,7 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                     )
                 )
                 .setPositiveButton(R.string.configuration_hub_open_profiles) { _, _ ->
-                    (activity as? MainActivity)?.openSubFragment(ConfigurationFragment())
+                    (activity as? MainActivity)?.openSubRoute(YokhanShellSubRoute.Profiles)
                 }
                 .setNegativeButton(android.R.string.ok, null)
                 .show()

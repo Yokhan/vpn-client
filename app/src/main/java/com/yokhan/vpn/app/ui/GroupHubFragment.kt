@@ -28,6 +28,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
 import com.yokhan.vpn.app.ui.compose.YokhanStatPair
 import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
+import com.yokhan.vpn.app.ui.shell.YokhanShellSubRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -111,7 +112,7 @@ class GroupHubFragment : YokhanComposeRouteFragment() {
                         YokhanRouteAction(
                             title = stringResource(R.string.group_hub_open_list),
                             primary = true,
-                            onClick = { (activity as? MainActivity)?.openSubFragment(GroupFragment()) },
+                            onClick = { (activity as? MainActivity)?.openSubRoute(YokhanShellSubRoute.Groups) },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.group_create),

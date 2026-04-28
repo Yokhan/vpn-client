@@ -52,6 +52,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanServiceStateConsumer
 import com.yokhan.vpn.app.ui.shell.YokhanMainShell
 import com.yokhan.vpn.app.ui.shell.YokhanShellDrawerCommand
 import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
+import com.yokhan.vpn.app.ui.shell.YokhanShellSubRoute
 import moe.matsuri.nb4a.utils.Util
 
 class MainActivity : ThemedActivity(),
@@ -338,8 +339,15 @@ class MainActivity : ThemedActivity(),
         closeNavigationMenu()
     }
 
-    fun openSubFragment(fragment: ToolbarFragment) {
+    fun openSubRoute(route: YokhanShellSubRoute): Boolean {
+        val fragment = when (route) {
+            YokhanShellSubRoute.Profiles -> ConfigurationFragment()
+            YokhanShellSubRoute.Groups -> GroupFragment()
+            YokhanShellSubRoute.Routes -> RouteFragment()
+            YokhanShellSubRoute.AdvancedSettings -> SettingsAdvancedFragment()
+        }
         displayFragment(fragment, addToBackStack = true)
+        return true
     }
 
     fun displayRoute(route: YokhanShellRoute): Boolean {

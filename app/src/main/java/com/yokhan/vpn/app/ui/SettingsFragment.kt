@@ -29,6 +29,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
 import com.yokhan.vpn.app.ui.compose.YokhanToggleRow
 import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
+import com.yokhan.vpn.app.ui.shell.YokhanShellSubRoute
 
 class SettingsFragment : YokhanComposeRouteFragment(),
     OnPreferenceDataStoreChangeListener {
@@ -226,7 +227,11 @@ class SettingsFragment : YokhanComposeRouteFragment(),
                         YokhanRouteAction(
                             title = stringResource(R.string.settings_open_advanced),
                             primary = true,
-                            onClick = { (activity as? MainActivity)?.openSubFragment(SettingsAdvancedFragment()) },
+                            onClick = {
+                                (activity as? MainActivity)?.openSubRoute(
+                                    YokhanShellSubRoute.AdvancedSettings,
+                                )
+                            },
                         ),
                     ),
                     colors = colors,
