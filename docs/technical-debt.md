@@ -29,12 +29,13 @@ This file tracks concrete cleanup work that affects build reliability, UI qualit
 - `app/src/main/res/layout` is now empty. Dropdown rows, help messages, URL/link edit dialogs, and password edit dialogs are programmatic or use typed preference classes.
 - Remaining UI migration debt is no longer layout XML; it is preference XML/form architecture and fragment ownership.
 - CI and Release workflows duplicate libcore/bootstrap steps. Extract shared setup into a composite action or reusable workflow once the release process is stable.
+- CI no longer uploads workflow artifacts because the repository artifact quota is exhausted; downloadable APKs must come from GitHub Releases or local builds until quota/storage policy is fixed.
 - Native core source defaults still fall back to `MatsuriDayo/*`. Full detachment requires Yokhan-owned forks or explicit `CORE_*_GIT_URL` repository variables.
 - Closed-source transition and upstream cleanup constraints are tracked in `docs/source-closure-and-cleanup.md`.
 
 ## Process Rules
 
-- Signed test APKs come from manual `CI` dispatch with `signed=true`.
+- Downloadable signed test APKs come from the tag-driven `Release` workflow or local signed builds until GitHub workflow artifact quota is fixed.
 - Production releases come from a version bump on `main` plus a fresh tag that matches `VERSION_NAME`.
 - Existing tags are not reused for changed app code.
 - Generated artifacts under `.tmp-artifacts/`, `app/build/`, and local image scratch files stay out of commits.

@@ -92,15 +92,3 @@ jobs:
           export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
           ./run init action gradle
           ./gradlew :shared-domain:check :desktop-preview:classes "$GRADLE_TASK"
-      - name: Collect artifacts
-        shell: bash
-        run: |
-          mkdir -p dist/apk
-          find app/build/outputs/apk -type f \( -name "*.apk" -o -name "*.dm" -o -name "output-metadata.json" \) -exec cp --parents {} dist/apk \;
-      - name: Upload APK artifact
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-${{ github.run_number }}
-          path: dist/apk
