@@ -18,7 +18,21 @@ sealed interface YokhanShellActivityRoute {
 }
 
 enum class YokhanManualProfileProtocol {
+    Socks,
+    Http,
     Shadowsocks,
     VMess,
+    VLESS,
+    Trojan,
+    TrojanGo,
+    Mieru,
+    Naive,
+    Hysteria,
+    Tuic,
+    ShadowTLS,
+    AnyTLS,
+    SSH,
     WireGuard,
+    Config,
+    Chain,
 }

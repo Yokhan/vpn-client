@@ -85,6 +85,7 @@ This is the execution pipeline for turning the current transition codebase into 
 - Progress: shell drawer selection and migrated hub cross-links now use `YokhanShellRoute`; old `nav_*` ID resources are removed.
 - Progress: child list/settings transitions now use `YokhanShellSubRoute`; hub screens no longer instantiate sub-fragments directly.
 - Progress: scanner, app manager, group/route editors, route assets, quick manual profile creation, and profile edit now use typed activity routes.
+- Progress: manual profile chooser returns typed protocol routes instead of constructing Android intents.
 - Define route args for dashboard, configurations, groups, routes, settings, tools, logcat, about, scanner, and profile edit.
 - Preserve back navigation and deep-link/import flows.
 - Acceptance: main shell navigation no longer depends on legacy fragment routing except platform-only wrappers if any remain.

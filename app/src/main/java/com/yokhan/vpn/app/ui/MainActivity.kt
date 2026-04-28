@@ -49,7 +49,20 @@ import io.nekohasekai.sagernet.ktx.parseProxies
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import com.yokhan.vpn.app.ui.compose.YokhanServiceStateConsumer
+import com.yokhan.vpn.app.ui.profile.AnyTLSSettingsActivity
+import com.yokhan.vpn.app.ui.profile.ChainSettingsActivity
+import com.yokhan.vpn.app.ui.profile.ConfigSettingActivity
+import com.yokhan.vpn.app.ui.profile.HttpSettingsActivity
+import com.yokhan.vpn.app.ui.profile.HysteriaSettingsActivity
+import com.yokhan.vpn.app.ui.profile.MieruSettingsActivity
+import com.yokhan.vpn.app.ui.profile.NaiveSettingsActivity
+import com.yokhan.vpn.app.ui.profile.SSHSettingsActivity
+import com.yokhan.vpn.app.ui.profile.ShadowTLSSettingsActivity
 import com.yokhan.vpn.app.ui.profile.ShadowsocksSettingsActivity
+import com.yokhan.vpn.app.ui.profile.SocksSettingsActivity
+import com.yokhan.vpn.app.ui.profile.TrojanGoSettingsActivity
+import com.yokhan.vpn.app.ui.profile.TrojanSettingsActivity
+import com.yokhan.vpn.app.ui.profile.TuicSettingsActivity
 import com.yokhan.vpn.app.ui.profile.VMessSettingsActivity
 import com.yokhan.vpn.app.ui.profile.WireGuardSettingsActivity
 import com.yokhan.vpn.app.ui.shell.YokhanManualProfileProtocol
@@ -373,12 +386,29 @@ class MainActivity : ThemedActivity(),
             YokhanShellActivityRoute.RouteAssets -> Intent(this, AssetsActivity::class.java)
             YokhanShellActivityRoute.AppManager -> Intent(this, AppManagerActivity::class.java)
             is YokhanShellActivityRoute.AddManualProfile -> {
-                val activityClass = when (route.protocol) {
-                    YokhanManualProfileProtocol.Shadowsocks -> ShadowsocksSettingsActivity::class.java
-                    YokhanManualProfileProtocol.VMess -> VMessSettingsActivity::class.java
-                    YokhanManualProfileProtocol.WireGuard -> WireGuardSettingsActivity::class.java
+                when (route.protocol) {
+                    YokhanManualProfileProtocol.Socks -> Intent(this, SocksSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.Http -> Intent(this, HttpSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.Shadowsocks -> Intent(this, ShadowsocksSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.VMess -> Intent(this, VMessSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.VLESS -> {
+                        Intent(this, VMessSettingsActivity::class.java).apply {
+                            putExtra("vless", true)
+                        }
+                    }
+                    YokhanManualProfileProtocol.Trojan -> Intent(this, TrojanSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.TrojanGo -> Intent(this, TrojanGoSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.Mieru -> Intent(this, MieruSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.Naive -> Intent(this, NaiveSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.Hysteria -> Intent(this, HysteriaSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.Tuic -> Intent(this, TuicSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.ShadowTLS -> Intent(this, ShadowTLSSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.AnyTLS -> Intent(this, AnyTLSSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.SSH -> Intent(this, SSHSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.WireGuard -> Intent(this, WireGuardSettingsActivity::class.java)
+                    YokhanManualProfileProtocol.Config -> Intent(this, ConfigSettingActivity::class.java)
+                    YokhanManualProfileProtocol.Chain -> Intent(this, ChainSettingsActivity::class.java)
                 }
-                Intent(this, activityClass)
             }
             is YokhanShellActivityRoute.EditProfile -> {
                 route.profile.settingIntent(this, route.isSubscription)

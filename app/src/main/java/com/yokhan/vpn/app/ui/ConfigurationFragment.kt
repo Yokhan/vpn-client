@@ -398,7 +398,15 @@ class ConfigurationFragment @JvmOverloads constructor(
                     YokhanRouteAction(
                         title = stringResource(R.string.add_profile_methods_manual_settings),
                         primary = true,
-                        onClick = { ProfileAddController.showManualProfileChooser(this@ConfigurationFragment) },
+                        onClick = {
+                            ProfileAddController.showManualProfileChooser(
+                                this@ConfigurationFragment,
+                            ) { protocol ->
+                                (activity as? MainActivity)?.openActivityRoute(
+                                    YokhanShellActivityRoute.AddManualProfile(protocol),
+                                )
+                            }
+                        },
                     ),
                     YokhanRouteAction(
                         title = stringResource(R.string.update_current_subscription),

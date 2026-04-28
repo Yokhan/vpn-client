@@ -289,7 +289,15 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.configuration_hub_open_all_protocols),
-                            onClick = { ProfileAddController.showManualProfileChooser(this@ConfigurationHubFragment) },
+                            onClick = {
+                                ProfileAddController.showManualProfileChooser(
+                                    this@ConfigurationHubFragment,
+                                ) { protocol ->
+                                    (activity as? MainActivity)?.openActivityRoute(
+                                        YokhanShellActivityRoute.AddManualProfile(protocol),
+                                    )
+                                }
+                            },
                         ),
                     ),
                     colors = colors,
