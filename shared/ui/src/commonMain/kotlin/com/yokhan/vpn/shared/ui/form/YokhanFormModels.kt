@@ -222,7 +222,7 @@ fun YokhanFormState.hasBlockingValidationErrors(): Boolean {
     return sections.asSequence()
         .flatMap { it.fields.asSequence() }
         .any { field ->
-            field.visible && field.validation.state == YokhanFormValidationState.Error
+            field.visible && field.enabled && field.validation.state == YokhanFormValidationState.Error
         }
 }
 

@@ -15,7 +15,7 @@ This is the execution pipeline for turning the current transition codebase into 
 
 ## Current Cursor
 
-`P06-app-settings-forms`: migrate app settings and advanced settings out of PreferenceFragmentCompat.
+`P07-dashboard-owner`: move dashboard ownership from the legacy fragment bridge into the Compose shell.
 
 ## Pipeline
 
@@ -68,6 +68,7 @@ This is the execution pipeline for turning the current transition codebase into 
 - Preserve service mode, proxy apps, bypass, individual app selection, stealth mode, DNS/routing toggles, and reload-required feedback.
 - Make connected/disconnected theme changes immediate.
 - Acceptance: settings screens follow Compose design system and no longer use preference XML.
+- Completed: advanced app settings now render through the shared Compose form kit; `SettingsPreferenceFragment` and `global_preferences.xml` are removed.
 
 ### P07. Dashboard Ownership
 
@@ -157,5 +158,5 @@ This is the execution pipeline for turning the current transition codebase into 
 - [x] P03-first-form: migrate the first profile form.
 - [x] P04-profile-form-scaling: migrate remaining profile forms.
 - [x] P05-route-form: migrate route/group edit forms after profile form pattern is proven.
-- [ ] P06-app-settings-forms: migrate app/global settings screens to Compose.
+- [x] P06-app-settings-forms: migrate app/global settings screens to Compose.
 - [ ] P07-dashboard-owner: remove `DashboardFragment` ownership after forms are not blocking navigation.
