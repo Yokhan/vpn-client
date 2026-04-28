@@ -49,6 +49,10 @@ import com.yokhan.vpn.shared.ui.dashboard.DashboardUiActions
 import com.yokhan.vpn.shared.ui.dashboard.DashboardUiLabels
 import com.yokhan.vpn.shared.ui.dashboard.DashboardUiTuning
 import com.yokhan.vpn.shared.ui.dashboard.YokhanDashboardScreen
+import com.yokhan.vpn.shared.ui.form.YokhanFormEvent
+import com.yokhan.vpn.shared.ui.form.YokhanFormScreen
+import com.yokhan.vpn.shared.ui.form.withFieldEvent
+import com.yokhan.vpn.shared.ui.form.yokhanSampleProfileFormState
 import java.awt.Rectangle
 import java.awt.Robot
 import java.awt.Window as AwtWindow
@@ -63,11 +67,19 @@ import kotlin.math.roundToInt
 private val IPhone15ProMaxWidth = 430.dp
 private val IPhone15ProMaxHeight = 932.dp
 
+private enum class PreviewMode(
+    val label: String,
+    val filePrefix: String,
+) {
+    Dashboard("Dashboard", "dashboard"),
+    Form("Profile form", "profile-form"),
+}
+
 fun main() = application {
     val windowState = rememberWindowState(size = DpSize(960.dp, 1040.dp))
     Window(
         onCloseRequest = ::exitApplication,
-        title = "YokhanVPN Dashboard Preview",
+        title = "YokhanVPN Shared UI Preview",
         state = windowState,
     ) {
         MaterialTheme {
@@ -80,11 +92,13 @@ fun main() = application {
 
 @Composable
 private fun DashboardPreviewApp(window: AwtWindow) {
+    var previewMode by remember { mutableStateOf(PreviewMode.Dashboard) }
     var connected by remember { mutableStateOf(true) }
     var testingConnection by remember { mutableStateOf(false) }
     var phoneBounds by remember { mutableStateOf<Rectangle?>(null) }
     var screenshotStatus by remember { mutableStateOf("No screenshot yet") }
     var tuning by remember { mutableStateOf(DashboardUiTuning()) }
+    var formState by remember { mutableStateOf(yokhanSampleProfileFormState()) }
     val status = if (connected) ConnectionStatus.Connected else ConnectionStatus.Disconnected
     val state = previewDashboardState(status, testingConnection)
     LaunchedEffect(testingConnection) {
@@ -125,22 +139,41 @@ private fun DashboardPreviewApp(window: AwtWindow) {
         ) {
             Column(Modifier.fillMaxSize().background(Color(0xFF0A0A18))) {
                 FakeIPhoneStatusBar()
-                YokhanDashboardScreen(
-                    state = state,
-                    profiles = profiles,
-                    labels = DashboardUiLabels.Russian,
-                    actions = DashboardUiActions(
-                        onToggleConnection = { connected = !connected },
-                        onRunConnectionTest = {
-                            if (connected) testingConnection = true
+                when (previewMode) {
+                    PreviewMode.Dashboard -> YokhanDashboardScreen(
+                        state = state,
+                        profiles = profiles,
+                        labels = DashboardUiLabels.Russian,
+                        actions = DashboardUiActions(
+                            onToggleConnection = { connected = !connected },
+                            onRunConnectionTest = {
+                                if (connected) testingConnection = true
+                            },
+                        ),
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        tuning = tuning,
+                    )
+
+                    PreviewMode.Form -> YokhanFormScreen(
+                        state = formState,
+                        onEvent = { event ->
+                            formState = when (event) {
+                                YokhanFormEvent.Cancel,
+                                YokhanFormEvent.Reset,
+                                -> yokhanSampleProfileFormState()
+
+                                YokhanFormEvent.Save -> formState.copy(dirty = false)
+                                else -> formState.withFieldEvent(event)
+                            }
                         },
-                    ),
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    tuning = tuning,
-                )
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                    )
+                }
             }
         }
         PreviewControlPanel(
+            previewMode = previewMode,
+            onPreviewModeChange = { previewMode = it },
             connected = connected,
             onToggle = { connected = !connected },
             tuning = tuning,
@@ -151,7 +184,7 @@ private fun DashboardPreviewApp(window: AwtWindow) {
                 screenshotStatus = if (bounds == null) {
                     "Phone viewport is not measured yet"
                 } else {
-                    runCatching { savePhoneScreenshot(window, bounds) }
+                    runCatching { savePhoneScreenshot(window, bounds, previewMode.filePrefix) }
                         .fold(
                             onSuccess = { "Saved: ${it.absolutePath}" },
                             onFailure = { "Screenshot failed: ${it.message ?: it::class.simpleName}" },
@@ -207,6 +240,8 @@ private fun FakeIPhoneStatusBar() {
 
 @Composable
 private fun PreviewControlPanel(
+    previewMode: PreviewMode,
+    onPreviewModeChange: (PreviewMode) -> Unit,
     connected: Boolean,
     onToggle: () -> Unit,
     tuning: DashboardUiTuning,
@@ -228,7 +263,7 @@ private fun PreviewControlPanel(
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = "This window uses the same shared Compose dashboard layout, rocket PNGs, flame PNG, and fonts as the Android Compose route.",
+            text = "This window uses shared Compose UI, assets, and fonts so Android form migrations can be debugged before device testing.",
             color = Color(0xFFB7B7C8),
             fontSize = 14.sp,
         )
@@ -238,6 +273,18 @@ private fun PreviewControlPanel(
             fontFamily = FontFamily.Monospace,
             fontSize = 13.sp,
         )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PreviewModeButton(
+                text = "Dashboard",
+                selected = previewMode == PreviewMode.Dashboard,
+                onClick = { onPreviewModeChange(PreviewMode.Dashboard) },
+            )
+            PreviewModeButton(
+                text = "Form",
+                selected = previewMode == PreviewMode.Form,
+                onClick = { onPreviewModeChange(PreviewMode.Form) },
+            )
+        }
         Button(
             onClick = onToggle,
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE55A1B)),
@@ -278,7 +325,7 @@ private fun PreviewControlPanel(
             onTuningChange(tuning.copy(statsBarBottomPadding = it))
         }
         Text(
-            text = "Current state: ${if (connected) "connected" else "disconnected"}",
+            text = "Current mode: ${previewMode.label}; VPN state: ${if (connected) "connected" else "disconnected"}",
             color = Color(0xFFB7B7C8),
             fontFamily = FontFamily.Monospace,
         )
@@ -288,6 +335,22 @@ private fun PreviewControlPanel(
             fontFamily = FontFamily.Monospace,
             fontSize = 12.sp,
         )
+    }
+}
+
+@Composable
+private fun PreviewModeButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) Color(0xFFE55A1B) else Color(0xFF3B3B48),
+        ),
+    ) {
+        Text(text)
     }
 }
 
@@ -313,7 +376,7 @@ private fun TuningSlider(
     }
 }
 
-private fun savePhoneScreenshot(window: AwtWindow, boundsInWindow: Rectangle): File {
+private fun savePhoneScreenshot(window: AwtWindow, boundsInWindow: Rectangle, filePrefix: String): File {
     val contentLocation = if (window is JFrame) {
         window.contentPane.locationOnScreen
     } else {
@@ -329,7 +392,7 @@ private fun savePhoneScreenshot(window: AwtWindow, boundsInWindow: Rectangle): F
     val projectRoot = findProjectRoot()
     val outputDir = File(projectRoot, "preview/desktop/build/screenshots").apply { mkdirs() }
     val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
-    val output = File(outputDir, "dashboard-iphone15-pro-max-$timestamp.png")
+    val output = File(outputDir, "$filePrefix-iphone15-pro-max-$timestamp.png")
     ImageIO.write(image, "png", output)
     return output
 }

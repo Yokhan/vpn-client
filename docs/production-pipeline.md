@@ -15,7 +15,7 @@ This is the execution pipeline for turning the current transition codebase into 
 
 ## Current Cursor
 
-`P02-form-kit-skeleton`: add Compose form models and reusable primitives for the first profile-form migration.
+`P03-first-form`: migrate the first representative profile form to the shared Compose form kit.
 
 ## Pipeline
 
@@ -150,7 +150,7 @@ This is the execution pipeline for turning the current transition codebase into 
 ## Next Action Queue
 
 - [x] P01-CI-cleanup: remove CI artifact upload and update process docs.
-- [ ] P02-form-kit-skeleton: add Compose form models and primitives.
+- [x] P02-form-kit-skeleton: add Compose form models and primitives.
 - [ ] P03-first-form: migrate the first profile form.
 - [ ] P05-route-form: migrate route edit form after profile form pattern is proven.
 - [ ] P07-dashboard-owner: remove `DashboardFragment` ownership after forms are not blocking navigation.
