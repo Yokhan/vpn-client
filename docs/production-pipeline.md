@@ -82,7 +82,7 @@ This is the execution pipeline for turning the current transition codebase into 
 ### P08. Navigation Ownership
 
 - Replace menu item IDs and fragment bridge with typed routes.
-- Progress: shell drawer selection and migrated hub cross-links now use `YokhanShellRoute` instead of raw `R.id.nav_*` calls.
+- Progress: shell drawer selection and migrated hub cross-links now use `YokhanShellRoute`; old `nav_*` ID resources are removed.
 - Define route args for dashboard, configurations, groups, routes, settings, tools, logcat, about, scanner, and profile edit.
 - Preserve back navigation and deep-link/import flows.
 - Acceptance: main shell navigation no longer depends on legacy fragment routing except platform-only wrappers if any remain.
