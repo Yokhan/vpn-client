@@ -6,9 +6,9 @@ import androidx.preference.PreferenceFragmentCompat
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.preference.EditTextPreferenceModifiers
 import io.nekohasekai.sagernet.fmt.wireguard.WireGuardBean
-import moe.matsuri.nb4a.proxy.PreferenceBinding
-import moe.matsuri.nb4a.proxy.PreferenceBindingManager
-import moe.matsuri.nb4a.proxy.Type
+import com.yokhan.vpn.app.ui.profile.binding.PreferenceBinding
+import com.yokhan.vpn.app.ui.profile.binding.PreferenceBindingManager
+import com.yokhan.vpn.app.ui.profile.binding.Type
 
 class WireGuardSettingsActivity : ProfileSettingsActivity<WireGuardBean>() {
 

@@ -1,16 +1,16 @@
-package moe.matsuri.nb4a.proxy.anytls
+package com.yokhan.vpn.app.ui.profile
 
 import android.os.Bundle
 import androidx.preference.EditTextPreference
 import androidx.preference.PreferenceFragmentCompat
+import com.yokhan.vpn.app.ui.profile.binding.PreferenceBinding
+import com.yokhan.vpn.app.ui.profile.binding.PreferenceBindingManager
+import com.yokhan.vpn.app.ui.profile.binding.Type
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.preference.EditTextPreferenceModifiers
 import io.nekohasekai.sagernet.ktx.applyDefaultValues
-import com.yokhan.vpn.app.ui.profile.ProfileSettingsActivity
-import moe.matsuri.nb4a.proxy.PreferenceBinding
-import moe.matsuri.nb4a.proxy.PreferenceBindingManager
-import moe.matsuri.nb4a.proxy.Type
+import moe.matsuri.nb4a.proxy.anytls.AnyTLSBean
 
 class AnyTLSSettingsActivity : ProfileSettingsActivity<AnyTLSBean>() {
     override fun createEntity() = AnyTLSBean().applyDefaultValues()

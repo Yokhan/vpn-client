@@ -86,6 +86,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
 import com.yokhan.vpn.app.ui.compose.YokhanSectionLabel
 import com.yokhan.vpn.app.ui.compose.YokhanComposeRouteFragment
+import com.yokhan.vpn.app.ui.profile.ConfigSettingActivity
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import com.yokhan.vpn.shared.ui.design.YokhanGreen
 import com.yokhan.vpn.shared.ui.design.YokhanPalette
@@ -100,7 +101,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import moe.matsuri.nb4a.Protocols
 import moe.matsuri.nb4a.Protocols.getProtocolColor
-import moe.matsuri.nb4a.proxy.config.ConfigSettingActivity
 import okhttp3.internal.closeQuietly
 import java.net.InetSocketAddress
 import java.net.Socket

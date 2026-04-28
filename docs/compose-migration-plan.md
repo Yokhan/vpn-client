@@ -15,6 +15,7 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 - Dashboard content is Compose-only. It is still hosted by `DashboardFragment`, and the fragment now creates its `ComposeView` programmatically.
 - Yokhan-owned Compose shell, route kit, selectable-apps screen, dashboard adapter, settings host, password dialog/preference helpers, and Android UI entrypoints now live under `com.yokhan.vpn.app.ui.*` / `com.yokhan.vpn.app.widget.*`.
 - Yokhan-owned preference UI widgets now live under `com.yokhan.vpn.app.ui.preference.*`; preference XML should not introduce new upstream-derived UI widget tags.
+- Yokhan-owned profile settings activities, including AnyTLS, ShadowTLS, custom config, and shared profile preference binding helpers, now live under `com.yokhan.vpn.app.ui.profile.*`.
 - Removed top-level legacy route layouts: `layout_configuration_hub.xml`, `layout_group_hub.xml`, `layout_route_hub.xml`, `layout_settings_hub.xml`, `layout_tools.xml`, `layout_about.xml`, `layout_logcat.xml`, `layout_backup.xml`, and `layout_network.xml`.
 - Removed backup import/progress dialog layouts; `ToolsFragment` now renders backup import confirmation and progress dialogs through ComposeView.
 - Removed XML settings host layouts for group, route, profile, chain, and advanced settings. These screens still use `PreferenceFragmentCompat`, but toolbar/container/list hosting is programmatic through `YokhanSettingsHost`.
@@ -64,6 +65,6 @@ YokhanVPN UI should be a Compose-first product UI. XML/View screens are legacy a
 - Compose route fragments: `ConfigurationHubFragment`, `ConfigurationFragment`, `GroupHubFragment`, `GroupFragment`, `RouteHubFragment`, `RouteFragment`, `SettingsFragment`, `ToolsFragment`, `LogcatFragment`, `AboutFragment`.
 - Legacy navigation/detail fragments still pending: none in the primary route-list layer; remaining legacy work is in preference-backed forms.
 - Legacy Android layout XML retained for non-migrated detail flows: none.
-- Form/preference screens: `GroupSettingsActivity`, `RouteSettingsActivity`, `SettingsPreferenceFragment`, `SettingsAdvancedFragment`.
+- Form/preference screens: `GroupSettingsActivity`, `RouteSettingsActivity`, profile settings activities, `SettingsPreferenceFragment`, `SettingsAdvancedFragment`.
 - Utility activities still pending full Compose parity: none in the app-list/scanner/STUN/profile-selection layer.
 - Migrated utility activities: `AssetsActivity`, `ScannerActivity`, `StunActivity`, `AppListActivity`, `AppManagerActivity`, `ProfileSelectActivity`, `SwitchActivity`.

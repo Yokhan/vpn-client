@@ -5,11 +5,14 @@ import androidx.fragment.app.Fragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.R
 import com.yokhan.vpn.app.ui.profile.ChainSettingsActivity
+import com.yokhan.vpn.app.ui.profile.AnyTLSSettingsActivity
+import com.yokhan.vpn.app.ui.profile.ConfigSettingActivity
 import com.yokhan.vpn.app.ui.profile.HttpSettingsActivity
 import com.yokhan.vpn.app.ui.profile.HysteriaSettingsActivity
 import com.yokhan.vpn.app.ui.profile.MieruSettingsActivity
 import com.yokhan.vpn.app.ui.profile.NaiveSettingsActivity
 import com.yokhan.vpn.app.ui.profile.SSHSettingsActivity
+import com.yokhan.vpn.app.ui.profile.ShadowTLSSettingsActivity
 import com.yokhan.vpn.app.ui.profile.ShadowsocksSettingsActivity
 import com.yokhan.vpn.app.ui.profile.SocksSettingsActivity
 import com.yokhan.vpn.app.ui.profile.TrojanGoSettingsActivity
@@ -17,9 +20,6 @@ import com.yokhan.vpn.app.ui.profile.TrojanSettingsActivity
 import com.yokhan.vpn.app.ui.profile.TuicSettingsActivity
 import com.yokhan.vpn.app.ui.profile.VMessSettingsActivity
 import com.yokhan.vpn.app.ui.profile.WireGuardSettingsActivity
-import moe.matsuri.nb4a.proxy.anytls.AnyTLSSettingsActivity
-import moe.matsuri.nb4a.proxy.config.ConfigSettingActivity
-import moe.matsuri.nb4a.proxy.shadowtls.ShadowTLSSettingsActivity
 
 object ProfileAddController {
 

@@ -23,6 +23,8 @@ This file tracks concrete cleanup work that affects build reliability, UI qualit
 - Dashboard connection test now has an explicit running state in shared domain/UI state, disables duplicate taps while testing, resets on disconnect/view destroy, and shows transient latency as `...`.
 - Dashboard resume now sends a Compose scroll-to-top signal on repeated `onResume`, so returning from background gently restores the top of the scrollable main screen.
 - Preference/helper UI classes now live under `com.yokhan.vpn.app.ui.preference.*`; XML preference tags and Android imports point to Yokhan namespace.
+- Profile settings entrypoints for AnyTLS, ShadowTLS, and custom config now live under `com.yokhan.vpn.app.ui.profile.*`; proxy beans/formatters remain in their fork-derived namespaces until a safe data/core migration exists.
+- Reflection-backed profile preference binding helpers now live under `com.yokhan.vpn.app.ui.profile.binding.*`, so Yokhan-owned profile form code no longer imports the Matsuri binding namespace.
 - `ConfigEditActivity` no longer uses `layout_edit_config.xml`, and `ExtendedKeyboard` no longer uses `item_keyboard_key.xml`; the editor remains native but the host and key rows are programmatic.
 - `app/src/main/res/layout` is now empty. Dropdown rows, help messages, URL/link edit dialogs, and password edit dialogs are programmatic or use typed preference classes.
 - Remaining UI migration debt is no longer layout XML; it is preference XML/form architecture and fragment ownership.

@@ -11,10 +11,10 @@ import io.nekohasekai.sagernet.fmt.http.HttpBean
 import io.nekohasekai.sagernet.fmt.trojan.TrojanBean
 import io.nekohasekai.sagernet.fmt.v2ray.StandardV2RayBean
 import io.nekohasekai.sagernet.fmt.v2ray.VMessBean
-import moe.matsuri.nb4a.proxy.PreferenceBinding
-import moe.matsuri.nb4a.proxy.PreferenceBindingManager
-import moe.matsuri.nb4a.proxy.Type
 import com.yokhan.vpn.app.ui.preference.SimpleMenuPreference
+import com.yokhan.vpn.app.ui.profile.binding.PreferenceBinding
+import com.yokhan.vpn.app.ui.profile.binding.PreferenceBindingManager
+import com.yokhan.vpn.app.ui.profile.binding.Type
 
 abstract class StandardV2RaySettingsActivity : ProfileSettingsActivity<StandardV2RayBean>() {
 

@@ -1,14 +1,14 @@
-package moe.matsuri.nb4a.proxy.config
+package com.yokhan.vpn.app.ui.profile
 
 import android.os.Bundle
 import androidx.preference.PreferenceDataStore
 import androidx.preference.PreferenceFragmentCompat
+import com.yokhan.vpn.app.ui.preference.EditConfigPreference
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener
-import com.yokhan.vpn.app.ui.profile.ProfileSettingsActivity
-import com.yokhan.vpn.app.ui.preference.EditConfigPreference
+import moe.matsuri.nb4a.proxy.config.ConfigBean
 
 class ConfigSettingActivity :
     ProfileSettingsActivity<ConfigBean>(),

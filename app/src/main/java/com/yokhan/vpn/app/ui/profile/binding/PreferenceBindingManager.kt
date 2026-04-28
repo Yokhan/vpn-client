@@ -1,4 +1,4 @@
-package moe.matsuri.nb4a.proxy
+package com.yokhan.vpn.app.ui.profile.binding
 
 import androidx.preference.PreferenceFragmentCompat
 
