@@ -1,6 +1,5 @@
 package com.yokhan.vpn.app.ui
 
-import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.compose.foundation.layout.padding
@@ -27,6 +26,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
 import com.yokhan.vpn.app.ui.compose.YokhanStatPair
+import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
 import com.yokhan.vpn.app.ui.shell.YokhanShellSubRoute
 import kotlinx.coroutines.Dispatchers
@@ -116,7 +116,11 @@ class GroupHubFragment : YokhanComposeRouteFragment() {
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.group_create),
-                            onClick = { startActivity(Intent(requireActivity(), GroupSettingsActivity::class.java)) },
+                            onClick = {
+                                (activity as? MainActivity)?.openActivityRoute(
+                                    YokhanShellActivityRoute.GroupCreate,
+                                )
+                            },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.group_hub_update_all),

@@ -9,6 +9,7 @@ import androidx.lifecycle.lifecycleScope
 import com.yokhan.vpn.app.ui.dashboard.DashboardComposeActions
 import com.yokhan.vpn.app.ui.dashboard.DashboardComposeScreen
 import com.yokhan.vpn.app.ui.dashboard.DashboardProfileUiItem
+import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
 import com.yokhan.vpn.shared.domain.ConnectionStatus
 import com.yokhan.vpn.shared.domain.DashboardState
@@ -224,7 +225,9 @@ class DashboardController(
     }
 
     private fun editProfile(profile: ProxyEntity) {
-        activity.startActivity(profile.settingIntent(activity, currentGroupIsSubscription))
+        activity.openActivityRoute(
+            YokhanShellActivityRoute.EditProfile(profile, currentGroupIsSubscription),
+        )
     }
 
     private fun editProfileById(profileId: Long) {

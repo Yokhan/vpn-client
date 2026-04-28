@@ -1,6 +1,5 @@
 package com.yokhan.vpn.app.ui
 
-import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.OpenableColumns
@@ -87,6 +86,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
 import com.yokhan.vpn.app.ui.compose.YokhanSectionLabel
 import com.yokhan.vpn.app.ui.compose.YokhanComposeRouteFragment
 import com.yokhan.vpn.app.ui.profile.ConfigSettingActivity
+import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import com.yokhan.vpn.shared.ui.design.YokhanGreen
 import com.yokhan.vpn.shared.ui.design.YokhanPalette
@@ -379,10 +379,14 @@ class ConfigurationFragment @JvmOverloads constructor(
         ) {
             YokhanButtonGrid(
                 actions = listOf(
-                    YokhanRouteAction(
-                        title = stringResource(R.string.add_profile_methods_scan_qr_code),
-                        onClick = { startActivity(Intent(requireActivity(), ScannerActivity::class.java)) },
-                    ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.add_profile_methods_scan_qr_code),
+                            onClick = {
+                                (activity as? MainActivity)?.openActivityRoute(
+                                    YokhanShellActivityRoute.Scanner,
+                                )
+                            },
+                        ),
                     YokhanRouteAction(
                         title = stringResource(R.string.action_import),
                         onClick = ::importFromClipboard,
@@ -823,7 +827,12 @@ class ConfigurationFragment @JvmOverloads constructor(
     }
 
     private fun editProfile(profile: ProxyEntity, group: ProxyGroup?) {
-        startActivity(profile.settingIntent(requireContext(), group?.type == GroupType.SUBSCRIPTION))
+        (activity as? MainActivity)?.openActivityRoute(
+            YokhanShellActivityRoute.EditProfile(
+                profile = profile,
+                isSubscription = group?.type == GroupType.SUBSCRIPTION,
+            ),
+        )
     }
 
     private fun confirmDeleteProfile(profile: ProxyEntity) {

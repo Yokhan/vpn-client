@@ -1,6 +1,5 @@
 package com.yokhan.vpn.app.ui
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.text.format.Formatter
@@ -57,6 +56,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
 import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
+import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import moe.matsuri.nb4a.utils.Util
 import moe.matsuri.nb4a.utils.toBytesString
@@ -112,8 +112,8 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
                                 title = stringResource(R.string.group_create),
                                 primary = true,
                                 onClick = {
-                                    startActivity(
-                                        Intent(requireActivity(), GroupSettingsActivity::class.java),
+                                    (activity as? MainActivity)?.openActivityRoute(
+                                        YokhanShellActivityRoute.GroupCreate,
                                     )
                                 },
                             ),
@@ -474,9 +474,9 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
 
     private fun editGroup(group: ProxyGroup) {
         if (group.ungrouped) return
-        startActivity(Intent(requireActivity(), GroupSettingsActivity::class.java).apply {
-            putExtra(GroupSettingsActivity.EXTRA_GROUP_ID, group.id)
-        })
+        (activity as? MainActivity)?.openActivityRoute(
+            YokhanShellActivityRoute.GroupEdit(group.id),
+        )
     }
 
     private fun confirmUpdateAllSubscriptions() {

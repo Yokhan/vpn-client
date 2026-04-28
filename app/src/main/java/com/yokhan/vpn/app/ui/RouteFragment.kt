@@ -1,6 +1,5 @@
 package com.yokhan.vpn.app.ui
 
-import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.compose.foundation.border
@@ -44,6 +43,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
 import com.yokhan.vpn.app.ui.compose.YokhanStatusPill
 import com.yokhan.vpn.app.ui.compose.YokhanToggleRow
+import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 
 class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener {
 
@@ -86,15 +86,17 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
                                 title = stringResource(R.string.route_add),
                                 primary = true,
                                 onClick = {
-                                    startActivity(
-                                        Intent(requireActivity(), RouteSettingsActivity::class.java),
+                                    (activity as? MainActivity)?.openActivityRoute(
+                                        YokhanShellActivityRoute.RouteCreate,
                                     )
                                 },
                             ),
                             YokhanRouteAction(
                                 title = stringResource(R.string.route_manage_assets),
                                 onClick = {
-                                    startActivity(Intent(requireActivity(), AssetsActivity::class.java))
+                                    (activity as? MainActivity)?.openActivityRoute(
+                                        YokhanShellActivityRoute.RouteAssets,
+                                    )
                                 },
                             ),
                             YokhanRouteAction(
@@ -277,9 +279,9 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
     }
 
     private fun editRule(rule: RuleEntity) {
-        startActivity(Intent(requireActivity(), RouteSettingsActivity::class.java).apply {
-            putExtra(RouteSettingsActivity.EXTRA_ROUTE_ID, rule.id)
-        })
+        (activity as? MainActivity)?.openActivityRoute(
+            YokhanShellActivityRoute.RouteEdit(rule.id),
+        )
     }
 
     private fun toggleRule(rule: RuleEntity, enabled: Boolean) {

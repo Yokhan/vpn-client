@@ -49,6 +49,11 @@ import io.nekohasekai.sagernet.ktx.parseProxies
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import com.yokhan.vpn.app.ui.compose.YokhanServiceStateConsumer
+import com.yokhan.vpn.app.ui.profile.ShadowsocksSettingsActivity
+import com.yokhan.vpn.app.ui.profile.VMessSettingsActivity
+import com.yokhan.vpn.app.ui.profile.WireGuardSettingsActivity
+import com.yokhan.vpn.app.ui.shell.YokhanManualProfileProtocol
+import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 import com.yokhan.vpn.app.ui.shell.YokhanMainShell
 import com.yokhan.vpn.app.ui.shell.YokhanShellDrawerCommand
 import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
@@ -347,6 +352,39 @@ class MainActivity : ThemedActivity(),
             YokhanShellSubRoute.AdvancedSettings -> SettingsAdvancedFragment()
         }
         displayFragment(fragment, addToBackStack = true)
+        return true
+    }
+
+    fun openActivityRoute(route: YokhanShellActivityRoute): Boolean {
+        val intent = when (route) {
+            YokhanShellActivityRoute.Scanner -> Intent(this, ScannerActivity::class.java)
+            YokhanShellActivityRoute.GroupCreate -> Intent(this, GroupSettingsActivity::class.java)
+            is YokhanShellActivityRoute.GroupEdit -> {
+                Intent(this, GroupSettingsActivity::class.java).apply {
+                    putExtra(GroupSettingsActivity.EXTRA_GROUP_ID, route.groupId)
+                }
+            }
+            YokhanShellActivityRoute.RouteCreate -> Intent(this, RouteSettingsActivity::class.java)
+            is YokhanShellActivityRoute.RouteEdit -> {
+                Intent(this, RouteSettingsActivity::class.java).apply {
+                    putExtra(RouteSettingsActivity.EXTRA_ROUTE_ID, route.routeId)
+                }
+            }
+            YokhanShellActivityRoute.RouteAssets -> Intent(this, AssetsActivity::class.java)
+            YokhanShellActivityRoute.AppManager -> Intent(this, AppManagerActivity::class.java)
+            is YokhanShellActivityRoute.AddManualProfile -> {
+                val activityClass = when (route.protocol) {
+                    YokhanManualProfileProtocol.Shadowsocks -> ShadowsocksSettingsActivity::class.java
+                    YokhanManualProfileProtocol.VMess -> VMessSettingsActivity::class.java
+                    YokhanManualProfileProtocol.WireGuard -> WireGuardSettingsActivity::class.java
+                }
+                Intent(this, activityClass)
+            }
+            is YokhanShellActivityRoute.EditProfile -> {
+                route.profile.settingIntent(this, route.isSubscription)
+            }
+        }
+        startActivity(intent)
         return true
     }
 

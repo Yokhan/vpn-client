@@ -1,6 +1,5 @@
 package com.yokhan.vpn.app.ui
 
-import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.compose.foundation.layout.padding
@@ -23,6 +22,7 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
 import com.yokhan.vpn.app.ui.compose.YokhanStatPair
+import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 import com.yokhan.vpn.app.ui.shell.YokhanShellSubRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -99,11 +99,19 @@ class RouteHubFragment : YokhanComposeRouteFragment() {
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.route_add),
-                            onClick = { startActivity(Intent(requireActivity(), RouteSettingsActivity::class.java)) },
+                            onClick = {
+                                (activity as? MainActivity)?.openActivityRoute(
+                                    YokhanShellActivityRoute.RouteCreate,
+                                )
+                            },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.route_manage_assets),
-                            onClick = { startActivity(Intent(requireActivity(), AssetsActivity::class.java)) },
+                            onClick = {
+                                (activity as? MainActivity)?.openActivityRoute(
+                                    YokhanShellActivityRoute.RouteAssets,
+                                )
+                            },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.route_reset),

@@ -1,6 +1,5 @@
 package com.yokhan.vpn.app.ui
 
-import android.content.Intent
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.View
@@ -44,9 +43,8 @@ import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
 import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
 import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
 import com.yokhan.vpn.app.ui.compose.YokhanStatPair
-import com.yokhan.vpn.app.ui.profile.ShadowsocksSettingsActivity
-import com.yokhan.vpn.app.ui.profile.VMessSettingsActivity
-import com.yokhan.vpn.app.ui.profile.WireGuardSettingsActivity
+import com.yokhan.vpn.app.ui.shell.YokhanManualProfileProtocol
+import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
 import com.yokhan.vpn.app.ui.shell.YokhanShellSubRoute
 import kotlinx.coroutines.Dispatchers
@@ -228,7 +226,11 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                     actions = listOf(
                         YokhanRouteAction(
                             title = stringResource(R.string.add_profile_methods_scan_qr_code),
-                            onClick = { startActivity(Intent(requireActivity(), ScannerActivity::class.java)) },
+                            onClick = {
+                                (activity as? MainActivity)?.openActivityRoute(
+                                    YokhanShellActivityRoute.Scanner,
+                                )
+                            },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.action_import),
@@ -257,15 +259,33 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                     actions = listOf(
                         YokhanRouteAction(
                             title = stringResource(R.string.action_shadowsocks),
-                            onClick = { startActivity(Intent(requireActivity(), ShadowsocksSettingsActivity::class.java)) },
+                            onClick = {
+                                (activity as? MainActivity)?.openActivityRoute(
+                                    YokhanShellActivityRoute.AddManualProfile(
+                                        YokhanManualProfileProtocol.Shadowsocks,
+                                    ),
+                                )
+                            },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.action_vmess),
-                            onClick = { startActivity(Intent(requireActivity(), VMessSettingsActivity::class.java)) },
+                            onClick = {
+                                (activity as? MainActivity)?.openActivityRoute(
+                                    YokhanShellActivityRoute.AddManualProfile(
+                                        YokhanManualProfileProtocol.VMess,
+                                    ),
+                                )
+                            },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.action_wireguard),
-                            onClick = { startActivity(Intent(requireActivity(), WireGuardSettingsActivity::class.java)) },
+                            onClick = {
+                                (activity as? MainActivity)?.openActivityRoute(
+                                    YokhanShellActivityRoute.AddManualProfile(
+                                        YokhanManualProfileProtocol.WireGuard,
+                                    ),
+                                )
+                            },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.configuration_hub_open_all_protocols),

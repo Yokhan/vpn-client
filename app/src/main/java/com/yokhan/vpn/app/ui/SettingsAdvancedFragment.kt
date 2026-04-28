@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
 import com.yokhan.vpn.app.ui.form.arrayOptions
 import com.yokhan.vpn.app.ui.form.selectValue
 import com.yokhan.vpn.app.ui.form.switchValue
@@ -95,7 +96,9 @@ class SettingsAdvancedFragment : ToolbarFragment() {
 
             is YokhanFormEvent.ActionInvoked -> when (event.id) {
                 FieldGlobalConfig -> openGlobalConfig()
-                FieldProxyAppsManager -> startActivity(Intent(requireActivity(), AppManagerActivity::class.java))
+                FieldProxyAppsManager -> {
+                    (activity as? MainActivity)?.openActivityRoute(YokhanShellActivityRoute.AppManager)
+                }
                 FieldLogBufferSize -> showLogBufferDialog()
                 else -> Unit
             }
