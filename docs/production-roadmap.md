@@ -187,7 +187,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 - [ ] Verify signed artifacts with `apksigner` before release publication.
 - [ ] Add a lightweight UI build check for desktop preview.
 - [ ] Cache libcore and Gradle dependencies without hiding source changes.
-- [ ] Update GitHub Actions from Node 20-backed actions before runner removal becomes blocking.
+- [x] Update GitHub Actions from Node 20-backed actions before runner removal becomes blocking.
 
 ## 18. Release Engineering
 

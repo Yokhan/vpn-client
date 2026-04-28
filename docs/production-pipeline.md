@@ -22,6 +22,7 @@ This is the execution pipeline for turning the current transition codebase into 
 ### P01. CI And Release Baseline
 
 - Remove CI artifact upload paths that are blocked by GitHub artifact quota.
+- Run official GitHub actions on Node 24-backed major versions.
 - Keep release APK publishing direct to GitHub Releases.
 - Keep libcore build/cache verification inside jobs that need Gradle.
 - Document that testable APKs come from release tags or local builds until artifact quota is fixed.
