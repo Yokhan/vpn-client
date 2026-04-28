@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -15,6 +16,7 @@ import io.nekohasekai.sagernet.R
 
 fun Context.createYokhanSettingsHost(
     includeConfigurationList: Boolean = false,
+    useComposeContainer: Boolean = false,
 ): LinearLayout {
     return LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
@@ -25,7 +27,7 @@ fun Context.createYokhanSettingsHost(
         )
 
         addView(createYokhanAppBar())
-        addView(createSettingsContainer(includeConfigurationList))
+        addView(createSettingsContainer(includeConfigurationList, useComposeContainer))
 
         if (includeConfigurationList) {
             addView(createSettingsDivider())
@@ -58,14 +60,27 @@ fun Context.createYokhanAppBar(): AppBarLayout {
     }
 }
 
-private fun Context.createSettingsContainer(wrapContent: Boolean): FragmentContainerView {
-    return FragmentContainerView(this).apply {
-        id = R.id.settings
-        setBackgroundResource(R.color.dashboard_bg_off)
-        layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            if (wrapContent) ViewGroup.LayoutParams.WRAP_CONTENT else ViewGroup.LayoutParams.MATCH_PARENT,
-        )
+private fun Context.createSettingsContainer(
+    wrapContent: Boolean,
+    useComposeContainer: Boolean,
+): View {
+    val height = if (wrapContent) ViewGroup.LayoutParams.WRAP_CONTENT else ViewGroup.LayoutParams.MATCH_PARENT
+    val layoutParams = LinearLayout.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT,
+        height,
+    )
+    return if (useComposeContainer) {
+        FrameLayout(this).apply {
+            id = R.id.settings
+            setBackgroundResource(R.color.dashboard_bg_off)
+            this.layoutParams = layoutParams
+        }
+    } else {
+        FragmentContainerView(this).apply {
+            id = R.id.settings
+            setBackgroundResource(R.color.dashboard_bg_off)
+            this.layoutParams = layoutParams
+        }
     }
 }
 

@@ -15,7 +15,7 @@ This is the execution pipeline for turning the current transition codebase into 
 
 ## Current Cursor
 
-`P03-first-form`: migrate the first representative profile form to the shared Compose form kit.
+`P04-profile-form-scaling`: migrate the remaining profile forms with the proven shared Compose form pattern.
 
 ## Pipeline
 
@@ -44,6 +44,7 @@ This is the execution pipeline for turning the current transition codebase into 
 - Preserve dirty-state and subscription edit restrictions.
 - Preserve password summaries, port validation, and IME behavior.
 - Acceptance: migrated screen builds, opens from add/edit flows, saves data, and does not use preference XML.
+- Completed: `ConfigSettingActivity` now renders with the shared Compose form kit and `config_preferences.xml` is deleted.
 
 ### P04. Profile Form Scaling
 
@@ -151,6 +152,7 @@ This is the execution pipeline for turning the current transition codebase into 
 
 - [x] P01-CI-cleanup: remove CI artifact upload and update process docs.
 - [x] P02-form-kit-skeleton: add Compose form models and primitives.
-- [ ] P03-first-form: migrate the first profile form.
+- [x] P03-first-form: migrate the first profile form.
+- [ ] P04-profile-form-scaling: migrate remaining profile forms.
 - [ ] P05-route-form: migrate route edit form after profile form pattern is proven.
 - [ ] P07-dashboard-owner: remove `DashboardFragment` ownership after forms are not blocking navigation.

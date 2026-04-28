@@ -23,6 +23,9 @@ import androidx.activity.result.component1
 import androidx.activity.result.component2
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
@@ -101,12 +104,35 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
     abstract fun createEntity(): T
     abstract fun T.init()
     abstract fun T.serialize()
+    protected open fun useComposeProfileForm(): Boolean = false
+
+    @Composable
+    protected open fun ComposeProfileContent() {
+    }
 
     protected var proxyEntity: ProxyEntity? = null
     private var editingGroupType: Int? = null
     private var basicGroupCount = 0
     private var movableGroups: List<ProxyGroup> = emptyList()
     protected var isSubscription by Delegates.notNull<Boolean>()
+    private var composeCustomCallback: ((String) -> Unit)? = null
+    private var composeCustomOutboundCallback: ((String) -> Unit)? = null
+    private val composeCustomResult = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        composeCustomCallback?.let { callback ->
+            callback(DataStore.serverCustom)
+            DataStore.dirty = true
+        }
+    }
+    private val composeCustomOutboundResult = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        composeCustomOutboundCallback?.let { callback ->
+            callback(DataStore.serverCustomOutbound)
+            DataStore.dirty = true
+        }
+    }
 
     private suspend fun reloadMenuState() {
         val groups = SagerDatabase.groupDao.allGroups()
@@ -119,7 +145,7 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(createYokhanSettingsHost(includeConfigurationList))
+        setContentView(createYokhanSettingsHost(includeConfigurationList, useComposeProfileForm()))
         setSupportActionBar(findViewById(R.id.toolbar))
         supportActionBar?.apply {
             setTitle(R.string.profile_config)
@@ -162,7 +188,9 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
             reloadMenuState()
 
             onMainDispatcher {
-                if (savedInstanceState == null) {
+                if (useComposeProfileForm()) {
+                    mountComposeProfileForm()
+                } else if (savedInstanceState == null) {
                     supportFragmentManager.beginTransaction()
                         .replace(R.id.settings, MyPreferenceFragmentCompat())
                         .commit()
@@ -214,7 +242,13 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
         return true
     }
 
-    override fun onOptionsItemSelected(item: MenuItem) = child.onOptionsItemSelected(item)
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return if (useComposeProfileForm()) {
+            onComposeOptionsItemSelected(item)
+        } else {
+            child.onOptionsItemSelected(item)
+        }
+    }
 
     override fun onSupportNavigateUp(): Boolean {
         onBackPressedDispatcher.onBackPressed()
@@ -232,16 +266,189 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
         }
     }
 
-    abstract fun PreferenceFragmentCompat.createPreferences(
+    open fun PreferenceFragmentCompat.createPreferences(
         savedInstanceState: Bundle?,
         rootKey: String?,
-    )
+    ) {
+    }
 
     open fun PreferenceFragmentCompat.viewCreated(view: View, savedInstanceState: Bundle?) {
     }
 
     open fun PreferenceFragmentCompat.displayPreferenceDialog(preference: Preference): Boolean {
         return false
+    }
+
+    protected open fun onComposeOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_delete -> {
+                if (DataStore.editingId == 0L) {
+                    finish()
+                } else {
+                    DeleteConfirmationDialogFragment().apply {
+                        arg(ProfileIdArg(DataStore.editingId, DataStore.editingGroup))
+                        key()
+                    }.show(supportFragmentManager, null)
+                }
+                true
+            }
+
+            R.id.action_apply -> {
+                runOnDefaultDispatcher {
+                    saveAndExit()
+                }
+                true
+            }
+
+            R.id.action_custom_outbound_json -> {
+                proxyEntity?.apply {
+                    val bean = requireBean()
+                    DataStore.serverCustomOutbound = bean.customOutboundJson
+                    composeCustomOutboundCallback = { bean.customOutboundJson = it }
+                    composeCustomOutboundResult.launch(
+                        Intent(this@ProfileSettingsActivity, ConfigEditActivity::class.java).apply {
+                            putExtra("key", Key.SERVER_CUSTOM_OUTBOUND)
+                        },
+                    )
+                }
+                true
+            }
+
+            R.id.action_custom_config_json -> {
+                proxyEntity?.apply {
+                    val bean = requireBean()
+                    DataStore.serverCustom = bean.customConfigJson
+                    composeCustomCallback = { bean.customConfigJson = it }
+                    composeCustomResult.launch(
+                        Intent(this@ProfileSettingsActivity, ConfigEditActivity::class.java).apply {
+                            putExtra("key", Key.SERVER_CUSTOM)
+                        },
+                    )
+                }
+                true
+            }
+
+            R.id.action_create_shortcut -> {
+                val ent = proxyEntity ?: return true
+                val shortcut = ShortcutInfoCompat.Builder(this, "shortcut-profile-${ent.id}")
+                    .setShortLabel(ent.displayName())
+                    .setLongLabel(ent.displayName())
+                    .setIcon(
+                        IconCompat.createWithResource(
+                            this, R.drawable.ic_qu_shadowsocks_launcher
+                        )
+                    ).setIntent(Intent(
+                        this, QuickToggleShortcut::class.java
+                    ).apply {
+                        action = Intent.ACTION_MAIN
+                        putExtra("profile", ent.id)
+                    }).build()
+                ShortcutManagerCompat.requestPinShortcut(this, shortcut, null)
+                true
+            }
+
+            R.id.action_move -> {
+                showMoveProfileDialog()
+                true
+            }
+
+            else -> false
+        }
+    }
+
+    private fun mountComposeProfileForm() {
+        findViewById<ViewGroup>(R.id.settings).apply {
+            removeAllViews()
+            addView(
+                ComposeView(this@ProfileSettingsActivity).apply {
+                    setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
+                    setContent { ComposeProfileContent() }
+                },
+            )
+        }
+        DataStore.dirty = false
+        DataStore.profileCacheStore.registerChangeListener(this)
+    }
+
+    private fun showMoveProfileDialog() {
+        val ent = proxyEntity ?: return
+        val view = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            movableGroups.forEach { group ->
+                addView(createMoveGroupRow(group, ent))
+            }
+        }
+        MaterialAlertDialogBuilder(this).setView(ScrollView(this).apply { addView(view) }).show()
+    }
+
+    private fun createMoveGroupRow(
+        group: ProxyGroup,
+        ent: ProxyEntity,
+    ): View {
+        return MaterialCardView(this).apply {
+            setCardBackgroundColor(Color.TRANSPARENT)
+            radius = settingsDp(10).toFloat()
+            cardElevation = 0f
+            strokeWidth = settingsDp(1)
+            setStrokeColor(ContextCompat.getColor(context, R.color.dashboard_card_border_off))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                setMargins(settingsDp(10), settingsDp(4), settingsDp(10), settingsDp(4))
+            }
+            addView(LinearLayout(context).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(settingsDp(12), settingsDp(12), settingsDp(12), settingsDp(12))
+                addView(TextView(context).apply {
+                    ellipsize = TextUtils.TruncateAt.END
+                    maxLines = 1
+                    text = group.displayName()
+                    typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                    textSize = 16f
+                    layoutParams = LinearLayout.LayoutParams(
+                        0,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        1f,
+                    )
+                })
+                addView(MaterialButton(context).apply {
+                    backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
+                    minWidth = 0
+                    text = getString(R.string.move)
+                    setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                    strokeColor = ColorStateList.valueOf(
+                        ContextCompat.getColor(context, R.color.dashboard_card_border_off)
+                    )
+                    strokeWidth = settingsDp(1)
+                    setOnClickListener {
+                        runOnDefaultDispatcher {
+                            val oldGroupId = ent.groupId
+                            val newGroupId = group.id
+                            ent.groupId = newGroupId
+                            ProfileManager.updateProfile(ent)
+                            GroupManager.postUpdate(oldGroupId)
+                            GroupManager.postUpdate(newGroupId)
+                            DataStore.editingGroup = newGroupId
+                            runOnMainDispatcher {
+                                finish()
+                            }
+                        }
+                    }
+                })
+            })
+        }
+    }
+
+    private fun settingsDp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 
     class MyPreferenceFragmentCompat : PreferenceFragmentCompat() {
