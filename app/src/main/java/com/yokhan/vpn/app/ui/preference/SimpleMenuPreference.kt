@@ -97,7 +97,7 @@ open class SimpleMenuPreference
                 gravity = Gravity.CENTER
                 minWidth = dp(112)
                 setSingleLine(true)
-                setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
                 textSize = 13f
                 typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
                 setPadding(dp(16), 0, dp(16), 0)

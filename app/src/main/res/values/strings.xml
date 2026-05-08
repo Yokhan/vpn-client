@@ -33,6 +33,9 @@
     <string name="dashboard_check_connection">ПРОВЕРИТЬ СОЕДИНЕНИЕ</string>
     <string name="dashboard_configurations">КОНФИГУРАЦИИ</string>
     <string name="dashboard_add">+ ДОБАВИТЬ</string>
+    <string name="dashboard_first_run_title">НЕТ КОНФИГУРАЦИЙ</string>
+    <string name="dashboard_first_run_body">Импортируйте подписку, добавьте профиль вручную или откройте список конфигураций.</string>
+    <string name="dashboard_first_run_action">ОТКРЫТЬ НАСТРОЙКУ</string>
     <string name="dashboard_upload_label">ОТПРАВКА</string>
     <string name="dashboard_download_label">ПОЛУЧЕНИЕ</string>
     <string name="dashboard_tap_connect">Нажмите для подключения</string>
@@ -144,7 +147,7 @@
     <string name="quick_disable">Disable</string>
     <string name="tile_title">Switcher</string>
     <string name="menu_traffic">Traffic</string>
-    <string name="menu_dashboard">sing-box Dashboard</string>
+    <string name="menu_dashboard">Control Panel</string>
     <!-- externel -->
     <string name="action_copy">Copy</string>
     <string name="action_open">Open</string>

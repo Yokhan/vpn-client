@@ -40,7 +40,7 @@ class SwitchActivity : ThemedActivity(),
     private fun createFragmentHost(): FragmentContainerView {
         return FragmentContainerView(this).apply {
             id = R.id.fragment_holder
-            setBackgroundResource(R.color.dashboard_bg_off)
+            setBackgroundResource(R.color.dashboard_space_bg)
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,

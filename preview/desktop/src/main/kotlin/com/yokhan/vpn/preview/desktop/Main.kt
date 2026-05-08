@@ -342,11 +342,22 @@ private fun PreviewControlPanel(
         ) {
             Text("Reset tuning")
         }
+        Button(
+            onClick = { onTuningChange(tuning.copy(rocketDebugOverlay = !tuning.rocketDebugOverlay)) },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (tuning.rocketDebugOverlay) Color(0xFF2A7C55) else Color(0xFF3B3B48),
+            ),
+        ) {
+            Text(if (tuning.rocketDebugOverlay) "Rocket overlay: on" else "Rocket overlay: off")
+        }
         TuningSlider("Rocket width", tuning.rocketWidth, 96f..170f) {
             onTuningChange(tuning.copy(rocketWidth = it))
         }
         TuningSlider("Rocket height", tuning.rocketHeight, 170f..280f) {
             onTuningChange(tuning.copy(rocketHeight = it))
+        }
+        TuningSlider("Flame width", tuning.flameWidth, 12f..40f) {
+            onTuningChange(tuning.copy(flameWidth = it))
         }
         TuningSlider("Flame height", tuning.flameHeight, 54f..140f) {
             onTuningChange(tuning.copy(flameHeight = it))
@@ -369,12 +380,32 @@ private fun PreviewControlPanel(
             fontFamily = FontFamily.Monospace,
         )
         Text(
+            text = tuning.asDebugText(),
+            color = Color(0xFFE6E0FF),
+            fontFamily = FontFamily.Monospace,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+        )
+        Text(
             text = screenshotStatus,
             color = Color(0xFFB7B7C8),
             fontFamily = FontFamily.Monospace,
             fontSize = 12.sp,
         )
     }
+}
+
+private fun DashboardUiTuning.asDebugText(): String {
+    return "DashboardUiTuning(" +
+        "rocketWidth=$rocketWidth, " +
+        "rocketHeight=$rocketHeight, " +
+        "flameWidth=$flameWidth, " +
+        "flameHeight=$flameHeight, " +
+        "flameY=$flameY, " +
+        "leftFlameX=$leftFlameX, " +
+        "rightFlameX=$rightFlameX, " +
+        "statsBarBottomPadding=$statsBarBottomPadding" +
+        ")"
 }
 
 @Composable

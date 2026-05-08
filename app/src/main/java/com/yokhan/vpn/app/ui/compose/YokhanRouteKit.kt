@@ -72,7 +72,7 @@ fun YokhanRouteFrame(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.(YokhanPalette, YokhanTypography) -> Unit,
 ) {
-    val target = yokhanPalette(spaceActive)
+    val target = yokhanPalette(spaceActive = true)
     val colors = target.animate()
     val typography = yokhanTypography()
 
@@ -124,7 +124,7 @@ fun YokhanRouteLazyFrame(
     modifier: Modifier = Modifier,
     content: LazyListScope.(YokhanPalette, YokhanTypography) -> Unit,
 ) {
-    val target = yokhanPalette(spaceActive)
+    val target = yokhanPalette(spaceActive = true)
     val colors = target.animate()
     val typography = yokhanTypography()
 
@@ -175,7 +175,7 @@ fun YokhanRouteSurface(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.(YokhanPalette, YokhanTypography) -> Unit,
 ) {
-    val target = yokhanPalette(spaceActive)
+    val target = yokhanPalette(spaceActive = true)
     val colors = target.animate()
     val typography = yokhanTypography()
 

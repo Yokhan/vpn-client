@@ -1,0 +1,50 @@
+# Stabilization And Refactor Plan
+
+## Goal
+
+Bring the app from a working Compose migration into a production-clean state: stable lifecycle behavior, predictable dashboard animations, clear first-run setup, shared UI primitives, and less legacy coupling.
+
+## Current Bug Themes
+
+1. Dashboard can fall back to the light palette on resume/idle and visually "flood" the screen.
+2. Rocket/flame alignment is still too hard to tune because the preview does not expose enough measurable controls.
+3. First install and empty profile state do not explain the next action clearly enough.
+4. Some UI state transitions are lifecycle-sensitive and need explicit contracts instead of incidental recomposition.
+5. Legacy Android resources and inherited namespaces still create maintenance noise.
+
+## Workstreams
+
+1. Dashboard lifecycle stability: keep the main screen background stable across resume, foreground/background, connect, disconnect, and timer updates.
+2. Rocket scene tuning: expose flame width, X/Y offsets, and debug overlay in desktop preview; only commit tuned constants after visual comparison.
+3. First-run setup: make empty profile state actionable from the dashboard, then improve import/manual setup screens.
+4. UI state contracts: keep route/window colors on the dark design-system palette while using connection state only for motion, stars, status, and CTA behavior.
+5. Route UI cleanup: continue replacing local dimensions, shapes, and card behaviors with shared primitives.
+6. Navigation cleanup: keep all new flows on typed routes and remove remaining legacy fragment assumptions where safe.
+7. Performance pass: avoid remapping lists or reloading resources during timer/speed hot updates.
+8. Preview and QA: desktop preview must reproduce connecting/disconnecting/resume states and export screenshots with visible tuning values.
+9. Release process: keep every stage buildable with `:shared-domain:check`, `:desktop-preview:classes`, and `:app:assembleOssRelease`.
+10. Source cleanup: remove product-owned references to inherited package names only after confirming they are not core/data compatibility points.
+
+## Immediate Patch Scope
+
+1. Stop dashboard from switching to the light palette on idle/resume.
+2. Add first-run dashboard copy and CTA when there are no profiles.
+3. Add desktop preview controls for flame width and a rocket/flame debug overlay.
+4. Document the new tuning workflow so offsets can be reported as exact values, not screenshots alone.
+5. Remove light `dashboard_bg_off` usage from app UI hosts so legacy screens cannot flash beige.
+
+## Rocket Tuning Workflow
+
+1. Run the desktop preview and keep the phone viewport in Dashboard mode.
+2. Enable `Rocket overlay: on`; cyan marks the rocket bounds and center, orange marks both flame bounds.
+3. Adjust `Flame width`, `Flame height`, `Flame Y`, `Left flame X`, and `Right flame X` until the flame visually sits under the nozzles.
+4. Press `Save phone screenshot` and compare it with the reference screenshot.
+5. Send or commit the displayed `DashboardUiTuning(...)` line; the production default constants should be updated only from that exact line.
+
+## Acceptance
+
+1. Returning to the app does not produce a beige dashboard flash.
+2. The preview panel shows exact rocket/flame tuning values and can render an overlay for alignment.
+3. Empty install tells the user how to add/import a profile.
+4. App shell, route frames, settings hosts, and dialogs keep a dark design-system surface.
+5. Build verification passes before every push.

@@ -352,7 +352,7 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
                 addView(TextView(context).apply {
                     text = getString(R.string.add_profile)
                     typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
-                    setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                    setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
                     textSize = 13f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 })
@@ -369,7 +369,7 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
             typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
-            setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+            setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
             textSize = 16f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
@@ -377,13 +377,13 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
             typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
-            setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_secondary))
+            setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_secondary))
             textSize = 11f
             setPadding(0, dp(6), 0, 0)
         }
         val trafficText = TextView(card.context).apply {
             typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
-            setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_secondary))
+            setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_secondary))
             textSize = 11f
             setPadding(0, dp(4), 0, 0)
             isVisible = false
@@ -394,7 +394,7 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
             setPadding(dp(12), dp(12), dp(12), dp(12))
             setImageResource(R.drawable.ic_image_edit)
             imageTintList = android.content.res.ColorStateList.valueOf(
-                ContextCompat.getColor(context, R.color.dashboard_text_secondary)
+                ContextCompat.getColor(context, R.color.dashboard_space_text_secondary)
             )
             layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
         }
@@ -405,7 +405,7 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigur
             addView(ImageView(context).apply {
                 setImageResource(R.drawable.ic_social_share)
                 imageTintList = android.content.res.ColorStateList.valueOf(
-                    ContextCompat.getColor(context, R.color.dashboard_text_secondary)
+                    ContextCompat.getColor(context, R.color.dashboard_space_text_secondary)
                 )
             })
             layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))

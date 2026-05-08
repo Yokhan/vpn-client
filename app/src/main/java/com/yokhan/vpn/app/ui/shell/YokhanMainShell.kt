@@ -71,7 +71,7 @@ fun YokhanMainShell(
     val spaceActive = serviceState == BaseService.State.Connecting ||
         serviceState == BaseService.State.Connected ||
         serviceState == BaseService.State.Stopping
-    val colors = yokhanPalette(spaceActive)
+    val colors = yokhanPalette(spaceActive = true)
     val typography = yokhanTypography()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -132,7 +132,6 @@ fun YokhanMainShell(
                         ShellNavItem(
                             item = item,
                             selected = item.route == selectedRoute,
-                            spaceActive = spaceActive,
                             onClick = {
                                 onRouteSelected(item.route)
                                 scope.launch { drawerState.close() }
@@ -205,10 +204,9 @@ fun YokhanMainShell(
 private fun ShellNavItem(
     item: ShellNavItemModel,
     selected: Boolean,
-    spaceActive: Boolean,
     onClick: () -> Unit,
 ) {
-    val colors = yokhanPalette(spaceActive)
+    val colors = yokhanPalette(spaceActive = true)
     val typography = yokhanTypography()
     val marker = if (selected) YokhanAccent else Color.Transparent
     Row(

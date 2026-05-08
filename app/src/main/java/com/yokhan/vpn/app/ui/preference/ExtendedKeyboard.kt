@@ -81,11 +81,11 @@ class ExtendedKeyboard @JvmOverloads constructor(
                     val density = context.resources.displayMetrics.density
                     val title = TextView(context).apply {
                         layoutParams = LayoutParams((36 * density).toInt(), (36 * density).toInt())
-                        setBackgroundResource(R.color.dashboard_divider_light)
+                        setBackgroundResource(R.color.dashboard_divider_dark)
                         typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
                         gravity = Gravity.CENTER
                         setPadding(0, 0, 0, (2 * density).toInt())
-                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
                         textSize = 16f
                     }
                     return KeyViewHolder(title, keyListener)

@@ -50,7 +50,7 @@ class YokhanEditTextPreferenceDialogFragment : EditTextPreferenceDialogFragmentC
     private fun createUrlDialogView(context: Context): View {
         return ScrollView(context).apply {
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            setBackgroundColor(ContextCompat.getColor(context, R.color.dashboard_bg_off))
+            setBackgroundColor(ContextCompat.getColor(context, R.color.dashboard_space_bg))
             setPadding(0, dp(16), 0, 0)
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
@@ -70,8 +70,8 @@ class YokhanEditTextPreferenceDialogFragment : EditTextPreferenceDialogFragmentC
                         minHeight = dp(48)
                         setPadding(paddingLeft, dp(12), paddingRight, paddingBottom)
                         typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
-                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
-                        setHintTextColor(ContextCompat.getColor(context, R.color.dashboard_text_secondary))
+                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
+                        setHintTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_secondary))
                     })
                 })
                 addView(LinearLayout(context).apply {
@@ -88,7 +88,7 @@ class YokhanEditTextPreferenceDialogFragment : EditTextPreferenceDialogFragmentC
                     addView(TextView(context).apply {
                         text = getString(R.string.test_concurrency)
                         typeface = ResourcesCompat.getFont(context, R.font.golos_text)
-                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_secondary))
+                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_secondary))
                         textSize = 13f
                     })
                     addView(TextInputEditText(context).apply {
@@ -98,8 +98,8 @@ class YokhanEditTextPreferenceDialogFragment : EditTextPreferenceDialogFragmentC
                         setPadding(paddingLeft, dp(12), paddingRight, paddingBottom)
                         setSingleLine(true)
                         typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
-                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
-                        setHintTextColor(ContextCompat.getColor(context, R.color.dashboard_text_secondary))
+                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
+                        setHintTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_secondary))
                         layoutParams = LinearLayout.LayoutParams(
                             0,
                             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -116,14 +116,14 @@ class YokhanEditTextPreferenceDialogFragment : EditTextPreferenceDialogFragmentC
     private fun createPasswordDialogView(context: Context): View {
         return ScrollView(context).apply {
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            setBackgroundColor(ContextCompat.getColor(context, R.color.dashboard_bg_off))
+            setBackgroundColor(ContextCompat.getColor(context, R.color.dashboard_space_bg))
             setPadding(0, dp(48), 0, dp(48))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(TextView(context).apply {
                     id = android.R.id.message
                     typeface = ResourcesCompat.getFont(context, R.font.golos_text)
-                    setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_secondary))
+                    setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_secondary))
                     textSize = 13f
                     layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
@@ -147,8 +147,8 @@ class YokhanEditTextPreferenceDialogFragment : EditTextPreferenceDialogFragmentC
                         setPadding(paddingLeft, dp(12), paddingRight, paddingBottom)
                         setSingleLine(true)
                         typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
-                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
-                        setHintTextColor(ContextCompat.getColor(context, R.color.dashboard_text_secondary))
+                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
+                        setHintTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_secondary))
                     })
                 })
             })

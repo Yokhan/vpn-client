@@ -40,7 +40,7 @@ open class ToolbarFragment : Fragment {
 
     private fun applyYokhanToolbarStyle(view: View) {
         val context = toolbar.context
-        val titleColor = ContextCompat.getColor(context, R.color.dashboard_text_primary)
+        val titleColor = ContextCompat.getColor(context, R.color.dashboard_space_text_primary)
         toolbar.setBackgroundColor(Color.TRANSPARENT)
         toolbar.setTitleTextColor(titleColor)
         toolbar.navigationIcon?.setTint(titleColor)

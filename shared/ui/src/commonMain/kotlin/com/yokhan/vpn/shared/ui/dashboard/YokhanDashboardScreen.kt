@@ -114,6 +114,7 @@ data class DashboardUiTuning(
     val leftFlameX: Int = -10,
     val rightFlameX: Int = 8,
     val flameY: Int = 117,
+    val rocketDebugOverlay: Boolean = false,
 )
 
 @Immutable
@@ -134,6 +135,9 @@ data class DashboardUiLabels(
     val checkingConnection: String = "ПРОВЕРКА...",
     val configurations: String,
     val add: String,
+    val firstRunTitle: String,
+    val firstRunBody: String,
+    val firstRunAction: String,
     val latency: String,
     val status: String,
     val protocol: String,
@@ -155,6 +159,9 @@ data class DashboardUiLabels(
             checkConnection = "ПРОВЕРИТЬ СОЕДИНЕНИЕ",
             configurations = "КОНФИГУРАЦИИ",
             add = "+ ДОБАВИТЬ",
+            firstRunTitle = "НЕТ КОНФИГУРАЦИЙ",
+            firstRunBody = "Импортируйте подписку, добавьте профиль вручную или откройте список конфигураций.",
+            firstRunAction = "ОТКРЫТЬ НАСТРОЙКУ",
             latency = "ЗАДЕРЖКА",
             status = "СТАТУС",
             protocol = "ПРОТОКОЛ",
@@ -197,7 +204,7 @@ fun YokhanDashboardScreen(
             starfieldMounted = false
         }
     }
-    val targetColors = yokhanPalette(visualSpaceActive)
+    val targetColors = yokhanPalette(spaceActive = true)
     val colors = DashboardColors(
         background = animateColorAsState(
             targetValue = targetColors.background,
@@ -715,9 +722,54 @@ private fun ProfilesCard(
                 modifier = Modifier.clickable(onClick = actions.onAddProfile),
             )
         }
+        if (profiles.isEmpty()) {
+            FirstRunCard(labels, colors, typography, actions)
+            return@Column
+        }
         profiles.forEachIndexed { index, item ->
             ProfileRow(item, index != 0, colors, typography, actions)
         }
+    }
+}
+
+@Composable
+private fun FirstRunCard(
+    labels: DashboardUiLabels,
+    colors: DashboardColors,
+    typography: DashboardTypography,
+    actions: DashboardUiActions,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 14.dp)
+            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+            .clickable(onClick = actions.onAddProfile)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = labels.firstRunTitle,
+            color = colors.primary,
+            fontFamily = typography.mono,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.0.sp,
+        )
+        Text(
+            text = labels.firstRunBody,
+            color = colors.secondary,
+            fontFamily = typography.text,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        )
+        Text(
+            text = labels.firstRunAction,
+            color = DashboardAccent,
+            fontFamily = typography.mono,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -1132,6 +1184,42 @@ private fun DashboardRocket(
                     clip = false
                 },
         )
+        if (tuning.rocketDebugOverlay) {
+            Canvas(Modifier.matchParentSize()) {
+                val stroke = 1.dp.toPx()
+                val rocketTopLeft = Offset(rocketLeft.dp.toPx(), rocketTop.dp.toPx())
+                val rocketSize = Size(tuning.rocketWidth.dp.toPx(), tuning.rocketHeight.dp.toPx())
+                val leftFlameTopLeft = Offset(leftFlameLeft.dp.toPx(), (rocketTop + tuning.flameY).dp.toPx())
+                val rightFlameTopLeft = Offset(rightFlameLeft.dp.toPx(), (rocketTop + tuning.flameY).dp.toPx())
+                val flameSize = Size(tuning.flameWidth.dp.toPx(), tuning.flameHeight.dp.toPx())
+                drawRect(
+                    color = Color.Cyan.copy(alpha = 0.72f),
+                    topLeft = rocketTopLeft,
+                    size = rocketSize,
+                    style = Stroke(stroke),
+                )
+                drawRect(
+                    color = Color(0xFFFF7A1A).copy(alpha = 0.82f),
+                    topLeft = leftFlameTopLeft,
+                    size = flameSize,
+                    style = Stroke(stroke),
+                )
+                drawRect(
+                    color = Color(0xFFFF7A1A).copy(alpha = 0.82f),
+                    topLeft = rightFlameTopLeft,
+                    size = flameSize,
+                    style = Stroke(stroke),
+                )
+                val centerX = rocketCenterX.dp.toPx()
+                drawLine(
+                    color = Color.Cyan.copy(alpha = 0.54f),
+                    start = Offset(centerX, 0f),
+                    end = Offset(centerX, size.height),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round,
+                )
+            }
+        }
     }
 }
 

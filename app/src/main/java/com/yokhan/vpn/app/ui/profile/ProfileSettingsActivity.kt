@@ -411,7 +411,7 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
                     text = group.displayName()
                     typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
-                    setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                    setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
                     textSize = 16f
                     layoutParams = LinearLayout.LayoutParams(
                         0,
@@ -423,7 +423,7 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
                     backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
                     minWidth = 0
                     text = getString(R.string.move)
-                    setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                    setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
                     strokeColor = ColorStateList.valueOf(
                         ContextCompat.getColor(context, R.color.dashboard_card_border_off)
                     )
@@ -627,7 +627,7 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
                         text = group.displayName()
                         typeface = ResourcesCompat.getFont(context, R.font.jetbrains_mono)
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
                         textSize = 16f
                         layoutParams = LinearLayout.LayoutParams(
                             0,
@@ -639,7 +639,7 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
                         backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
                         minWidth = 0
                         text = getString(R.string.move)
-                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+                        setTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
                         strokeColor = ColorStateList.valueOf(
                             ContextCompat.getColor(context, R.color.dashboard_card_border_off)
                         )

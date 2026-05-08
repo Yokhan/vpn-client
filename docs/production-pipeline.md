@@ -111,6 +111,8 @@ This is the execution pipeline for turning the current transition codebase into 
 - Avoid repeated bitmap loads and full model replacement for hot updates.
 - Progress: rocket/flame scene now keeps flame alive through disconnect flight, adds vertical bleed to avoid clipping, and desktop preview animates connecting/disconnecting states.
 - Progress: dashboard hot updates reuse cached profile UI rows instead of remapping the profile list for timer/speed ticks.
+- Progress: stabilization/refactor plan is tracked in `docs/stabilization-refactor-plan.md` with lifecycle, tuning, onboarding, preview, and release hardening workstreams.
+- Progress: app window, shell, route frames, settings hosts, and edit dialogs now use the dark design-system palette to avoid beige flashes and mixed legacy surfaces.
 - Acceptance: dashboard remains smooth on Android device and desktop preview.
 
 ### P11. Legacy Resource Cleanup

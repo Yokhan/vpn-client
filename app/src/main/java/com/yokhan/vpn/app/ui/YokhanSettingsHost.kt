@@ -20,7 +20,7 @@ fun Context.createYokhanSettingsHost(
 ): LinearLayout {
     return LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setBackgroundResource(R.color.dashboard_bg_off)
+        setBackgroundResource(R.color.dashboard_space_bg)
         layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -49,7 +49,7 @@ fun Context.createYokhanAppBar(): AppBarLayout {
         addView(MaterialToolbar(context).apply {
             id = R.id.toolbar
             setBackgroundColor(Color.TRANSPARENT)
-            setTitleTextColor(ContextCompat.getColor(context, R.color.dashboard_text_primary))
+            setTitleTextColor(ContextCompat.getColor(context, R.color.dashboard_space_text_primary))
             elevation = 0f
             ViewCompat.setElevation(this, 0f)
             layoutParams = AppBarLayout.LayoutParams(
@@ -72,13 +72,13 @@ private fun Context.createSettingsContainer(
     return if (useComposeContainer) {
         FrameLayout(this).apply {
             id = R.id.settings
-            setBackgroundResource(R.color.dashboard_bg_off)
+            setBackgroundResource(R.color.dashboard_space_bg)
             this.layoutParams = layoutParams
         }
     } else {
         FragmentContainerView(this).apply {
             id = R.id.settings
-            setBackgroundResource(R.color.dashboard_bg_off)
+            setBackgroundResource(R.color.dashboard_space_bg)
             this.layoutParams = layoutParams
         }
     }
@@ -87,7 +87,7 @@ private fun Context.createSettingsContainer(
 private fun Context.createSettingsDivider(): View {
     return View(this).apply {
         id = R.id.list_cell
-        setBackgroundResource(R.color.dashboard_divider_light)
+        setBackgroundResource(R.color.dashboard_divider_dark)
         layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             resources.displayMetrics.density.coerceAtLeast(1f).toInt(),
@@ -98,7 +98,7 @@ private fun Context.createSettingsDivider(): View {
 private fun Context.createConfigurationList(): FastScrollRecyclerView {
     return FastScrollRecyclerView(this).apply {
         id = R.id.configuration_list
-        setBackgroundResource(R.color.dashboard_bg_off)
+        setBackgroundResource(R.color.dashboard_space_bg)
         clipToPadding = false
         overScrollMode = View.OVER_SCROLL_NEVER
         setPadding(dp(2), dp(8), dp(2), dp(28))

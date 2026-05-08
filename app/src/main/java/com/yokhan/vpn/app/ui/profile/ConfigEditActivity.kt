@@ -166,7 +166,7 @@ class ConfigEditActivity : ThemedActivity() {
     private fun createEditorHost(): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundResource(R.color.dashboard_bg_off)
+            setBackgroundResource(R.color.dashboard_space_bg)
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -174,7 +174,7 @@ class ConfigEditActivity : ThemedActivity() {
 
             addView(createYokhanAppBar())
             addView(View(context).apply {
-                setBackgroundResource(R.color.dashboard_divider_light)
+                setBackgroundResource(R.color.dashboard_divider_dark)
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     1,
@@ -220,7 +220,7 @@ class ConfigEditActivity : ThemedActivity() {
             id = R.id.keyboard_container
             keyboardContainer = this
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundResource(R.color.dashboard_bg_off)
+            setBackgroundResource(R.color.dashboard_space_bg)
             elevation = 2f
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -229,7 +229,7 @@ class ConfigEditActivity : ThemedActivity() {
             actionTab = addEditorAction(R.id.action_tab, R.drawable.baseline_keyboard_tab_24)
             addView(ExtendedKeyboard(context).apply {
                 id = R.id.extended_keyboard
-                setBackgroundResource(R.color.dashboard_bg_off)
+                setBackgroundResource(R.color.dashboard_space_bg)
                 layoutParams = LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -239,7 +239,7 @@ class ConfigEditActivity : ThemedActivity() {
             actionRedo = addEditorAction(R.id.action_redo, R.drawable.baseline_redo_24)
             actionFormat = addEditorAction(R.id.action_format, R.drawable.ic_baseline_format_align_left_24)
             addView(View(context).apply {
-                setBackgroundResource(R.color.dashboard_divider_light)
+                setBackgroundResource(R.color.dashboard_divider_dark)
                 layoutParams = LinearLayout.LayoutParams(
                     0,
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -252,11 +252,11 @@ class ConfigEditActivity : ThemedActivity() {
     private fun LinearLayout.addEditorAction(idValue: Int, iconRes: Int): ImageView {
         return ImageView(context).apply {
             id = idValue
-            setBackgroundResource(R.color.dashboard_divider_light)
+            setBackgroundResource(R.color.dashboard_divider_dark)
             setPadding(dp(8), dp(8), dp(8), dp(8))
             setImageResource(iconRes)
             imageTintList = ColorStateList.valueOf(
-                ContextCompat.getColor(context, R.color.dashboard_text_primary)
+                ContextCompat.getColor(context, R.color.dashboard_space_text_primary)
             )
             layoutParams = LinearLayout.LayoutParams(dp(36), dp(36))
             addView(this)
