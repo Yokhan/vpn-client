@@ -12,6 +12,7 @@
 - [x] Copy buttons checked.
 - [x] Glossary opened.
 - [x] Forbidden copy searched.
+- [x] Client-facing copy audit checked: no owner/operator runbook language.
 - [x] App rocket and flame assets loaded.
 - [x] App fonts loaded.
 - [x] Moving starfield checked.
