@@ -11,6 +11,8 @@
 - [x] Copy buttons checked.
 - [x] Glossary opened.
 - [x] Forbidden copy searched.
+- [x] App rocket and flame assets loaded.
+- [x] App fonts loaded.
 
 ## Known Limitations
 

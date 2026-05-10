@@ -2,14 +2,14 @@
 
 ## Audience
 
-- Known users invited personally.
-- Family and friends who need a simple setup path.
-- Small teams that need managed private access.
-- Non-technical users who need support-ready instructions.
+- A person who received a private invite and is setting up their own phone.
+- A family helper who sets up phones for close relatives.
+- A friend helper who wants to hand over clear steps instead of explaining everything in chat.
+- A small-team owner who needs managed private access and support-ready instructions.
 
 ## Main Decision
 
-The visitor should understand whether Yokhan private access is for them, what they need before installation, and how to ask for help without technical guessing.
+The visitor should understand what to do next for their scenario, what must be ready before installation, and how to ask for help without technical guessing.
 
 ## Copy Boundary
 
@@ -21,6 +21,7 @@ Allowed:
 - signed app and signed network component;
 - clear setup and support;
 - explicit user consent for system network permission.
+- app design-system visuals: rocket, flame, space palette, app fonts.
 
 Forbidden:
 
@@ -29,6 +30,7 @@ Forbidden:
 - unrelated-game positioning;
 - hidden module download language;
 - internal engineering terms in the client UI.
+- owner-facing copy that talks to the project author instead of the invited person or helper.
 
 ## Required Page Blocks
 

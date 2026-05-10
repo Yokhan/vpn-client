@@ -5,96 +5,147 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Yokhan Access</title>
         <style>
+            @font-face {
+                font-family: "Yokhan Display";
+                src: url("assets/fonts/unbounded.ttf") format("truetype");
+                font-display: swap;
+            }
+
+            @font-face {
+                font-family: "Yokhan Text";
+                src: url("assets/fonts/golos_text.ttf") format("truetype");
+                font-display: swap;
+            }
+
+            @font-face {
+                font-family: "Yokhan Mono";
+                src: url("assets/fonts/jetbrains_mono_regular.ttf")
+                    format("truetype");
+                font-display: swap;
+            }
+
             :root {
-                --bg: #08080b;
-                --panel: rgba(255, 255, 255, 0.06);
-                --panel-strong: rgba(255, 255, 255, 0.09);
-                --line: rgba(255, 255, 255, 0.13);
-                --line-strong: rgba(248, 214, 134, 0.38);
-                --text: #f8f2e8;
-                --muted: #bdb5aa;
-                --faint: #81786f;
-                --gold: #f8d686;
-                --green: #9cf1c2;
-                --orange: #ff9158;
-                --red: #ffb8b8;
-                --shadow: rgba(0, 0, 0, 0.42);
-                --radius-xl: 30px;
-                --radius-lg: 22px;
-                --radius-md: 15px;
-                font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+                --bg: #0a0a18;
+                --bg-deep: #05050d;
+                --primary: #e8e8f0;
+                --secondary: #8888a0;
+                --tertiary: rgba(136, 136, 160, 0.72);
+                --border: rgba(255, 255, 255, 0.1);
+                --divider: rgba(255, 255, 255, 0.05);
+                --panel: rgba(255, 255, 255, 0.035);
+                --panel-strong: rgba(255, 255, 255, 0.07);
+                --accent: #28b44f;
+                --orange: #e55a1b;
+                --red: #e53e3e;
+                --shadow: rgba(0, 0, 0, 0.5);
+                --radius-card: 18px;
+                --radius-panel: 14px;
+                --radius-pill: 999px;
+                --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+                --ease-out: cubic-bezier(0, 0, 0.58, 1);
+                --ease-in-out: cubic-bezier(0.42, 0, 0.58, 1);
+                color-scheme: dark;
+                font-family: "Yokhan Text", "Segoe UI", sans-serif;
             }
 
             * {
                 box-sizing: border-box;
             }
+
             html {
-                scroll-behavior: smooth;
                 background: var(--bg);
+                scroll-behavior: smooth;
             }
+
             body {
                 margin: 0;
                 min-height: 100vh;
-                color: var(--text);
+                color: var(--primary);
                 background:
                     radial-gradient(
-                        circle at 18% 4%,
-                        rgba(248, 214, 134, 0.18),
-                        transparent 28%
+                        circle at 50% 18%,
+                        rgba(28, 28, 52, 0.92),
+                        transparent 31rem
                     ),
                     radial-gradient(
-                        circle at 78% 10%,
-                        rgba(156, 241, 194, 0.12),
-                        transparent 26%
+                        circle at 72% 5%,
+                        rgba(40, 180, 79, 0.1),
+                        transparent 22rem
                     ),
-                    linear-gradient(
-                        180deg,
-                        #08080b 0%,
-                        #111117 54%,
-                        #08080b 100%
-                    );
+                    linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
                 overflow-x: hidden;
             }
-            body::before {
+
+            body::before,
+            body::after {
                 content: "";
                 position: fixed;
                 inset: 0;
                 pointer-events: none;
+            }
+
+            body::before {
+                opacity: 0.78;
                 background-image:
-                    linear-gradient(
-                        rgba(255, 255, 255, 0.035) 1px,
-                        transparent 1px
+                    radial-gradient(
+                        circle,
+                        rgba(255, 255, 255, 0.7) 0 1px,
+                        transparent 1.6px
                     ),
-                    linear-gradient(
-                        90deg,
-                        rgba(255, 255, 255, 0.028) 1px,
-                        transparent 1px
+                    radial-gradient(
+                        circle,
+                        rgba(255, 255, 255, 0.5) 0 1px,
+                        transparent 1.4px
                     );
-                background-size: 80px 80px;
+                background-position:
+                    12px 28px,
+                    60px 90px;
+                background-size:
+                    148px 220px,
+                    210px 280px;
                 mask-image: linear-gradient(
                     to bottom,
-                    rgba(0, 0, 0, 0.58),
-                    transparent 72%
+                    #000 0%,
+                    rgba(0, 0, 0, 0.88) 58%,
+                    transparent 100%
                 );
+            }
+
+            body::after {
+                background:
+                    linear-gradient(
+                        180deg,
+                        transparent 0 68%,
+                        rgba(40, 180, 79, 0.09) 100%
+                    ),
+                    repeating-linear-gradient(
+                        90deg,
+                        transparent 0 78px,
+                        rgba(255, 255, 255, 0.018) 78px 79px
+                    );
+                mix-blend-mode: screen;
             }
 
             a {
                 color: inherit;
                 text-decoration: none;
             }
+
             button,
             input {
                 font: inherit;
             }
+
             button {
-                cursor: pointer;
                 border: 0;
+                cursor: pointer;
             }
+
             button:focus-visible,
             a:focus-visible,
             input:focus-visible,
             summary:focus-visible {
-                outline: 2px solid var(--gold);
+                outline: 2px solid var(--accent);
                 outline-offset: 4px;
             }
 
@@ -103,580 +154,896 @@
                 z-index: 1;
                 width: min(1160px, calc(100% - 32px));
                 margin: 0 auto;
-                padding: 24px 0 72px;
+                padding: 24px 0 76px;
             }
+
             .topbar {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                gap: 16px;
-                margin-bottom: 42px;
+                gap: 18px;
+                margin-bottom: 34px;
             }
+
             .brand {
-                display: flex;
+                display: inline-flex;
                 align-items: center;
                 gap: 12px;
-                font-weight: 760;
+                color: var(--primary);
+                font-family: "Yokhan Mono", monospace;
+                font-size: 14px;
                 letter-spacing: 0.08em;
                 text-transform: uppercase;
             }
-            .mark {
-                width: 40px;
-                height: 40px;
-                border: 1px solid var(--line-strong);
-                border-radius: 50%;
+
+            .menu-mark {
                 display: grid;
-                place-items: center;
-                color: var(--gold);
-                background: radial-gradient(
-                    circle,
-                    rgba(248, 214, 134, 0.2),
-                    rgba(255, 255, 255, 0.04)
-                );
+                gap: 5px;
+                width: 34px;
             }
+
+            .menu-mark span {
+                width: 24px;
+                height: 2px;
+                border-radius: 2px;
+                background: rgba(232, 232, 240, 0.62);
+            }
+
             .nav {
                 display: flex;
-                align-items: center;
+                flex-wrap: wrap;
                 justify-content: flex-end;
                 gap: 10px;
-                flex-wrap: wrap;
             }
+
             .nav a,
-            .btn,
+            .button,
             .chip,
             .copy-button {
                 min-height: 44px;
-                border-radius: 999px;
+                border-radius: var(--radius-pill);
                 transition:
-                    background 0.18s ease,
-                    border-color 0.18s ease,
-                    color 0.18s ease,
-                    transform 0.18s ease;
+                    color 0.18s var(--ease),
+                    border-color 0.18s var(--ease),
+                    background 0.18s var(--ease),
+                    transform 0.18s var(--ease);
             }
+
             .nav a,
-            .btn.secondary,
+            .button.secondary,
             .chip {
-                border: 1px solid var(--line);
-                background: rgba(255, 255, 255, 0.045);
-                color: var(--muted);
+                color: var(--secondary);
+                border: 1px solid var(--border);
+                background: rgba(255, 255, 255, 0.035);
             }
+
             .nav a {
                 display: inline-flex;
                 align-items: center;
                 padding: 11px 14px;
+                font-family: "Yokhan Mono", monospace;
+                font-size: 12px;
             }
+
             .nav a:hover,
-            .btn.secondary:hover,
+            .button.secondary:hover,
             .chip:hover {
-                color: var(--text);
-                border-color: rgba(255, 255, 255, 0.24);
-                background: rgba(255, 255, 255, 0.075);
+                color: var(--primary);
+                border-color: rgba(255, 255, 255, 0.2);
+                background: rgba(255, 255, 255, 0.06);
             }
-            .btn {
+
+            .button,
+            .copy-button {
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
                 gap: 8px;
                 padding: 12px 18px;
-                font-weight: 760;
+                font-weight: 700;
             }
-            .btn.primary,
+
+            .button.primary,
             .copy-button {
-                color: #15110a;
-                background: linear-gradient(135deg, var(--gold), #ffb06b);
-                box-shadow: 0 18px 52px rgba(248, 214, 134, 0.16);
+                color: #08110c;
+                background: linear-gradient(135deg, #36d365, var(--accent));
+                box-shadow: 0 18px 54px rgba(40, 180, 79, 0.2);
             }
-            .btn:hover,
+
+            .button:hover,
             .copy-button:hover {
                 transform: translateY(-1px);
             }
 
-            .hero {
-                display: grid;
-                grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
-                gap: 22px;
-            }
             .panel {
-                border: 1px solid var(--line);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-card);
                 background: linear-gradient(
                     180deg,
-                    rgba(255, 255, 255, 0.075),
-                    rgba(255, 255, 255, 0.035)
+                    rgba(255, 255, 255, 0.055),
+                    rgba(255, 255, 255, 0.025)
                 );
                 box-shadow: 0 28px 90px var(--shadow);
                 backdrop-filter: blur(18px);
-                border-radius: var(--radius-xl);
             }
-            .hero-main {
-                min-height: 540px;
-                padding: clamp(28px, 5vw, 58px);
+
+            .hero {
+                display: grid;
+                grid-template-columns: minmax(0, 1.08fr) minmax(330px, 0.92fr);
+                gap: 18px;
+            }
+
+            .hero-copy {
+                min-height: 560px;
+                padding: clamp(26px, 5vw, 58px);
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
                 overflow: hidden;
                 position: relative;
             }
-            .hero-main::after {
+
+            .hero-copy::after {
                 content: "";
                 position: absolute;
+                right: -150px;
+                bottom: -180px;
                 width: 420px;
                 height: 420px;
-                right: -150px;
-                bottom: -160px;
                 border-radius: 50%;
                 background: radial-gradient(
                     circle,
-                    rgba(248, 214, 134, 0.16),
+                    rgba(40, 180, 79, 0.14),
                     transparent 66%
                 );
             }
-            .eyebrow {
-                margin: 0 0 16px;
-                color: var(--gold);
-                letter-spacing: 0.18em;
+
+            .eyebrow,
+            .section-label,
+            .metric-label {
+                font-family: "Yokhan Mono", monospace;
+                letter-spacing: 0.12em;
                 text-transform: uppercase;
-                font-size: 12px;
-                font-weight: 760;
-            }
-            h1 {
-                margin: 0;
-                max-width: 760px;
-                font-size: clamp(42px, 7vw, 86px);
-                line-height: 0.95;
-                letter-spacing: -0.07em;
-            }
-            .lead {
-                margin: 24px 0 0;
-                max-width: 660px;
-                color: var(--muted);
-                font-size: clamp(17px, 2vw, 22px);
-                line-height: 1.58;
-            }
-            .actions {
-                display: flex;
-                gap: 12px;
-                flex-wrap: wrap;
-                margin-top: 30px;
-                position: relative;
-                z-index: 1;
             }
 
-            .hero-side {
-                min-height: 540px;
-                padding: 26px;
-                display: grid;
-                gap: 18px;
-                align-content: space-between;
+            .eyebrow {
+                margin: 0 0 18px;
+                color: var(--accent);
+                font-size: 12px;
             }
-            .rocket-field {
-                min-height: 320px;
-                border: 1px solid rgba(156, 241, 194, 0.28);
-                border-radius: 50%;
+
+            h1,
+            h2,
+            h3 {
+                margin: 0;
+            }
+
+            h1 {
+                max-width: 760px;
+                font-family: "Yokhan Display", "Yokhan Text", sans-serif;
+                font-size: clamp(42px, 6vw, 76px);
+                line-height: 1.02;
+                letter-spacing: -0.06em;
+            }
+
+            .lead {
+                max-width: 680px;
+                margin: 24px 0 0;
+                color: var(--secondary);
+                font-size: clamp(17px, 2vw, 22px);
+                line-height: 1.55;
+            }
+
+            .actions {
+                position: relative;
+                z-index: 1;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+                margin-top: 32px;
+            }
+
+            .hero-dashboard {
+                min-height: 560px;
+                padding: 18px;
                 display: grid;
-                place-items: center;
+                align-content: space-between;
+                gap: 14px;
+                overflow: hidden;
+                position: relative;
+            }
+
+            .hero-dashboard::before {
+                content: "";
+                position: absolute;
+                inset: auto -90px -120px -90px;
+                height: 260px;
+                border-radius: 50%;
                 background: radial-gradient(
                     circle,
-                    rgba(156, 241, 194, 0.1),
-                    transparent 62%
+                    rgba(40, 180, 79, 0.16),
+                    transparent 68%
                 );
-                position: relative;
-            }
-            .rocket-field::before,
-            .rocket-field::after {
-                content: "";
-                position: absolute;
-                border-radius: 50%;
-                border: 1px solid rgba(255, 255, 255, 0.08);
-            }
-            .rocket-field::before {
-                inset: 15%;
-            }
-            .rocket-field::after {
-                inset: 31%;
-            }
-            .rocket {
-                position: relative;
-                z-index: 1;
-                width: 74px;
-                height: 172px;
-                border-radius: 48% 48% 38% 38%;
-                background:
-                    linear-gradient(
-                        90deg,
-                        transparent 0 23%,
-                        rgba(0, 0, 0, 0.15) 23% 27%,
-                        transparent 27% 73%,
-                        rgba(0, 0, 0, 0.15) 73% 77%,
-                        transparent 77%
-                    ),
-                    linear-gradient(
-                        180deg,
-                        #fffdf5,
-                        #d7d1c6 70%,
-                        #302b27 71% 100%
-                    );
-                box-shadow: 0 24px 50px rgba(0, 0, 0, 0.38);
-                animation: float 4.6s ease-in-out infinite;
-            }
-            .rocket::before,
-            .rocket::after {
-                content: "";
-                position: absolute;
-                bottom: -58px;
-                width: 17px;
-                height: 74px;
-                border-radius: 999px;
-                background: radial-gradient(
-                    circle at 50% 18%,
-                    #fff,
-                    #ffd88e 32%,
-                    #ff7229 70%,
-                    transparent 73%
-                );
-                animation: flame 1.1s ease-in-out infinite alternate;
-            }
-            .rocket::before {
-                left: 17px;
-            }
-            .rocket::after {
-                right: 17px;
-                animation-delay: 0.17s;
-            }
-            .status-list {
-                display: grid;
-                gap: 10px;
-            }
-            .status-row {
-                display: grid;
-                grid-template-columns: 10px 1fr;
-                gap: 11px;
-                align-items: start;
-                padding: 14px;
-                border: 1px solid var(--line);
-                border-radius: var(--radius-md);
-                background: rgba(0, 0, 0, 0.16);
-                color: var(--muted);
-                line-height: 1.45;
-            }
-            .dot {
-                width: 10px;
-                height: 10px;
-                border-radius: 50%;
-                margin-top: 5px;
-                background: var(--green);
-                box-shadow: 0 0 20px rgba(156, 241, 194, 0.45);
             }
 
-            section {
-                margin-top: 30px;
-            }
-            .section-head {
+            .dashboard-top {
                 display: flex;
                 justify-content: space-between;
+                align-items: center;
+                gap: 14px;
+                color: var(--secondary);
+                font-family: "Yokhan Mono", monospace;
+                font-size: 12px;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+            }
+
+            .status-dot {
+                display: inline-block;
+                width: 7px;
+                height: 7px;
+                margin-left: 4px;
+                border-radius: 50%;
+                background: var(--accent);
+                box-shadow: 0 0 18px rgba(40, 180, 79, 0.45);
+                transform: translateY(-1px);
+            }
+
+            .config-card {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) 54px;
+                gap: 14px;
+                align-items: center;
+                padding: 14px;
+                border: 1px solid var(--border);
+                border-radius: var(--radius-panel);
+                background: rgba(10, 10, 24, 0.5);
+            }
+
+            .section-label {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                color: var(--tertiary);
+                font-size: 10px;
+                line-height: 1;
+            }
+
+            .section-label::before {
+                content: "";
+                width: 6px;
+                height: 6px;
+                border-radius: 1px;
+                background: var(--tertiary);
+                transform: translateY(-0.5px);
+            }
+
+            .config-name {
+                margin-top: 7px;
+                color: var(--primary);
+                font-size: 22px;
+                font-weight: 800;
+            }
+
+            .config-subtitle {
+                margin-top: 4px;
+                color: var(--secondary);
+                font-family: "Yokhan Mono", monospace;
+                font-size: 12px;
+            }
+
+            .signal-box {
+                position: relative;
+                width: 54px;
+                height: 54px;
+                border: 1px solid var(--border);
+                border-radius: 14px;
+                display: flex;
                 align-items: end;
+                justify-content: center;
+                gap: 4px;
+                padding-bottom: 15px;
+            }
+
+            .signal-box span {
+                width: 4px;
+                background: var(--primary);
+            }
+
+            .signal-box span:nth-child(1) {
+                height: 8px;
+            }
+
+            .signal-box span:nth-child(2) {
+                height: 13px;
+            }
+
+            .signal-box span:nth-child(3) {
+                height: 19px;
+            }
+
+            .signal-box span:nth-child(4) {
+                height: 10px;
+                opacity: 0.18;
+            }
+
+            .signal-box::after {
+                content: "";
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--accent);
+            }
+
+            .launch-row {
+                display: grid;
+                grid-template-columns: 86px 1fr 86px;
+                gap: 10px;
+                align-items: center;
+                min-height: 315px;
+            }
+
+            .metric {
+                display: grid;
+                gap: 5px;
+            }
+
+            .metric.right {
+                justify-items: end;
+                text-align: right;
+            }
+
+            .metric-label {
+                color: var(--tertiary);
+                font-size: 10px;
+                font-weight: 700;
+            }
+
+            .metric-value {
+                color: var(--primary);
+                font-family: "Yokhan Mono", monospace;
+                font-size: 13px;
+                font-weight: 800;
+            }
+
+            .metric-value span {
+                color: var(--accent);
+            }
+
+            .wave {
+                width: 58px;
+                height: 10px;
+                opacity: 0.32;
+                background:
+                    radial-gradient(
+                        8px 6px at 4px 6px,
+                        transparent 3px,
+                        var(--accent) 3.5px 4px,
+                        transparent 4.5px
+                    ),
+                    radial-gradient(
+                        8px 6px at 16px 6px,
+                        transparent 3px,
+                        var(--accent) 3.5px 4px,
+                        transparent 4.5px
+                    ),
+                    radial-gradient(
+                        8px 6px at 28px 6px,
+                        transparent 3px,
+                        var(--accent) 3.5px 4px,
+                        transparent 4.5px
+                    ),
+                    radial-gradient(
+                        8px 6px at 40px 6px,
+                        transparent 3px,
+                        var(--accent) 3.5px 4px,
+                        transparent 4.5px
+                    );
+            }
+
+            .orb {
+                position: relative;
+                width: 226px;
+                height: 226px;
+                margin: 0 auto;
+                display: grid;
+                place-items: center;
+                border-radius: 50%;
+                background: radial-gradient(
+                    circle,
+                    #1c1c34 0%,
+                    rgba(10, 10, 24, 0.1) 64%,
+                    transparent 66%
+                );
+            }
+
+            .orb::before,
+            .orb::after {
+                content: "";
+                position: absolute;
+                border-radius: 50%;
+                pointer-events: none;
+            }
+
+            .orb::before {
+                inset: 18px;
+                border: 1px solid rgba(40, 180, 79, 0.34);
+                animation: ring-pulse 1600ms var(--ease-in-out) infinite
+                    alternate;
+            }
+
+            .orb::after {
+                inset: 8px;
+                background:
+                    radial-gradient(
+                        circle at 50% 0%,
+                        var(--accent) 0 2px,
+                        transparent 3px
+                    ),
+                    radial-gradient(
+                        circle at 100% 50%,
+                        var(--accent) 0 2px,
+                        transparent 3px
+                    ),
+                    radial-gradient(
+                        circle at 50% 100%,
+                        var(--accent) 0 2px,
+                        transparent 3px
+                    ),
+                    radial-gradient(
+                        circle at 0% 50%,
+                        var(--accent) 0 2px,
+                        transparent 3px
+                    );
+                opacity: 0.55;
+            }
+
+            .ship-scene {
+                position: relative;
+                width: 156px;
+                height: 340px;
+                transform: translateY(-28px);
+                animation: rocket-dock 1400ms cubic-bezier(0.2, 0.8, 0.3, 1)
+                    both;
+            }
+
+            .ship {
+                position: absolute;
+                left: 12px;
+                top: 28px;
+                width: 132px;
+                height: 228px;
+                object-fit: contain;
+                z-index: 2;
+                filter: drop-shadow(0 22px 28px rgba(0, 0, 0, 0.42));
+            }
+
+            .flame {
+                position: absolute;
+                top: 145px;
+                width: 22px;
+                height: 75px;
+                object-fit: contain;
+                z-index: 3;
+                transform-origin: 50% 0;
+                animation: flame-scale 420ms var(--ease-in-out) infinite
+                    alternate;
+                filter: drop-shadow(0 10px 22px rgba(229, 90, 27, 0.62));
+            }
+
+            .flame.left {
+                left: 57px;
+            }
+
+            .flame.right {
+                left: 75px;
+                animation-delay: 140ms;
+            }
+
+            .dashboard-bottom {
+                position: relative;
+                z-index: 1;
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 0;
+                padding-top: 10px;
+                border-top: 1px solid var(--divider);
+            }
+
+            .stat {
+                display: grid;
+                justify-items: center;
+                gap: 3px;
+                padding: 0 8px;
+                text-align: center;
+                border-right: 1px solid var(--divider);
+            }
+
+            .stat:last-child {
+                border-right: 0;
+            }
+
+            .stat strong {
+                color: var(--primary);
+                font-family: "Yokhan Mono", monospace;
+                font-size: 11px;
+            }
+
+            .stat strong.connected {
+                color: var(--accent);
+            }
+
+            .stat span {
+                color: var(--tertiary);
+                font-family: "Yokhan Mono", monospace;
+                font-size: 10px;
+            }
+
+            .section-head {
+                display: flex;
+                align-items: end;
+                justify-content: space-between;
                 gap: 22px;
                 margin: 64px 0 18px;
             }
+
             .section-head h2 {
-                margin: 0;
-                font-size: clamp(30px, 4vw, 50px);
-                line-height: 1;
-                letter-spacing: -0.055em;
+                font-family: "Yokhan Display", "Yokhan Text", sans-serif;
+                font-size: clamp(30px, 4vw, 46px);
+                line-height: 1.08;
+                letter-spacing: -0.045em;
             }
+
             .section-head p {
+                max-width: 580px;
                 margin: 0;
-                color: var(--muted);
-                line-height: 1.62;
-                max-width: 570px;
+                color: var(--secondary);
+                line-height: 1.58;
             }
+
             .card-panel {
-                padding: 24px;
-            }
-            .scenario-tabs,
-            .provider-tabs {
-                display: flex;
-                gap: 10px;
-                flex-wrap: wrap;
-                margin-bottom: 16px;
-            }
-            .chip {
-                padding: 11px 16px;
-            }
-            .chip[aria-pressed="true"] {
-                color: #15110a;
-                border-color: transparent;
-                background: linear-gradient(135deg, var(--gold), #ffbf76);
-                font-weight: 760;
-            }
-            .result-box {
                 padding: 22px;
-                border-radius: var(--radius-lg);
-                border: 1px solid var(--line);
-                background: rgba(0, 0, 0, 0.18);
             }
-            .result-box h3,
-            .card h3,
-            .template h3 {
-                margin: 0 0 10px;
-                font-size: 24px;
-                letter-spacing: -0.025em;
-            }
-            .result-box p,
-            .card p,
-            .template p {
-                margin: 0;
-                color: var(--muted);
-                line-height: 1.62;
-            }
-            .cards {
+
+            .cards,
+            .templates,
+            .glossary {
                 display: grid;
                 grid-template-columns: repeat(3, minmax(0, 1fr));
                 gap: 14px;
             }
-            .card {
-                padding: 22px;
-                border-radius: var(--radius-xl);
-                border: 1px solid var(--line);
-                background: rgba(255, 255, 255, 0.045);
-                min-height: 230px;
+
+            .card,
+            .template,
+            details,
+            .step,
+            .check-item,
+            .result-box {
+                border: 1px solid var(--border);
+                border-radius: var(--radius-card);
+                background: rgba(255, 255, 255, 0.035);
             }
+
+            .card,
+            .template {
+                min-height: 214px;
+                padding: 20px;
+            }
+
             .card small {
-                color: var(--gold);
-                font-size: 12px;
-                font-weight: 760;
-                letter-spacing: 0.14em;
+                color: var(--accent);
+                font-family: "Yokhan Mono", monospace;
+                font-size: 11px;
+                letter-spacing: 0.12em;
                 text-transform: uppercase;
+            }
+
+            .card h3,
+            .template h3,
+            .result-box h3,
+            .step h3 {
+                margin-top: 10px;
+                font-size: 22px;
+                line-height: 1.15;
+            }
+
+            .card p,
+            .template p,
+            .result-box p,
+            .step p,
+            details p,
+            .notice p {
+                margin: 10px 0 0;
+                color: var(--secondary);
+                line-height: 1.58;
+            }
+
+            .scenario-tabs,
+            .provider-tabs {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-bottom: 16px;
+            }
+
+            .chip {
+                padding: 11px 16px;
+                color: var(--secondary);
+            }
+
+            .chip[aria-pressed="true"] {
+                color: #06110a;
+                border-color: transparent;
+                background: linear-gradient(135deg, #36d365, var(--accent));
+                font-weight: 800;
+            }
+
+            .result-box {
+                padding: 20px;
             }
 
             .steps {
                 display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 12px;
             }
+
             .step {
                 display: grid;
-                grid-template-columns: 44px 1fr;
+                grid-template-columns: 42px 1fr;
                 gap: 14px;
-                padding: 17px;
-                border: 1px solid var(--line);
-                border-radius: var(--radius-lg);
-                background: rgba(255, 255, 255, 0.04);
+                padding: 18px;
             }
+
             .step-number {
-                width: 44px;
-                height: 44px;
+                width: 42px;
+                height: 42px;
                 border-radius: 50%;
                 display: grid;
                 place-items: center;
-                color: #15110a;
+                color: #06110a;
+                background: var(--accent);
+                font-family: "Yokhan Mono", monospace;
                 font-weight: 800;
-                background: var(--gold);
-            }
-            .step h3 {
-                margin: 0 0 7px;
-            }
-            .step p {
-                margin: 0;
-                color: var(--muted);
-                line-height: 1.58;
             }
 
             .check-layout {
                 display: grid;
-                grid-template-columns: minmax(0, 1fr) 320px;
+                grid-template-columns: minmax(0, 1fr) 318px;
                 gap: 18px;
                 align-items: start;
             }
+
             .checklist {
                 display: grid;
                 gap: 10px;
             }
+
             .check-item {
                 display: grid;
                 grid-template-columns: 24px 1fr;
                 gap: 12px;
                 align-items: start;
                 padding: 14px;
-                border: 1px solid var(--line);
-                border-radius: var(--radius-lg);
-                background: rgba(255, 255, 255, 0.04);
-                color: var(--muted);
-                line-height: 1.5;
+                color: var(--secondary);
+                line-height: 1.45;
             }
+
             .check-item input {
                 width: 20px;
                 height: 20px;
-                margin-top: 2px;
-                accent-color: var(--gold);
+                margin-top: 1px;
+                accent-color: var(--accent);
             }
+
             .score-card {
                 position: sticky;
                 top: 18px;
                 padding: 22px;
-                border: 1px solid var(--line-strong);
-                border-radius: var(--radius-xl);
-                background: rgba(16, 16, 18, 0.94);
+                border: 1px solid rgba(40, 180, 79, 0.25);
+                border-radius: var(--radius-card);
+                background: rgba(5, 5, 13, 0.86);
             }
+
             .score {
                 margin: 0;
-                font-size: 58px;
+                font-family: "Yokhan Mono", monospace;
+                font-size: 56px;
                 line-height: 1;
-                letter-spacing: -0.06em;
             }
+
             .progress {
-                height: 10px;
-                margin: 16px 0;
-                background: rgba(255, 255, 255, 0.09);
-                border-radius: 999px;
+                height: 3px;
+                margin: 18px 0;
+                border-radius: var(--radius-pill);
+                background: rgba(255, 255, 255, 0.08);
                 overflow: hidden;
             }
+
             .progress span {
                 display: block;
-                height: 100%;
                 width: 0%;
+                height: 100%;
                 border-radius: inherit;
                 background: linear-gradient(
                     90deg,
                     var(--orange),
-                    var(--gold),
-                    var(--green)
+                    var(--accent)
                 );
-                transition: width 0.2s ease;
+                transition: width 0.2s var(--ease);
             }
+
             .score-card p:not(.score) {
                 margin: 0;
-                color: var(--muted);
-                line-height: 1.56;
+                color: var(--secondary);
+                line-height: 1.5;
             }
 
             .templates {
-                display: grid;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 14px;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
             }
-            .template {
-                padding: 20px;
-                border: 1px solid var(--line);
-                border-radius: var(--radius-xl);
-                background: rgba(255, 255, 255, 0.045);
-            }
+
             .template pre {
-                white-space: pre-wrap;
+                min-height: 178px;
                 margin: 14px 0;
                 padding: 14px;
-                min-height: 132px;
-                color: var(--muted);
-                line-height: 1.55;
-                border: 1px solid var(--line);
-                border-radius: var(--radius-md);
-                background: rgba(0, 0, 0, 0.2);
+                white-space: pre-wrap;
+                color: var(--secondary);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-panel);
+                background: rgba(5, 5, 13, 0.45);
+                line-height: 1.5;
                 overflow-x: auto;
             }
+
             .copy-button {
                 width: 100%;
-                padding: 12px 16px;
-                font-weight: 760;
             }
+
             .glossary {
-                display: grid;
                 grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 12px;
             }
+
             details {
-                border: 1px solid var(--line);
-                border-radius: var(--radius-lg);
-                background: rgba(255, 255, 255, 0.04);
-                padding: 15px 16px;
+                padding: 16px;
             }
+
             summary {
                 cursor: pointer;
-                font-weight: 760;
+                font-weight: 800;
             }
-            details p {
-                margin: 12px 0 0;
-                color: var(--muted);
-                line-height: 1.6;
-            }
+
             .notice {
                 padding: 22px;
-                border: 1px solid rgba(255, 184, 184, 0.25);
-                background: rgba(255, 184, 184, 0.055);
-                border-radius: var(--radius-xl);
+                border: 1px solid rgba(229, 90, 27, 0.3);
+                border-radius: var(--radius-card);
+                background: rgba(229, 90, 27, 0.06);
             }
+
             .notice h3 {
-                margin: 0 0 10px;
-                color: var(--red);
+                color: #ff9a66;
+                font-size: 22px;
             }
-            .notice p {
-                margin: 0;
-                color: var(--muted);
-                line-height: 1.62;
-            }
+
             footer {
                 margin-top: 48px;
-                color: var(--faint);
-                font-size: 14px;
+                color: var(--tertiary);
+                font-family: "Yokhan Mono", monospace;
+                font-size: 12px;
                 line-height: 1.6;
             }
 
-            @keyframes float {
-                0%,
-                100% {
-                    transform: translateY(0);
-                }
-                50% {
-                    transform: translateY(-10px);
-                }
-            }
-            @keyframes flame {
+            @keyframes ring-pulse {
                 from {
-                    transform: scaleY(0.86);
+                    transform: scale(1);
                     opacity: 0.78;
                 }
                 to {
-                    transform: scaleY(1.08);
+                    transform: scale(1.04);
                     opacity: 1;
                 }
             }
-            @media (max-width: 900px) {
+
+            @keyframes flame-scale {
+                from {
+                    transform: scaleY(1);
+                    opacity: 0.86;
+                }
+                to {
+                    transform: scaleX(1.06) scaleY(1.15);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes rocket-dock {
+                from {
+                    transform: translateY(120px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateY(-28px);
+                    opacity: 1;
+                }
+            }
+
+            @media (max-width: 920px) {
                 .topbar,
                 .section-head {
                     align-items: flex-start;
                     flex-direction: column;
                 }
+
+                .nav {
+                    justify-content: flex-start;
+                }
+
                 .hero,
                 .cards,
+                .steps,
                 .check-layout,
                 .templates,
                 .glossary {
                     grid-template-columns: 1fr;
                 }
-                .hero-main,
-                .hero-side {
+
+                .hero-copy,
+                .hero-dashboard {
                     min-height: auto;
                 }
+
                 .score-card {
                     position: static;
                 }
             }
-            @media (max-width: 520px) {
+
+            @media (max-width: 540px) {
                 .page {
                     width: min(100% - 22px, 1160px);
+                    padding-top: 18px;
                 }
-                .nav {
-                    justify-content: flex-start;
+
+                .nav a {
+                    padding-inline: 12px;
                 }
-                .hero-main,
-                .hero-side,
+
+                .hero-copy,
+                .hero-dashboard,
                 .card-panel,
                 .card,
                 .template,
                 .notice {
-                    padding: 18px;
+                    padding: 16px;
                 }
-                .rocket-field {
-                    min-height: 250px;
+
+                .launch-row {
+                    grid-template-columns: 70px 1fr 70px;
+                    min-height: 286px;
+                }
+
+                .orb {
+                    width: 198px;
+                    height: 198px;
+                }
+
+                .ship-scene {
+                    transform: translateY(-34px) scale(0.9);
+                }
+
+                @keyframes rocket-dock {
+                    from {
+                        transform: translateY(110px) scale(0.9);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateY(-34px) scale(0.9);
+                        opacity: 1;
+                    }
                 }
             }
+
             @media (prefers-reduced-motion: reduce) {
                 *,
                 *::before,
@@ -691,12 +1058,15 @@
     <body>
         <div class="page">
             <header class="topbar">
-                <a class="brand" href="#top" aria-label="Yokhan Access"
-                    ><span class="mark">⌁</span><span>Yokhan Access</span></a
-                >
+                <a class="brand" href="#top" aria-label="Yokhan Access">
+                    <span class="menu-mark" aria-hidden="true"
+                        ><span></span><span></span><span></span
+                    ></span>
+                    <span>Yokhan Access</span>
+                </a>
                 <nav class="nav" aria-label="Навигация">
                     <a href="#fit">Кому подходит</a>
-                    <a href="#setup">Как устроено</a>
+                    <a href="#setup">Установка</a>
                     <a href="#ready">Проверка</a>
                     <a href="#support">Поддержка</a>
                 </nav>
@@ -704,63 +1074,108 @@
 
             <main id="top">
                 <section class="hero" aria-label="Главный экран">
-                    <div class="panel hero-main">
+                    <div class="panel hero-copy">
                         <div>
-                            <p class="eyebrow">Доступ только по приглашению</p>
-                            <h1>Спокойный доступ для своих.</h1>
+                            <p class="eyebrow">Доступ по приглашению</p>
+                            <h1>Настройте доступ без лишней суеты.</h1>
                             <p class="lead">
-                                Yokhan помогает настроить защищенное подключение
-                                для доверенных людей: семьи, друзей и небольших
-                                команд. Без публичной рекламы, без сложных
-                                терминов на старте, с понятной установкой и
-                                живой поддержкой.
+                                Если вам выдали приглашение, эта страница
+                                поможет подготовить телефон, установить
+                                приложение и сетевой компонент, проверить статус
+                                и понять, что отправить в поддержку.
                             </p>
                         </div>
                         <div class="actions">
                             <button
-                                class="btn primary"
+                                class="button primary"
                                 type="button"
                                 data-scroll="#ready"
                             >
                                 Проверить готовность
                             </button>
                             <button
-                                class="btn secondary"
+                                class="button secondary"
                                 type="button"
                                 data-scroll="#support"
                             >
-                                Спросить поддержку
+                                Написать поддержку
                             </button>
                         </div>
                     </div>
+
                     <aside
-                        class="panel hero-side"
-                        aria-label="Коротко о процессе"
+                        class="panel hero-dashboard"
+                        aria-label="Пример экрана приложения"
                     >
-                        <div class="rocket-field" aria-hidden="true">
-                            <div class="rocket"></div>
+                        <div class="dashboard-top">
+                            <span>Панель управления</span>
+                            <span>Система · 01 <i class="status-dot"></i></span>
                         </div>
-                        <div class="status-list">
-                            <div class="status-row">
-                                <span class="dot"></span
-                                ><span
-                                    >Приглашение выдается вручную. Так проще
-                                    помочь и не терять контроль.</span
+
+                        <div class="config-card">
+                            <div>
+                                <span class="section-label"
+                                    >Текущая конфигурация</span
                                 >
+                                <div class="config-name">Bridge-igor</div>
+                                <div class="config-subtitle">
+                                    VLESS · профиль доступа
+                                </div>
                             </div>
-                            <div class="status-row">
-                                <span class="dot"></span
-                                ><span
-                                    >Установка проходит по шагам: приложение,
-                                    сетевой компонент, профиль доступа.</span
-                                >
+                            <div class="signal-box" aria-hidden="true">
+                                <span></span><span></span><span></span
+                                ><span></span>
                             </div>
-                            <div class="status-row">
-                                <span class="dot"></span
-                                ><span
-                                    >Если что-то не работает, человек сразу
-                                    знает, что прислать.</span
+                        </div>
+
+                        <div class="launch-row">
+                            <div class="metric">
+                                <span class="metric-label">Отправка</span>
+                                <strong class="metric-value"
+                                    >12.4 кБ/с <span>↑</span></strong
                                 >
+                                <i class="wave"></i>
+                            </div>
+
+                            <div class="orb">
+                                <div class="ship-scene" aria-hidden="true">
+                                    <img
+                                        class="ship"
+                                        src="assets/img/ic_dashboard_spaceship.png"
+                                        alt=""
+                                    />
+                                    <img
+                                        class="flame left"
+                                        src="assets/img/ic_dashboard_spaceship_flame.png"
+                                        alt=""
+                                    />
+                                    <img
+                                        class="flame right"
+                                        src="assets/img/ic_dashboard_spaceship_flame.png"
+                                        alt=""
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="metric right">
+                                <span class="metric-label">Получение</span>
+                                <strong class="metric-value"
+                                    >48.7 кБ/с <span>↓</span></strong
+                                >
+                                <i class="wave"></i>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-bottom">
+                            <div class="stat">
+                                <strong>103 мс</strong><span>Задержка</span>
+                            </div>
+                            <div class="stat">
+                                <strong class="connected">Подключено</strong
+                                ><span>Статус</span>
+                            </div>
+                            <div class="stat">
+                                <strong>VLESS</strong><span>Протокол</span>
                             </div>
                         </div>
                     </aside>
@@ -768,10 +1183,52 @@
 
                 <section id="fit">
                     <div class="section-head">
-                        <h2>Кому это подходит</h2>
+                        <h2>Выберите свой сценарий</h2>
                         <p>
-                            Выберите сценарий. Рекомендация ниже изменится,
-                            чтобы не читать лишнее.
+                            Выберите, что делаете сейчас: настраиваете свой
+                            телефон, помогаете близкому человеку или аккуратно
+                            подключаете небольшую команду.
+                        </p>
+                    </div>
+                    <div class="cards">
+                        <article class="card">
+                            <small>Семья</small>
+                            <h3>Вы настраиваете близким</h3>
+                            <p>
+                                Нужны понятные шаги, без технических споров.
+                                Проверьте файл, статус и контакт поддержки
+                                заранее, чтобы не объяснять одно и то же
+                                несколько раз.
+                            </p>
+                        </article>
+                        <article class="card">
+                            <small>Друг</small>
+                            <h3>Вы помогаете одному человеку</h3>
+                            <p>
+                                Дайте ему эту страницу вместе с приглашением. Он
+                                увидит порядок установки и пришлет нормальное
+                                сообщение, если что-то не сработает.
+                            </p>
+                        </article>
+                        <article class="card">
+                            <small>Команда</small>
+                            <h3>Вы подключаете небольшую команду</h3>
+                            <p>
+                                Сначала проверьте, кому выдан доступ, где лежит
+                                актуальный файл и кто отвечает на вопросы. Так
+                                меньше случайных установок и потерянных
+                                профилей.
+                            </p>
+                        </article>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="section-head">
+                        <h2>Короткая подсказка под вас</h2>
+                        <p>
+                            Нажмите вариант. Текст ниже меняется и подсказывает,
+                            с чего начать.
                         </p>
                     </div>
                     <div class="panel card-panel">
@@ -783,18 +1240,26 @@
                             <button
                                 class="chip"
                                 type="button"
-                                data-scenario="family"
+                                data-scenario="self"
                                 aria-pressed="true"
                             >
-                                Семья
+                                Себе
                             </button>
                             <button
                                 class="chip"
                                 type="button"
-                                data-scenario="friends"
+                                data-scenario="family"
                                 aria-pressed="false"
                             >
-                                Друзья
+                                Семье
+                            </button>
+                            <button
+                                class="chip"
+                                type="button"
+                                data-scenario="friend"
+                                aria-pressed="false"
+                            >
+                                Другу
                             </button>
                             <button
                                 class="chip"
@@ -802,25 +1267,17 @@
                                 data-scenario="team"
                                 aria-pressed="false"
                             >
-                                Команда
-                            </button>
-                            <button
-                                class="chip"
-                                type="button"
-                                data-scenario="care"
-                                aria-pressed="false"
-                            >
-                                Нужна помощь
+                                Команде
                             </button>
                         </div>
                         <div class="result-box" aria-live="polite">
                             <h3 id="scenario-title">
-                                Для семьи: меньше терминов, больше ясности
+                                Настраиваете себе: начните с источника файла
                             </h3>
                             <p id="scenario-text">
-                                Подходит, если нужно один раз спокойно настроить
-                                телефоны близким и потом помогать без долгих
-                                объяснений.
+                                Убедитесь, что приглашение и APK пришли из
+                                доверенного канала. Потом проверьте сетевой
+                                компонент и добавьте профиль доступа.
                             </p>
                         </div>
                     </div>
@@ -828,55 +1285,53 @@
 
                 <section id="setup">
                     <div class="section-head">
-                        <h2>Как устроена установка</h2>
+                        <h2>Как проходит установка</h2>
                         <p>
-                            Человеку важно знать не архитектуру, а порядок
-                            действий и зачем нужен каждый шаг.
+                            Никакой магии. Каждый шаг видимый: приложение,
+                            отдельный сетевой компонент, профиль доступа и
+                            системное разрешение телефона.
                         </p>
                     </div>
                     <div class="steps">
                         <article class="step">
                             <span class="step-number">1</span>
                             <div>
-                                <h3>Получить приглашение</h3>
+                                <h3>Получите приглашение</h3>
                                 <p>
-                                    Доступ выдается лично. Это помогает не
-                                    превращать сервис в публичную раздачу и
-                                    быстрее помогать конкретным людям.
+                                    Без приглашения приложение можно открыть, но
+                                    подключаться будет не к чему.
                                 </p>
                             </div>
                         </article>
                         <article class="step">
                             <span class="step-number">2</span>
                             <div>
-                                <h3>Установить приложение</h3>
+                                <h3>Поставьте приложение</h3>
                                 <p>
-                                    Основное приложение показывает статус,
-                                    профиль и подсказки. Оно не должно просить
-                                    лишнего и должно ясно объяснять следующий
-                                    шаг.
+                                    Берите APK только из канала, которому
+                                    доверяете. Случайные файлы лучше не ставить.
                                 </p>
                             </div>
                         </article>
                         <article class="step">
                             <span class="step-number">3</span>
                             <div>
-                                <h3>Проверить сетевой компонент</h3>
+                                <h3>Проверьте сетевой компонент</h3>
                                 <p>
-                                    Для подключения нужен подписанный сетевой
-                                    компонент. Если подпись не совпала, запуск
-                                    останавливается: так безопаснее.
+                                    Он держит подключение. Если подпись не
+                                    совпала, запуск остановится ради
+                                    безопасности.
                                 </p>
                             </div>
                         </article>
                         <article class="step">
                             <span class="step-number">4</span>
                             <div>
-                                <h3>Добавить профиль доступа</h3>
+                                <h3>Добавьте профиль доступа</h3>
                                 <p>
-                                    Профиль можно заменить или отозвать. Если он
-                                    не добавлен, приложение должно честно
-                                    показать, что подключаться пока не к чему.
+                                    Профиль можно заменить или отозвать. Если
+                                    профиля нет, попросите его у того, кто
+                                    пригласил.
                                 </p>
                             </div>
                         </article>
@@ -885,10 +1340,10 @@
 
                 <section>
                     <div class="section-head">
-                        <h2>Состояние подключения</h2>
+                        <h2>Если приложение показывает статус</h2>
                         <p>
-                            Эти состояния должны быть понятны без технической
-                            поддержки рядом.
+                            Выберите похожее состояние. Так проще понять, что
+                            делать дальше.
                         </p>
                     </div>
                     <div class="panel card-panel">
@@ -911,12 +1366,12 @@
                                 data-provider="missing"
                                 aria-pressed="false"
                             >
-                                Не установлен компонент
+                                Нет компонента
                             </button>
                             <button
                                 class="chip"
                                 type="button"
-                                data-provider="blocked"
+                                data-provider="signature"
                                 aria-pressed="false"
                             >
                                 Подпись не совпала
@@ -940,80 +1395,43 @@
                     </div>
                 </section>
 
-                <section>
-                    <div class="section-head">
-                        <h2>Что важно заранее</h2>
-                        <p>
-                            Если здесь есть сомнения, лучше сначала написать
-                            человеку, который выдал приглашение.
-                        </p>
-                    </div>
-                    <div class="cards">
-                        <article class="card">
-                            <small>Безопасность</small>
-                            <h3>Не ставьте APK из случайного места</h3>
-                            <p>
-                                Файл должен прийти из доверенного канала. Если
-                                источник непонятен, установку лучше остановить.
-                            </p>
-                        </article>
-                        <article class="card">
-                            <small>Согласие</small>
-                            <h3>Системное разрешение должно быть понятным</h3>
-                            <p>
-                                Телефон может показать запрос на сетевое
-                                подключение. Это нормальный шаг, но его не нужно
-                                подтверждать вслепую.
-                            </p>
-                        </article>
-                        <article class="card">
-                            <small>Поддержка</small>
-                            <h3>Ошибку не нужно расшифровывать самому</h3>
-                            <p>
-                                Достаточно прислать статус, модель телефона и
-                                скрин. Ниже есть готовый текст сообщения.
-                            </p>
-                        </article>
-                    </div>
-                </section>
-
                 <section id="ready">
                     <div class="section-head">
-                        <h2>Проверка готовности</h2>
+                        <h2>Проверьте готовность</h2>
                         <p>
-                            Отметьте пункты. Если готовность ниже 70%, установку
-                            лучше делать с поддержкой.
+                            Если получилось меньше 70%, лучше не ставить в
+                            одиночку и сначала написать поддержку.
                         </p>
                     </div>
                     <div class="panel card-panel check-layout">
                         <div class="checklist" id="checklist">
                             <label class="check-item"
-                                ><input type="checkbox" /> Есть приглашение или
-                                подтверждение доступа.</label
+                                ><input type="checkbox" /> У меня есть
+                                приглашение или подтверждение доступа.</label
                             >
                             <label class="check-item"
-                                ><input type="checkbox" /> Файл приложения
-                                получен из доверенного канала.</label
+                                ><input type="checkbox" /> Я понимаю, откуда
+                                брать APK и кому доверять.</label
                             >
                             <label class="check-item"
-                                ><input type="checkbox" /> Понятно, кто поможет,
-                                если установка не получится.</label
+                                ><input type="checkbox" /> На телефоне хватает
+                                места, Android не слишком старый.</label
                             >
                             <label class="check-item"
-                                ><input type="checkbox" /> Телефон обновлен и на
-                                нем хватает места.</label
+                                ><input type="checkbox" /> Я знаю, зачем нужен
+                                сетевой компонент.</label
                             >
                             <label class="check-item"
-                                ><input type="checkbox" /> Человек понимает,
-                                зачем нужен сетевой компонент.</label
+                                ><input type="checkbox" /> Мне выдали профиль
+                                доступа или сказали, когда выдадут.</label
                             >
                             <label class="check-item"
-                                ><input type="checkbox" /> Профиль доступа уже
-                                выдан или будет выдан после установки.</label
+                                ><input type="checkbox" /> Я знаю, кому
+                                отправить скрин ошибки.</label
                             >
                             <label class="check-item"
-                                ><input type="checkbox" /> Нет просьбы вводить
-                                пароли от личных аккаунтов.</label
+                                ><input type="checkbox" /> Никто не просит
+                                пароль от личного аккаунта.</label
                             >
                         </div>
                         <aside class="score-card" aria-live="polite">
@@ -1031,45 +1449,62 @@
 
                 <section id="support">
                     <div class="section-head">
-                        <h2>Что написать в поддержку</h2>
+                        <h2>Что отправить в поддержку</h2>
                         <p>
-                            Скопируйте подходящий текст и замените скобки своими
-                            данными.
+                            Скопируйте текст, замените скобки своими данными и
+                            приложите скрин, если он есть.
                         </p>
                     </div>
                     <div class="templates">
                         <article class="template">
-                            <h3>Нужна первичная установка</h3>
+                            <h3>Настраиваю себе</h3>
                             <p>
-                                Подходит, если вы получили приглашение, но еще
-                                не начали.
+                                Когда есть приглашение, но непонятно, какой файл
+                                ставить.
                             </p>
-                            <pre id="message-start">
-Привет. Я хочу настроить Yokhan Access по приглашению. Телефон: [модель]. Android: [версия]. Подскажите, какой файл установить и какой следующий шаг.</pre
+                            <pre id="message-self">
+Привет. Я настраиваю Yokhan Access по приглашению. Телефон: [модель]. Android: [версия]. Подскажите, какой APK ставить и какой следующий шаг.</pre
                             >
                             <button
                                 class="copy-button"
                                 type="button"
-                                data-copy="#message-start"
+                                data-copy="#message-self"
                             >
-                                Скопировать сообщение
+                                Скопировать
                             </button>
                         </article>
                         <article class="template">
-                            <h3>Не получается подключиться</h3>
+                            <h3>Помогаю близкому</h3>
                             <p>
-                                Подходит, если приложение уже установлено, но
-                                соединение не стартует.
+                                Когда вы ставите приложение не себе, а человеку
+                                рядом.
+                            </p>
+                            <pre id="message-family">
+Привет. Я помогаю настроить Yokhan Access для [кого]. Телефон: [модель]. Android: [версия]. Приглашение есть. Нужен актуальный файл и короткий порядок установки.</pre
+                            >
+                            <button
+                                class="copy-button"
+                                type="button"
+                                data-copy="#message-family"
+                            >
+                                Скопировать
+                            </button>
+                        </article>
+                        <article class="template">
+                            <h3>Не подключается</h3>
+                            <p>
+                                Когда приложение уже стоит, но соединение не
+                                стартует.
                             </p>
                             <pre id="message-help">
-Привет. У меня не получается подключиться. Статус в приложении: [статус]. Телефон: [модель]. Что уже сделал: [коротко]. Прикладываю скрин ошибки.</pre
+Привет. Yokhan Access не подключается. Статус в приложении: [статус]. Телефон: [модель]. Что уже сделал: [коротко]. Прикладываю скрин ошибки.</pre
                             >
                             <button
                                 class="copy-button"
                                 type="button"
                                 data-copy="#message-help"
                             >
-                                Скопировать сообщение
+                                Скопировать
                             </button>
                         </article>
                     </div>
@@ -1079,8 +1514,7 @@
                     <div class="section-head">
                         <h2>Словарь без лишнего</h2>
                         <p>
-                            Короткие объяснения слов, которые могут встретиться
-                            при установке.
+                            Коротко о словах, которые встречаются при установке.
                         </p>
                     </div>
                     <div class="glossary">
@@ -1102,17 +1536,16 @@
                         <details>
                             <summary>Сетевой компонент</summary>
                             <p>
-                                Отдельная часть приложения, которая держит
-                                подключение. Ее подпись проверяется, чтобы не
-                                доверять случайному файлу.
+                                Отдельная часть, которая держит подключение.
+                                Приложение проверяет его подпись перед запуском.
                             </p>
                         </details>
                         <details>
                             <summary>Контрольная сумма</summary>
                             <p>
                                 Короткая проверка файла. Если значение не
-                                совпало с тем, что выдали в канале поддержки,
-                                файл лучше не устанавливать.
+                                совпало с тем, что дали в поддержке, файл лучше
+                                не устанавливать.
                             </p>
                         </details>
                     </div>
@@ -1122,41 +1555,43 @@
                     <div class="notice">
                         <h3>Важная граница</h3>
                         <p>
-                            Yokhan Access — частный инструмент для доверенного
-                            круга. Перед публичным распространением, рекламой
-                            или продажами в новой юрисдикции нужна отдельная
-                            юридическая проверка. Эта страница помогает спокойно
+                            Yokhan Access: частный инструмент для доверенного
+                            круга. Перед публичной рекламой, широкими продажами
+                            или запуском в новой юрисдикции нужна отдельная
+                            юридическая проверка. Эта страница помогает
                             установить и поддерживать доступ, но не заменяет
                             правила вашей страны и здравый смысл.
                         </p>
                     </div>
                 </section>
             </main>
+
             <footer>
-                Yokhan Access. Доступ по приглашению. Ссылки на установку
-                добавляются только в доверенном канале.
+                Yokhan Access. Доступ по приглашению. Установочные ссылки и
+                контрольные суммы передаются только в доверенном канале.
             </footer>
         </div>
 
         <script>
             const scenarios = {
-                family: {
-                    title: "Для семьи: меньше терминов, больше ясности",
-                    text: "Подходит, если нужно один раз спокойно настроить телефоны близким и потом помогать без долгих объяснений.",
+                self: {
+                    title: "Настраиваете себе: начните с источника файла",
+                    text: "Убедитесь, что приглашение и APK пришли из доверенного канала. Потом проверьте сетевой компонент и добавьте профиль доступа.",
                 },
-                friends: {
-                    title: "Для друзей: быстро проверить и не ошибиться",
-                    text: "Подходит, если человек технически справится сам, но ему нужны правильный файл, статус и понятный способ попросить помощь.",
+                family: {
+                    title: "Настраиваете семье: подготовьте один понятный маршрут",
+                    text: "Сначала проверьте файл и профиль на своем устройстве. Потом отправьте близким только нужные шаги, без лишних технических объяснений.",
+                },
+                friend: {
+                    title: "Помогаете другу: дайте страницу и контакт поддержки",
+                    text: "Если друг справится сам, ему достаточно этой страницы, приглашения и актуального APK. Если нет, он сможет отправить готовое сообщение.",
                 },
                 team: {
-                    title: "Для команды: контроль доступа важнее скорости",
-                    text: "Подходит, если нужно понимать, кому выдан доступ, когда его менять и как аккуратно отключить доступ.",
-                },
-                care: {
-                    title: "Если нужна помощь: не надо разбираться одному",
-                    text: "Подходит, если человек не хочет читать инструкции. Достаточно пройти чек-лист и отправить готовое сообщение.",
+                    title: "Подключаете команду: держите учет доступа",
+                    text: "Зафиксируйте, кому выдан профиль, где лежит актуальный файл и кто отвечает на вопросы. Это снижает риск случайных установок.",
                 },
             };
+
             const providerStates = {
                 ready: {
                     title: "Можно подключаться",
@@ -1164,17 +1599,18 @@
                 },
                 missing: {
                     title: "Нужно установить сетевой компонент",
-                    text: "Приложение видит, что не хватает части для подключения. Установите компонент только из доверенного канала.",
+                    text: "Приложению не хватает части для подключения. Берите компонент только из доверенного канала.",
                 },
-                blocked: {
+                signature: {
                     title: "Запуск остановлен ради безопасности",
                     text: "Подпись компонента не совпала. Не пытайтесь продолжать: попросите новый файл у поддержки.",
                 },
                 profile: {
                     title: "Нужен профиль доступа",
-                    text: "Все установлено, но приложению пока не выдали настройку подключения. Напишите человеку, который пригласил вас.",
+                    text: "Все установлено, но настройку подключения еще не выдали. Напишите человеку, который пригласил вас.",
                 },
             };
+
             function setPressed(container, active) {
                 container.querySelectorAll("button").forEach((button) => {
                     button.setAttribute(
@@ -1183,6 +1619,7 @@
                     );
                 });
             }
+
             document.querySelectorAll("[data-scroll]").forEach((button) => {
                 button.addEventListener("click", () => {
                     const target = document.querySelector(
@@ -1195,6 +1632,7 @@
                         });
                 });
             });
+
             document.querySelectorAll("[data-scenario]").forEach((button) => {
                 button.addEventListener("click", () => {
                     const item = scenarios[button.dataset.scenario];
@@ -1206,6 +1644,7 @@
                         item.text;
                 });
             });
+
             document.querySelectorAll("[data-provider]").forEach((button) => {
                 button.addEventListener("click", () => {
                     const item = providerStates[button.dataset.provider];
@@ -1217,34 +1656,39 @@
                         item.text;
                 });
             });
+
             const checks = Array.from(
                 document.querySelectorAll("#checklist input"),
             );
             const score = document.querySelector("#score");
             const progress = document.querySelector("#progress");
             const scoreText = document.querySelector("#score-text");
+
             function updateScore() {
                 const done = checks.filter((input) => input.checked).length;
                 const value = Math.round((done / checks.length) * 100);
                 score.textContent = value;
-                progress.style.width = value + "%";
-                if (value >= 86)
+                progress.style.width = `${value}%`;
+                if (value >= 86) {
                     scoreText.textContent =
                         "Можно ставить спокойно. Держите контакт поддержки рядом на всякий случай.";
-                else if (value >= 70)
+                } else if (value >= 70) {
                     scoreText.textContent =
                         "Почти готово. Лучше заранее уточнить недостающие пункты.";
-                else if (value >= 40)
+                } else if (value >= 40) {
                     scoreText.textContent =
                         "Рано ставить без помощи. Начните с приглашения, источника файла и профиля.";
-                else
+                } else {
                     scoreText.textContent =
                         "Начните с приглашения, источника файла и контакта поддержки.";
+                }
             }
+
             checks.forEach((input) =>
                 input.addEventListener("change", updateScore),
             );
             updateScore();
+
             async function copyText(text) {
                 if (navigator.clipboard && window.isSecureContext) {
                     await navigator.clipboard.writeText(text);
@@ -1260,6 +1704,7 @@
                 document.execCommand("copy");
                 area.remove();
             }
+
             document.querySelectorAll("[data-copy]").forEach((button) => {
                 button.addEventListener("click", async () => {
                     const target = document.querySelector(button.dataset.copy);
@@ -1269,7 +1714,7 @@
                         await copyText(target.textContent.trim());
                         button.textContent = "Скопировано";
                     } catch (error) {
-                        button.textContent = "Не удалось скопировать";
+                        button.textContent = "Не скопировалось";
                     }
                     window.setTimeout(() => {
                         button.textContent = initial;
