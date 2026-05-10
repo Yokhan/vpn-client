@@ -11,6 +11,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 - [ ] Define the acceptance bar for a production release: full Compose shell, migrated core screens, release notes, reproducible build, rollback path.
 - [ ] Keep product naming consistent as YokhanVPN / BUFF IT GATES only where intentionally exposed.
 - [ ] Track every remaining Matsuri/Neko reference and classify it as core dependency, inherited implementation detail, or removable UI debt.
+- [ ] Keep the commercial, invite-only, and compliance boundary plan current in `docs/commercial-readiness-and-risk-plan.md`.
 
 ## 02. Architecture Boundaries
 
