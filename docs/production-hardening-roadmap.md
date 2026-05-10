@@ -66,7 +66,7 @@ Tasks:
 
 Acceptance:
 
-- Landing и Compose используют одинаковые числа: `rocketWidth=132`, `rocketHeight=228`, `flameWidth=22`, `flameHeight=75`, `flameY=176`, `leftFlameX=-11`, `rightFlameX=11`.
+- Landing и Compose используют одинаковые числа: `rocketWidth=132`, `rocketHeight=228`, `flameWidth=22`, `flameHeight=75`, `flameY=117`, `leftFlameX=-10`, `rightFlameX=8`.
 - В desktop preview можно включить overlay и сделать screenshot.
 - В landing rocket/flame используют app PNG assets.
 
