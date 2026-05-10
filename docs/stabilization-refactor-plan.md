@@ -33,6 +33,13 @@ Bring the app from a working Compose migration into a production-clean state: st
 4. Document the new tuning workflow so offsets can be reported as exact values, not screenshots alone.
 5. Remove light `dashboard_bg_off` usage from app UI hosts so legacy screens cannot flash beige.
 
+## Current Execution Pass
+
+1. Keep all product Compose surfaces on the dark design-system palette; connection state controls motion, stars, status text, and CTA behavior, not the root background.
+2. Make the dashboard connection-test control clickable in idle states so the user gets an explicit "not connected" result instead of a dead button.
+3. Remove remaining product UI class references from inherited namespaces where the change is route/resource-safe.
+4. Verify shared UI/domain and Android compilation before release work.
+
 ## Rocket Tuning Workflow
 
 1. Run the desktop preview and keep the phone viewport in Dashboard mode.

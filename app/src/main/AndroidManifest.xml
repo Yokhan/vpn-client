@@ -206,7 +206,7 @@
             android:name="com.yokhan.vpn.app.ui.AppListActivity"
             android:configChanges="uiMode" />
         <activity
-            android:name=".QuickToggleShortcut"
+            android:name="com.yokhan.vpn.app.ui.QuickToggleShortcut"
             android:excludeFromRecents="true"
             android:exported="true"
             android:label="@string/quick_toggle"

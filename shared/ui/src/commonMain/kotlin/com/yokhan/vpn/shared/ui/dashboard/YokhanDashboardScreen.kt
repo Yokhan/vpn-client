@@ -612,11 +612,11 @@ private fun ConnectionTestButton(
     actions: DashboardUiActions,
     tuning: DashboardUiTuning,
 ) {
-    val enabled = state.canRunConnectionTest && !state.isConnectionTestRunning
+    val canRequestTest = !state.isConnectionTestRunning
     val foreground = when {
         state.isConnectionTestRunning -> colors.accent
-        enabled -> colors.secondary
-        else -> colors.secondary.copy(alpha = 0.46f)
+        state.canRunConnectionTest -> colors.secondary
+        else -> colors.secondary.copy(alpha = 0.62f)
     }
     val animatedForeground by animateColorAsState(
         targetValue = foreground,
@@ -635,7 +635,7 @@ private fun ConnectionTestButton(
     val backgroundAlpha by animateFloatAsState(
         targetValue = when {
             state.isConnectionTestRunning -> 0.12f
-            enabled -> 0.055f
+            state.canRunConnectionTest -> 0.055f
             else -> 0.028f
         },
         animationSpec = tween(260, easing = CssEase),
@@ -671,7 +671,7 @@ private fun ConnectionTestButton(
                     )
                 )
                 .border(1.dp, borderColor, RoundedCornerShape(22.dp))
-                .clickable(enabled = enabled, onClick = actions.onRunConnectionTest)
+                .clickable(enabled = canRequestTest, onClick = actions.onRunConnectionTest)
                 .padding(horizontal = 17.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

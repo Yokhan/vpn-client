@@ -1,4 +1,4 @@
-package io.nekohasekai.sagernet.widget
+package com.yokhan.vpn.app.ui.preference
 
 import android.content.Context
 import android.util.AttributeSet
@@ -10,11 +10,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.yokhan.vpn.app.ui.preference.SimpleMenuPreference
 
 class GroupPreference
 @JvmOverloads constructor(
-    context: Context, attrs: AttributeSet? = null, defStyle: Int = R.attr.dropdownPreferenceStyle
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyle: Int = R.attr.dropdownPreferenceStyle,
 ) : SimpleMenuPreference(context, attrs, defStyle, 0) {
 
     private var scope: CoroutineScope? = null
@@ -48,5 +49,4 @@ class GroupPreference
         }
         return super.getSummary()
     }
-
 }

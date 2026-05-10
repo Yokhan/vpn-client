@@ -399,7 +399,7 @@ class ToolsFragment : YokhanComposeRouteFragment() {
         return ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
-                val colors = yokhanPalette(DataStore.serviceState.isRouteSpaceActive())
+                val colors = yokhanPalette(spaceActive = true)
                 val typography = yokhanTypography()
                 BackupImportDialogContent(available, selection, colors, typography)
             }
@@ -455,7 +455,7 @@ class ToolsFragment : YokhanComposeRouteFragment() {
         return ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
             setContent {
-                val colors = yokhanPalette(DataStore.serviceState.isRouteSpaceActive())
+                val colors = yokhanPalette(spaceActive = true)
                 val typography = yokhanTypography()
                 Row(
                     modifier = Modifier

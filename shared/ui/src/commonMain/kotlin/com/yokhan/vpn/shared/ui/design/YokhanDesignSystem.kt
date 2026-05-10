@@ -40,8 +40,10 @@ fun yokhanTypography(): YokhanTypography {
     )
 }
 
+@Suppress("UNUSED_PARAMETER")
 fun yokhanPalette(spaceActive: Boolean): YokhanPalette {
-    return if (spaceActive) YokhanSpacePalette else YokhanLightPalette
+    // Keep product surfaces stable and dark; connection state controls motion/status only.
+    return YokhanSpacePalette
 }
 
 val YokhanAccent = Color(0xFFE55A1B)
