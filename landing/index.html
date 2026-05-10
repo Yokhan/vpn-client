@@ -44,6 +44,17 @@
                 --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
                 --ease-out: cubic-bezier(0, 0, 0.58, 1);
                 --ease-in-out: cubic-bezier(0.42, 0, 0.58, 1);
+                --rocket-width: 132px;
+                --rocket-height: 228px;
+                --flame-width: 22px;
+                --flame-height: 75px;
+                --rocket-scene-width: 156px;
+                --rocket-scene-height: 340px;
+                --rocket-left: 12px;
+                --rocket-top: 28px;
+                --left-flame-left: 57px;
+                --right-flame-left: 75px;
+                --flame-top: 145px;
                 color-scheme: dark;
                 font-family: "Yokhan Text", "Segoe UI", sans-serif;
             }
@@ -82,6 +93,7 @@
                 position: fixed;
                 inset: 0;
                 pointer-events: none;
+                z-index: 0;
             }
 
             body::before {
@@ -124,6 +136,188 @@
                         rgba(255, 255, 255, 0.018) 78px 79px
                     );
                 mix-blend-mode: screen;
+            }
+
+            .starfield {
+                position: fixed;
+                inset: 0;
+                z-index: 0;
+                overflow: hidden;
+                pointer-events: none;
+            }
+
+            .starfield i {
+                position: absolute;
+                top: -12vh;
+                left: calc(var(--x) * 1%);
+                width: var(--w);
+                height: var(--h);
+                border-radius: var(--radius-pill);
+                background: rgba(232, 232, 240, var(--a));
+                box-shadow: 0 0 10px rgba(232, 232, 240, 0.24);
+                animation: star-fall var(--d) linear infinite;
+                animation-delay: var(--delay);
+            }
+
+            .starfield i:nth-child(1) {
+                --x: 3;
+                --w: 2px;
+                --h: 2px;
+                --a: 0.55;
+                --d: 9s;
+                --delay: -1s;
+            }
+            .starfield i:nth-child(2) {
+                --x: 8;
+                --w: 1px;
+                --h: 14px;
+                --a: 0.35;
+                --d: 2.7s;
+                --delay: -0.4s;
+            }
+            .starfield i:nth-child(3) {
+                --x: 12;
+                --w: 3px;
+                --h: 3px;
+                --a: 0.68;
+                --d: 8s;
+                --delay: -3s;
+            }
+            .starfield i:nth-child(4) {
+                --x: 18;
+                --w: 1px;
+                --h: 1px;
+                --a: 0.42;
+                --d: 13s;
+                --delay: -8s;
+            }
+            .starfield i:nth-child(5) {
+                --x: 23;
+                --w: 2px;
+                --h: 20px;
+                --a: 0.32;
+                --d: 2.2s;
+                --delay: -1.1s;
+            }
+            .starfield i:nth-child(6) {
+                --x: 28;
+                --w: 2px;
+                --h: 2px;
+                --a: 0.5;
+                --d: 12s;
+                --delay: -5s;
+            }
+            .starfield i:nth-child(7) {
+                --x: 34;
+                --w: 1px;
+                --h: 12px;
+                --a: 0.44;
+                --d: 2.9s;
+                --delay: -2s;
+            }
+            .starfield i:nth-child(8) {
+                --x: 39;
+                --w: 3px;
+                --h: 3px;
+                --a: 0.62;
+                --d: 10s;
+                --delay: -6s;
+            }
+            .starfield i:nth-child(9) {
+                --x: 44;
+                --w: 1px;
+                --h: 1px;
+                --a: 0.45;
+                --d: 15s;
+                --delay: -4s;
+            }
+            .starfield i:nth-child(10) {
+                --x: 50;
+                --w: 2px;
+                --h: 18px;
+                --a: 0.36;
+                --d: 2.4s;
+                --delay: -0.6s;
+            }
+            .starfield i:nth-child(11) {
+                --x: 56;
+                --w: 2px;
+                --h: 2px;
+                --a: 0.5;
+                --d: 11s;
+                --delay: -7s;
+            }
+            .starfield i:nth-child(12) {
+                --x: 62;
+                --w: 1px;
+                --h: 1px;
+                --a: 0.44;
+                --d: 16s;
+                --delay: -11s;
+            }
+            .starfield i:nth-child(13) {
+                --x: 67;
+                --w: 2px;
+                --h: 22px;
+                --a: 0.33;
+                --d: 2.1s;
+                --delay: -1.7s;
+            }
+            .starfield i:nth-child(14) {
+                --x: 72;
+                --w: 3px;
+                --h: 3px;
+                --a: 0.62;
+                --d: 8.5s;
+                --delay: -2.4s;
+            }
+            .starfield i:nth-child(15) {
+                --x: 77;
+                --w: 1px;
+                --h: 11px;
+                --a: 0.42;
+                --d: 3s;
+                --delay: -0.2s;
+            }
+            .starfield i:nth-child(16) {
+                --x: 82;
+                --w: 2px;
+                --h: 2px;
+                --a: 0.54;
+                --d: 12.5s;
+                --delay: -9s;
+            }
+            .starfield i:nth-child(17) {
+                --x: 88;
+                --w: 1px;
+                --h: 1px;
+                --a: 0.4;
+                --d: 14s;
+                --delay: -6.4s;
+            }
+            .starfield i:nth-child(18) {
+                --x: 93;
+                --w: 2px;
+                --h: 16px;
+                --a: 0.34;
+                --d: 2.5s;
+                --delay: -1.4s;
+            }
+            .starfield i:nth-child(19) {
+                --x: 97;
+                --w: 2px;
+                --h: 2px;
+                --a: 0.58;
+                --d: 9.2s;
+                --delay: -5.8s;
+            }
+            .starfield i:nth-child(20) {
+                --x: 46;
+                --w: 1px;
+                --h: 14px;
+                --a: 0.36;
+                --d: 2.6s;
+                --delay: -2.2s;
             }
 
             a {
@@ -603,8 +797,8 @@
 
             .ship-scene {
                 position: relative;
-                width: 156px;
-                height: 340px;
+                width: var(--rocket-scene-width);
+                height: var(--rocket-scene-height);
                 transform: translateY(-28px);
                 animation: rocket-dock 1400ms cubic-bezier(0.2, 0.8, 0.3, 1)
                     both;
@@ -612,10 +806,10 @@
 
             .ship {
                 position: absolute;
-                left: 12px;
-                top: 28px;
-                width: 132px;
-                height: 228px;
+                left: var(--rocket-left);
+                top: var(--rocket-top);
+                width: var(--rocket-width);
+                height: var(--rocket-height);
                 object-fit: contain;
                 z-index: 2;
                 filter: drop-shadow(0 22px 28px rgba(0, 0, 0, 0.42));
@@ -623,9 +817,9 @@
 
             .flame {
                 position: absolute;
-                top: 145px;
-                width: 22px;
-                height: 75px;
+                top: var(--flame-top);
+                width: var(--flame-width);
+                height: var(--flame-height);
                 object-fit: contain;
                 z-index: 3;
                 transform-origin: 50% 0;
@@ -635,11 +829,11 @@
             }
 
             .flame.left {
-                left: 57px;
+                left: var(--left-flame-left);
             }
 
             .flame.right {
-                left: 75px;
+                left: var(--right-flame-left);
                 animation-delay: 140ms;
             }
 
@@ -731,9 +925,31 @@
             .template {
                 min-height: 214px;
                 padding: 20px;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .card::before {
+                content: "";
+                position: absolute;
+                top: 20px;
+                left: 20px;
+                width: 5px;
+                height: 5px;
+                border-radius: 1px;
+                background: var(--tertiary);
+            }
+
+            .card small,
+            .card h3,
+            .card p {
+                position: relative;
+                z-index: 1;
             }
 
             .card small {
+                display: block;
+                padding-left: 12px;
                 color: var(--accent);
                 font-family: "Yokhan Mono", monospace;
                 font-size: 11px;
@@ -783,6 +999,62 @@
 
             .result-box {
                 padding: 20px;
+            }
+
+            .journey-grid {
+                display: grid;
+                grid-template-columns: minmax(0, 0.95fr) minmax(280px, 1.05fr);
+                gap: 14px;
+            }
+
+            .route-box {
+                padding: 20px;
+                border: 1px solid var(--border);
+                border-radius: var(--radius-card);
+                background: rgba(5, 5, 13, 0.32);
+            }
+
+            .journey-steps {
+                display: grid;
+                gap: 10px;
+                margin: 16px 0 0;
+                padding: 0;
+                list-style: none;
+            }
+
+            .journey-steps li {
+                display: grid;
+                grid-template-columns: 28px 1fr;
+                gap: 10px;
+                align-items: start;
+                color: var(--secondary);
+                line-height: 1.45;
+            }
+
+            .journey-steps li::before {
+                content: counter(step-counter);
+                counter-increment: step-counter;
+                width: 28px;
+                height: 28px;
+                display: grid;
+                place-items: center;
+                border: 1px solid rgba(40, 180, 79, 0.34);
+                border-radius: 50%;
+                color: var(--accent);
+                font-family: "Yokhan Mono", monospace;
+                font-size: 11px;
+            }
+
+            .journey-steps {
+                counter-reset: step-counter;
+            }
+
+            .journey-warning {
+                margin: 16px 0 0;
+                padding-top: 14px;
+                border-top: 1px solid var(--divider);
+                color: #ff9a66;
+                line-height: 1.5;
             }
 
             .steps {
@@ -969,6 +1241,23 @@
                 }
             }
 
+            @keyframes star-fall {
+                from {
+                    transform: translate3d(0, -12vh, 0);
+                    opacity: 0;
+                }
+                12% {
+                    opacity: 1;
+                }
+                86% {
+                    opacity: 1;
+                }
+                to {
+                    transform: translate3d(0, 122vh, 0);
+                    opacity: 0;
+                }
+            }
+
             @media (max-width: 920px) {
                 .topbar,
                 .section-head {
@@ -984,6 +1273,7 @@
                 .cards,
                 .steps,
                 .check-layout,
+                .journey-grid,
                 .templates,
                 .glossary {
                     grid-template-columns: 1fr;
@@ -1056,6 +1346,11 @@
         </style>
     </head>
     <body>
+        <div class="starfield" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i> <i></i><i></i><i></i><i></i
+            ><i></i> <i></i><i></i><i></i><i></i><i></i> <i></i><i></i><i></i
+            ><i></i><i></i>
+        </div>
         <div class="page">
             <header class="topbar">
                 <a class="brand" href="#top" aria-label="Yokhan Access">
@@ -1270,15 +1565,44 @@
                                 Команде
                             </button>
                         </div>
-                        <div class="result-box" aria-live="polite">
-                            <h3 id="scenario-title">
-                                Настраиваете себе: начните с источника файла
-                            </h3>
-                            <p id="scenario-text">
-                                Убедитесь, что приглашение и APK пришли из
-                                доверенного канала. Потом проверьте сетевой
-                                компонент и добавьте профиль доступа.
-                            </p>
+                        <div class="journey-grid" aria-live="polite">
+                            <div class="result-box">
+                                <h3 id="scenario-title">
+                                    Настраиваете себе: начните с источника файла
+                                </h3>
+                                <p id="scenario-text">
+                                    Убедитесь, что приглашение и APK пришли из
+                                    доверенного канала. Потом проверьте сетевой
+                                    компонент и добавьте профиль доступа.
+                                </p>
+                            </div>
+                            <div class="route-box">
+                                <span class="section-label">Маршрут</span>
+                                <ol class="journey-steps" id="scenario-steps">
+                                    <li>
+                                        Сверьте, что приглашение и APK пришли из
+                                        доверенного канала.
+                                    </li>
+                                    <li>
+                                        Установите приложение и откройте экран
+                                        статуса.
+                                    </li>
+                                    <li>
+                                        Проверьте сетевой компонент и подпись.
+                                    </li>
+                                    <li>
+                                        Добавьте профиль доступа и сделайте
+                                        первый запуск.
+                                    </li>
+                                </ol>
+                                <p
+                                    class="journey-warning"
+                                    id="scenario-warning"
+                                >
+                                    Если источник файла непонятен, установку
+                                    лучше остановить и спросить поддержку.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -1577,18 +1901,50 @@
                 self: {
                     title: "Настраиваете себе: начните с источника файла",
                     text: "Убедитесь, что приглашение и APK пришли из доверенного канала. Потом проверьте сетевой компонент и добавьте профиль доступа.",
+                    steps: [
+                        "Сверьте, что приглашение и APK пришли из доверенного канала.",
+                        "Установите приложение и откройте экран статуса.",
+                        "Проверьте сетевой компонент и подпись.",
+                        "Добавьте профиль доступа и сделайте первый запуск.",
+                    ],
+                    warning:
+                        "Если источник файла непонятен, установку лучше остановить и спросить поддержку.",
                 },
                 family: {
                     title: "Настраиваете семье: подготовьте один понятный маршрут",
                     text: "Сначала проверьте файл и профиль на своем устройстве. Потом отправьте близким только нужные шаги, без лишних технических объяснений.",
+                    steps: [
+                        "Сначала пройдите установку на своем телефоне или тестовом устройстве.",
+                        "Подготовьте для близкого один APK, один профиль и один контакт поддержки.",
+                        "Поставьте приложение рядом с человеком, не передавая лишних паролей.",
+                        "Сохраните скрин статуса после первого запуска.",
+                    ],
+                    warning:
+                        "Не отправляйте близким несколько разных файлов: это почти всегда заканчивается ошибкой установки.",
                 },
                 friend: {
                     title: "Помогаете другу: дайте страницу и контакт поддержки",
                     text: "Если друг справится сам, ему достаточно этой страницы, приглашения и актуального APK. Если нет, он сможет отправить готовое сообщение.",
+                    steps: [
+                        "Отправьте другу приглашение, актуальный APK и эту страницу.",
+                        "Попросите не ставить файлы из других источников.",
+                        "Пусть друг отметит чек-лист готовности перед установкой.",
+                        "Если не получилось, он отправляет готовое сообщение из блока поддержки.",
+                    ],
+                    warning:
+                        "Если друг меняет порядок шагов, сначала проверьте статус в приложении, а не пересылайте новый файл вслепую.",
                 },
                 team: {
                     title: "Подключаете команду: держите учет доступа",
                     text: "Зафиксируйте, кому выдан профиль, где лежит актуальный файл и кто отвечает на вопросы. Это снижает риск случайных установок.",
+                    steps: [
+                        "Составьте короткий список людей, которым реально нужен доступ.",
+                        "Выдавайте профиль персонально и фиксируйте, кому он передан.",
+                        "Дайте всем одинаковый install path: файл, компонент, профиль, проверка.",
+                        "Заранее договоритесь, кто отзывает доступ и кому пишут при ошибке.",
+                    ],
+                    warning:
+                        "Командный сценарий ломается не из-за техники, а из-за неучтенных профилей и неактуальных APK.",
                 },
             };
 
@@ -1642,6 +1998,10 @@
                         item.title;
                     document.querySelector("#scenario-text").textContent =
                         item.text;
+                    document.querySelector("#scenario-steps").innerHTML =
+                        item.steps.map((step) => `<li>${step}</li>`).join("");
+                    document.querySelector("#scenario-warning").textContent =
+                        item.warning;
                 });
             });
 

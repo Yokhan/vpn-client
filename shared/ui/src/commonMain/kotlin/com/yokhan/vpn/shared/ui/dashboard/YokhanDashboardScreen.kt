@@ -107,15 +107,27 @@ data class DashboardUiTuning(
     val contentBottomPadding: Int = 132,
     val testButtonTopPadding: Int = 12,
     val statsBarBottomPadding: Int = 28,
-    val rocketWidth: Int = 132,
-    val rocketHeight: Int = 228,
-    val flameWidth: Int = 22,
-    val flameHeight: Int = 75,
-    val leftFlameX: Int = -10,
-    val rightFlameX: Int = 8,
-    val flameY: Int = 117,
+    val rocketWidth: Int = DashboardRocketTokens.RocketWidth,
+    val rocketHeight: Int = DashboardRocketTokens.RocketHeight,
+    val flameWidth: Int = DashboardRocketTokens.FlameWidth,
+    val flameHeight: Int = DashboardRocketTokens.FlameHeight,
+    val leftFlameX: Int = DashboardRocketTokens.LeftFlameX,
+    val rightFlameX: Int = DashboardRocketTokens.RightFlameX,
+    val flameY: Int = DashboardRocketTokens.FlameY,
     val rocketDebugOverlay: Boolean = false,
 )
+
+object DashboardRocketTokens {
+    const val RocketWidth = 132
+    const val RocketHeight = 228
+    const val FlameWidth = 22
+    const val FlameHeight = 75
+    const val LeftFlameX = -10
+    const val RightFlameX = 8
+    const val FlameY = 117
+    const val RocketHorizontalBleed = 12
+    const val RocketVerticalBleed = 28
+}
 
 @Immutable
 data class DashboardUiLabels(
@@ -1098,8 +1110,8 @@ private fun DashboardRocket(
     val yOffset = remember { Animatable(if (initiallyVisible) 0f else 1.15f) }
     val alpha = remember { Animatable(if (initiallyVisible) 1f else 0f) }
     val flameDrawHeight = (tuning.flameHeight * 1.25f).toInt() + 12
-    val rocketHorizontalBleed = 12
-    val rocketVerticalBleed = 28
+    val rocketHorizontalBleed = DashboardRocketTokens.RocketHorizontalBleed
+    val rocketVerticalBleed = DashboardRocketTokens.RocketVerticalBleed
     val rocketLeft = rocketHorizontalBleed
     val rocketTop = rocketVerticalBleed
     val rocketCenterX = rocketLeft + tuning.rocketWidth / 2

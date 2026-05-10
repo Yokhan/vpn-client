@@ -6,13 +6,17 @@
 - [x] Console checked.
 - [x] Mobile width checked.
 - [x] Scenario selector clicked.
+- [x] Scenario route steps and warning text checked.
 - [x] Provider state selector clicked.
-- [x] Readiness checklist clicked.
+- [x] Readiness checklist clicked and reached 100%.
 - [x] Copy buttons checked.
 - [x] Glossary opened.
 - [x] Forbidden copy searched.
 - [x] App rocket and flame assets loaded.
 - [x] App fonts loaded.
+- [x] Moving starfield checked.
+- [x] Rocket/flame CSS tokens checked against `docs/rocket-scene-tokens.md`.
+- [x] Mobile horizontal overflow checked.
 
 ## Known Limitations
 
