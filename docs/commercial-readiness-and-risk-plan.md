@@ -1,305 +1,305 @@
-# Commercial Readiness And Risk Plan
+# План коммерческой готовности и снижения рисков
 
-## Purpose
+## Цель
 
-This document describes how to move YokhanVPN from a technical prototype into a small commercial product for a private circle of trusted users.
+Этот документ описывает, как переводить YokhanVPN из технического прототипа в небольшой коммерческий продукт для закрытого круга доверенных пользователей.
 
-The target model is not a mass-market public VPN. The practical wedge is a concierge, invite-only product: family, friends, small teams, and known users who need a stable private connectivity tool with human support.
+Целевая модель сейчас не массовый публичный VPN. Практичный wedge: invite-only продукт с человеческой поддержкой для семьи, друзей, малых команд и известных пользователей, которым нужен стабильный инструмент приватного управляемого доступа.
 
-This is not legal advice. Before public sales, App Store distribution, Google Play distribution, or Russian-market activity, the owner should get jurisdiction-specific legal review.
+Это не юридическая консультация. Перед публичными продажами, App Store, Google Play или активной работой с российским рынком нужна проверка юристом по конкретным юрисдикциям.
 
-## Non-Negotiable Boundary
+## Жёсткая граница
 
-Do not disguise a VPN as a game, toy, or unrelated app to avoid law, store review, payment-provider review, or user consent.
+Нельзя маскировать VPN под игру, игрушку или unrelated-приложение, чтобы обходить закон, модерацию стора, проверку платёжного провайдера или согласие пользователя.
 
-Rejected approach:
+Отвергаемый подход:
 
-1. Publish a "rocket game" that secretly downloads or activates a VPN module.
-2. Sell keys from a landing page that intentionally avoids describing the product's real network function.
-3. Use euphemistic copy to hide that the product creates encrypted network tunnels.
-4. Submit an app to stores as one category while the real paid feature is a VPN/proxy tunnel.
+1. Публиковать "игру про ракету", которая скрытно скачивает или активирует VPN-модуль.
+2. Продавать ключи с лендинга, который намеренно скрывает реальную сетевую функцию продукта.
+3. Использовать эзопов язык, чтобы спрятать факт создания зашифрованного сетевого туннеля.
+4. Отправлять приложение в стор в одной категории, а реальную платную функцию делать VPN/proxy-туннелем.
 
-Why this is rejected:
+Почему это плохой путь:
 
-1. It creates app-store fraud risk.
-2. It creates user-trust risk.
-3. It increases legal exposure instead of reducing it.
-4. It makes payment-provider and platform bans more likely.
-5. It makes the product harder to defend if challenged.
+1. Риск бана и претензий со стороны App Store / Google Play становится выше, а не ниже.
+2. Это разрушает доверие пользователей.
+3. Это увеличивает юридическую уязвимость.
+4. Это повышает риск блокировок платёжек и аккаунтов разработчика.
+5. Такую позицию трудно защищать, если возникнет спор.
 
-Accepted approach:
+Допустимый подход:
 
-1. Use the rocket theme as brand/UI metaphor only.
-2. Keep product descriptions truthful: "private access", "secure tunnel", "protected remote access", "managed connectivity", "private network access".
-3. Avoid public claims about bypassing restricted resources.
-4. Keep distribution invite-only until compliance is ready.
-5. Use modular architecture for maintainability and platform separation, not for concealment.
+1. Использовать ракету как визуальную метафору бренда и интерфейса.
+2. Описывать продукт честно: "приватный доступ", "защищённый туннель", "защищённый удалённый доступ", "управляемое подключение", "private network access".
+3. Не делать публичных обещаний про обход ограничений.
+4. Держать распространение invite-only, пока комплаенс и документы не готовы.
+5. Делать модульную архитектуру ради поддержки, платформенности и безопасности, а не ради сокрытия функции.
 
-## Positioning
+## Позиционирование
 
-The strongest early positioning is:
+Самое сильное раннее позиционирование:
 
-> Private managed access for a small trusted circle.
+> Приватный управляемый доступ для своего круга.
 
-Practical promise:
+Практическое обещание:
 
-1. The user does not need to understand protocols.
-2. The app connects reliably.
-3. Setup is done with clear onboarding or direct support.
-4. The owner can rotate keys, revoke access, and help users.
-5. The product avoids intrusive analytics and does not sell traffic data.
+1. Пользователю не нужно понимать протоколы.
+2. Приложение стабильно подключается.
+3. Настройка понятная или делается с поддержкой.
+4. Владелец может ротировать ключи, отзывать доступ и помогать пользователям.
+5. Продукт не продаёт данные о трафике и не строит навязчивую аналитику.
 
-Avoid these claims:
+Не использовать такие утверждения:
 
-1. "Unblocks everything."
-2. "Bypasses any restriction."
-3. "Anonymous internet."
-4. "No one can ever see anything."
-5. "Guaranteed legal everywhere."
+1. "Открывает всё."
+2. "Обходит любые ограничения."
+3. "Анонимный интернет."
+4. "Никто никогда ничего не увидит."
+5. "Гарантированно законно везде."
 
-Safer claims:
+Более безопасные формулировки:
 
-1. "Private managed connectivity."
-2. "Protected remote access for trusted users."
-3. "Simple client for personal and family network profiles."
-4. "Encrypted tunnel between your device and configured endpoints."
-5. "Minimal data collection and clear support."
+1. "Приватное управляемое подключение."
+2. "Защищённый удалённый доступ для доверенных пользователей."
+3. "Простой клиент для личных и семейных сетевых профилей."
+4. "Зашифрованный туннель между устройством и настроенными endpoint."
+5. "Минимальный сбор данных и понятная поддержка."
 
-## Product Model
+## Продуктовая модель
 
-### Phase 1: Concierge Access
+### Этап 1: Concierge-доступ
 
-This is the best fit for the first sales.
+Это лучший формат для первых продаж.
 
-Scope:
+Скоуп:
 
-1. Invite-only users.
-2. Manual onboarding.
-3. Manual payment tracking.
-4. Direct support through a private channel.
-5. Android-first client.
-6. Windows preview/debug client for UI work, not necessarily a commercial release yet.
+1. Пользователи только по приглашению.
+2. Ручной onboarding.
+3. Ручной учёт платежей.
+4. Поддержка в приватном канале.
+5. Android-first клиент.
+6. Windows/desktop preview как инструмент UI QA, а не обязательно как коммерческий релиз.
 
-Deliverables:
+Что должно быть готово:
 
-1. Signed Android release.
-2. Simple onboarding screen.
-3. Clear "no configurations" state.
-4. One-page setup guide.
-5. Private support contact.
-6. Manual access registry.
+1. Подписанный Android release.
+2. Понятный экран первичной настройки.
+3. Ясное состояние "нет конфигураций".
+4. Одностраничная инструкция установки.
+5. Контакт поддержки.
+6. Ручной реестр доступов.
 
-Success metric:
+Критерий успеха:
 
-1. A non-technical user can install, receive access, connect, disconnect, and ask for help without developer intervention after the initial invite.
+1. Нетехнический пользователь может установить приложение, получить доступ, подключиться, отключиться и обратиться за помощью без участия разработчика после первичного приглашения.
 
-### Phase 2: Small Circle Subscription
+### Этап 2: Подписка для узкого круга
 
-Scope:
+Скоуп:
 
-1. Invite code or account code.
-2. Self-service access page.
-3. Subscription status.
-4. Key rotation.
-5. Device limit.
-6. Renewal reminders.
+1. Invite code или account code.
+2. Self-service страница доступа.
+3. Статус подписки.
+4. Ротация ключей.
+5. Лимит устройств.
+6. Напоминания о продлении.
 
-Deliverables:
+Что должно быть готово:
 
-1. Landing page with truthful, non-evasive wording.
-2. Payment flow.
-3. Basic user/admin registry.
-4. Access revoke/rotate tools.
-5. Support SLA expectations.
+1. Лендинг с честной, не уклончивой формулировкой.
+2. Платёжный flow.
+3. Базовый реестр пользователей и доступов.
+4. Инструменты revoke/rotate.
+5. Понятные ожидания по поддержке.
 
-Success metric:
+Критерий успеха:
 
-1. The owner can manage 30-100 users without editing files by hand.
+1. Можно обслуживать 30-100 пользователей без ручного редактирования файлов.
 
-### Phase 3: Team/Family Plans
+### Этап 3: Семейные и командные планы
 
-Scope:
+Скоуп:
 
-1. Family owner or team owner.
-2. Multiple devices.
-3. Shared billing.
-4. Access groups.
-5. Simple admin panel.
+1. Владелец семьи или команды.
+2. Несколько устройств.
+3. Общая оплата.
+4. Группы доступа.
+5. Простая админка.
 
-Deliverables:
+Что должно быть готово:
 
-1. Group model.
-2. Device inventory.
+1. Модель групп.
+2. Инвентарь устройств.
 3. Invite/revoke flow.
-4. Status page.
-5. Support knowledge base.
+4. Страница статуса.
+5. База знаний поддержки.
 
-Success metric:
+Критерий успеха:
 
-1. One paying owner can manage several users with low support load.
+1. Один платящий владелец может управлять несколькими пользователями с низкой нагрузкой на поддержку.
 
-## Distribution Strategy
+## Дистрибуция
 
 ### Android
 
-Near-term:
+Ближайший путь:
 
-1. Private APK distribution from GitHub Release or another controlled download page.
-2. Clear install guide.
-3. Signature verification instructions.
-4. Versioned releases.
-5. No public claim that the app is a game if it contains tunnel functionality.
+1. Приватная APK-дистрибуция через GitHub Release или контролируемую download-страницу.
+2. Понятная инструкция установки.
+3. Инструкция проверки подписи или checksum.
+4. Версионированные релизы.
+5. Никаких публичных заявлений, что это игра, если внутри есть tunnel-функциональность.
 
-Google Play path:
+Путь через Google Play:
 
-1. If the app uses Android `VpnService`, Google requires a VpnService declaration.
-2. Google expects the Play listing to document VpnService use.
-3. Google requires encryption from device to tunnel endpoint.
-4. If VPN is not the core purpose or an allowed category, the app can be rejected.
+1. Если приложение использует Android `VpnService`, Google требует декларацию VpnService.
+2. Google ожидает, что listing объясняет использование VpnService.
+3. Google требует шифрование от устройства до endpoint туннеля.
+4. Если VPN не является основной целью приложения или разрешённой категорией, приложение могут отклонить.
 
-Practical conclusion:
+Практический вывод:
 
-1. Do not submit a disguised app to Google Play.
-2. If using Google Play, submit honestly as a private connectivity/security tool and prepare the declaration materials.
-3. For "family and friends" scale, private distribution may be more realistic than store distribution.
+1. Не отправлять замаскированное приложение в Google Play.
+2. Если идти в Google Play, идти честно как private connectivity/security tool и заранее готовить declaration.
+3. Для масштаба "семья и свои" приватная дистрибуция реалистичнее публичного стора.
 
 ### iOS
 
-Near-term:
+Ближайший путь:
 
-1. Do not assume iOS can mirror Android plugin architecture.
-2. iOS VPN functionality requires Apple networking APIs/entitlements and organization-level expectations.
-3. For family/friends, Apple itself suggests that the public App Store may not be the right path; Ad Hoc or similar private distribution can fit limited testing.
+1. Не считать, что iOS повторит Android plugin-архитектуру.
+2. VPN на iOS требует Apple networking APIs/entitlements и аккуратного процесса.
+3. Для family/friends масштаба публичный App Store может быть не лучшим путём; ограниченное тестирование/приватная дистрибуция реалистичнее.
 
-App Store path:
+Путь через App Store:
 
-1. VPN apps must use Apple's VPN APIs.
-2. VPN apps must disclose collected data before purchase/use.
-3. VPN apps must not violate local laws.
-4. If a territory requires a VPN license, Apple expects license information in review notes.
-5. Apple explicitly warns against trying to trick the review process.
+1. VPN-приложения должны использовать Apple VPN APIs.
+2. Нужно раскрывать собираемые данные до покупки/использования.
+3. Приложение не должно нарушать местные законы.
+4. Если территория требует VPN-лицензию, Apple ожидает информацию о лицензии в review notes.
+5. Apple прямо запрещает попытки обмануть review process.
 
-Practical conclusion:
+Практический вывод:
 
-1. Do not ship a "rocket game" that later activates hidden VPN behavior.
-2. If iOS becomes commercial, prepare a clean organization account, privacy policy, review notes, and supported territory list.
+1. Не выпускать "игру про ракету", которая потом скрытно активирует VPN.
+2. Если iOS становится коммерческим, нужны чистый organization account, privacy policy, review notes и список поддерживаемых территорий.
 
 ### Windows
 
-Near-term:
+Ближайший путь:
 
-1. Windows is useful for fast UI QA and support tooling.
-2. A production Windows client should be signed.
-3. Distribution can be private at first.
-4. The installer should clearly say what network components it installs or controls.
+1. Windows полезен для быстрого UI QA и support tooling.
+2. Production Windows client должен быть подписан.
+3. Дистрибуцию можно держать приватной на первом этапе.
+4. Installer должен честно объяснять, какие сетевые компоненты он ставит или контролирует.
 
-Practical conclusion:
+Практический вывод:
 
-1. Windows can become the admin/support companion first, then a commercial client later.
+1. Windows сначала может стать админским/support companion, а уже потом коммерческим клиентом.
 
-## Russia Risk Model
+## Риск-модель для РФ
 
-This section is deliberately conservative.
+Раздел намеренно консервативный.
 
-Known risk themes:
+Известные risk themes:
 
-1. Russian authorities treat VPN services that provide access to restricted resources as regulatory targets.
-2. Public promotion or sale of access to restriction-circumvention tools is a separate risk area.
-3. Technical or promotional material about VPNs used for bypassing restrictions can itself be treated as problematic.
-4. Storefronts can remove VPN apps from specific territories after regulator requests.
+1. Российские регуляторы рассматривают VPN-сервисы, дающие доступ к ограниченным ресурсам, как регуляторную цель.
+2. Публичное продвижение или продажа доступа к инструментам обхода ограничений несёт отдельный риск.
+3. Технические или рекламные материалы о способах обхода ограничений сами могут стать проблемой.
+4. Сторы могут удалять VPN-приложения из отдельных территорий по запросам регуляторов.
 
-Do not do:
+Не делать:
 
-1. Do not market to Russia as a VPN for bypassing blocked resources.
-2. Do not publish Russian-language instructions about bypassing restricted websites.
-3. Do not sell public "VPN keys" from a Russian-facing landing page.
-4. Do not claim that a hidden plugin architecture removes legal risk.
-5. Do not use fake app descriptions or misleading store screenshots.
+1. Не маркетировать продукт в РФ как VPN для обхода блокировок.
+2. Не публиковать русскоязычные инструкции про обход ограниченных сайтов.
+3. Не продавать публичные "VPN-ключи" с российско-ориентированного лендинга.
+4. Не считать, что скрытая plugin-архитектура снимает юридический риск.
+5. Не использовать фейковые описания приложений или вводящие в заблуждение скриншоты.
 
-Lower-risk operating model:
+Более низкорисковая модель:
 
-1. Invite-only access for known users.
-2. No public Russian-market advertising.
-3. No public Russian-language landing page that sells tunnel access.
-4. No SEO around VPN, bypass, блокировки, обход, anonymous access, or similar terms.
-5. Access positioned and implemented as protected remote access for private users/teams.
-6. Clear abuse policy and right to revoke access.
-7. Minimal logs, but enough operational data to stop abuse and support users.
-8. Legal review before accepting broad Russian-market payments.
+1. Доступ только по приглашению для известных пользователей.
+2. Нет публичной рекламы на российский рынок.
+3. Нет публичного русскоязычного лендинга, который продаёт tunnel access.
+4. Нет SEO вокруг слов VPN, обход, блокировки, anonymous access и похожих формулировок.
+5. Доступ позиционируется и реализуется как protected remote access для частных пользователей/команд.
+6. Есть abuse policy и право отозвать доступ.
+7. Логи минимальные, но операционных данных достаточно, чтобы пресекать abuse и поддерживать пользователей.
+8. Юридическая проверка до приёма широких платежей с российского рынка.
 
-Important caveat:
+Важная оговорка:
 
-1. "Euphemistic" copy does not eliminate legal risk if the actual service and user intent are obvious.
-2. Private distribution can reduce public exposure, but it is not immunity.
-3. The safest commercial route may be to avoid public Russia targeting entirely.
+1. Эзопов язык не убирает юридический риск, если реальная услуга и пользовательский intent очевидны.
+2. Приватная дистрибуция снижает публичную экспозицию, но не даёт иммунитет.
+3. Самый безопасный коммерческий путь может быть в том, чтобы вообще не таргетировать РФ публично до юридической проверки.
 
-## Landing Page Strategy
+## Лендинг
 
-A safer landing page should explain benefits without promoting circumvention.
+Более безопасный лендинг должен объяснять пользу без продвижения обхода ограничений.
 
-Recommended language:
+Рекомендуемые формулировки:
 
-1. "Private managed access for trusted users."
-2. "Encrypted connectivity profiles for your devices."
-3. "Human setup support."
-4. "Family and small-team plans."
-5. "Minimal data collection."
+1. "Приватный управляемый доступ для доверенных пользователей."
+2. "Зашифрованные профили подключения для ваших устройств."
+3. "Помощь с установкой и настройкой."
+4. "Семейные и малые командные планы."
+5. "Минимальный сбор данных."
 
-Avoid:
+Избегать:
 
-1. "VPN for Russia."
-2. "Bypass blocks."
-3. "Access any banned service."
-4. "Anonymous and untraceable."
-5. "Works despite all restrictions."
+1. "VPN для России."
+2. "Обход блокировок."
+3. "Открывает любые запрещённые сервисы."
+4. "Анонимно и неотслеживаемо."
+5. "Работает несмотря на любые ограничения."
 
-Required pages:
+Обязательные страницы:
 
 1. Privacy policy.
 2. Terms of service.
 3. Acceptable use policy.
 4. Refund policy.
-5. Support contact.
-6. Security note: what the app can and cannot protect.
+5. Контакт поддержки.
+6. Security note: что приложение защищает, а что не защищает.
 
-## Architecture Direction
+## Архитектурное направление
 
-Modularity is still useful, but it must be honest.
+Модульность полезна, но она должна быть честной.
 
-Recommended split:
+Рекомендуемый split:
 
-1. `core`: domain models, subscriptions, profiles, access state.
-2. `ui`: Compose shared UI.
+1. `core`: доменные модели, подписки, профили, access state.
+2. `ui`: shared Compose UI.
 3. `android-network`: Android tunnel integration.
-4. `desktop-preview`: UI preview and QA tooling.
-5. `admin-tools`: access registry, key rotation, diagnostics.
+4. `desktop-preview`: UI preview и QA tooling.
+5. `admin-tools`: реестр доступов, ротация ключей, диагностика.
 6. `distribution`: release scripts, signing, checksums, update metadata.
 
-Avoid:
+Избегать:
 
-1. Downloading executable network modules after install to hide store-reviewed behavior.
-2. Runtime plugin loading from unsigned sources.
-3. Feature flags that make review builds materially different from user builds.
+1. Скачивания executable network modules после установки для сокрытия reviewed behavior.
+2. Runtime plugin loading из неподписанных источников.
+3. Feature flags, из-за которых review build materially отличается от user build.
 
-Allowed:
+Допустимо:
 
-1. Build variants for platform capabilities.
-2. Optional protocol providers if they are signed, versioned, documented, and user-approved.
-3. Server-side profile delivery where the app clearly explains that profiles configure protected connectivity.
+1. Build variants под platform capabilities.
+2. Опциональные protocol providers, если они подписаны, версионированы, задокументированы и явно подтверждаются пользователем.
+3. Server-side profile delivery, если приложение честно объясняет, что профили настраивают защищённое подключение.
 
-## Operational Requirements
+## Операционные требования
 
-Before scaling beyond friends:
+Перед масштабированием дальше друзей:
 
-1. Keep an access registry: user, contact, plan, device count, status, expiry.
-2. Add revoke and rotate workflows.
-3. Keep release notes per build.
-4. Keep checksums for APK/installer downloads.
-5. Track install success and connection success without collecting browsing data.
-6. Define support channels and response expectations.
-7. Have an incident plan for leaked keys, server outage, or abusive use.
+1. Вести access registry: пользователь, контакт, план, количество устройств, статус, дата окончания.
+2. Добавить revoke/rotate workflows.
+3. Вести release notes для каждого build.
+4. Хранить checksums для APK/installer downloads.
+5. Отслеживать install success и connection success без сбора browsing data.
+6. Определить support channels и ожидания по ответам.
+7. Иметь incident plan на случай утечки ключей, падения сервера или abusive use.
 
-Minimal telemetry:
+Минимальная telemetry:
 
 1. App version.
 2. Platform.
@@ -308,72 +308,72 @@ Minimal telemetry:
 5. Connection state transitions.
 6. Error categories.
 
-Do not collect:
+Не собирать:
 
 1. Browsing history.
-2. DNS query content unless explicitly necessary and disclosed.
-3. Full destination logs for normal users.
-4. Contact lists or unrelated device data.
+2. DNS query content, если это явно не нужно и не раскрыто.
+3. Full destination logs для обычных пользователей.
+4. Contact lists или unrelated device data.
 
-## Pricing Experiments
+## Ценовые эксперименты
 
-Start simple.
+Начать просто.
 
-Option A: Family plan
+Вариант A: семейный план
 
-1. One owner.
-2. 3-5 devices.
-3. Human support.
-4. Monthly or quarterly payment.
+1. Один владелец.
+2. 3-5 устройств.
+3. Человеческая поддержка.
+4. Ежемесячная или квартальная оплата.
 
-Option B: Personal managed access
+Вариант B: персональный managed access
 
-1. One user.
-2. 1-2 devices.
-3. Setup help.
-4. Lower price, lower support commitment.
+1. Один пользователь.
+2. 1-2 устройства.
+3. Помощь с настройкой.
+4. Ниже цена, ниже support commitment.
 
-Option C: Small team
+Вариант C: малая команда
 
-1. 5-20 users.
-2. Higher price.
-3. Better support SLA.
-4. Clear abuse and availability terms.
+1. 5-20 пользователей.
+2. Выше цена.
+3. Лучше support SLA.
+4. Ясные terms по abuse и availability.
 
-Do not overbuild billing until there are repeat renewals.
+Не строить сложный billing до repeat renewals.
 
-## Sales Process
+## Процесс первых продаж
 
-Recommended first sales funnel:
+Рекомендуемый funnel:
 
-1. Private invite.
-2. Short explanation of what the product does.
-3. Install guide.
-4. Manual onboarding call/message.
-5. Confirm first successful connection.
-6. Ask what confused the user.
-7. Record support issues.
-8. Ask for renewal after a stable period.
+1. Приватное приглашение.
+2. Короткое объяснение, что продукт делает.
+3. Инструкция установки.
+4. Ручной onboarding через сообщение/созвон.
+5. Подтверждение первого успешного подключения.
+6. Вопрос пользователю: что было непонятно.
+7. Запись support issues.
+8. Запрос продления после стабильного периода.
 
-The best early signal is not signups. It is users renewing after they had one real support issue and still trust the product.
+Лучший ранний сигнал не signup. Лучший сигнал: пользователь продлевает доступ после того, как у него был реальный support issue, и доверие не сломалось.
 
-## Immediate Next Steps
+## Ближайшие шаги
 
-1. Finish installable signed Android release pipeline and make the latest artifact easy to download.
-2. Add first-run onboarding copy in the app: no profile, how to get access, how to import, support contact.
-3. Create private setup guide.
-4. Draft privacy policy and terms.
-5. Create a manual customer/access registry.
-6. Add key revoke/rotate admin checklist.
-7. Keep public language away from restriction-bypass claims.
-8. Decide whether Russia is excluded from public targeting until legal review.
-9. Keep desktop preview as the UI QA tool for fast fixes.
-10. Make CI upload artifacts on every manual release build.
+1. Закрыть signed Android release pipeline и сделать последний artifact легко скачиваемым.
+2. Доработать onboarding в приложении: нет профиля, как получить доступ, как импортировать, куда писать.
+3. Создать приватную инструкцию установки.
+4. Подготовить privacy policy и terms.
+5. Создать ручной customer/access registry.
+6. Добавить admin checklist для revoke/rotate ключей.
+7. Убрать публичный язык про обход ограничений.
+8. Решить, исключаем ли РФ из публичного targeting до юридической проверки.
+9. Оставить desktop preview как быстрый инструмент UI QA.
+10. Сделать CI artifact upload на каждый manual release build.
 
-## External References
+## Внешние источники
 
 1. Google Play VpnService policy: https://support.google.com/googleplay/android-developer/answer/12564964
-2. Apple App Store Review Guidelines, VPN apps and anti-deception guidance: https://developer.apple.com/app-store/review/guidelines/
-3. Russian network-control risk context from the public network monitoring portal: https://portal.noc.gov.ru/ru/news/roskomnadzor-rekomenduet-kompaniyam-otkazatsya-ot-vpn-s-ispolzovaniem-zarubezhnyh-serverov/
-4. GDPR and small-business data protection guidance: https://commission.europa.eu/law/law-topic/data-protection/data-protection-explained_en
+2. Apple App Store Review Guidelines, VPN apps и anti-deception guidance: https://developer.apple.com/app-store/review/guidelines/
+3. Контекст регуляторных рисков РФ, публичный портал ЦМУ ССОП: https://portal.noc.gov.ru/ru/news/roskomnadzor-rekomenduet-kompaniyam-otkazatsya-ot-vpn-s-ispolzovaniem-zarubezhnyh-serverov/
+4. European Commission, GDPR/data protection guidance: https://commission.europa.eu/law/law-topic/data-protection/data-protection-explained_en
 5. EDPB small-business data protection guide: https://www.edpb.europa.eu/sme-data-protection-guide/home_en

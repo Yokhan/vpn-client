@@ -114,7 +114,7 @@ Full setup and operations are documented in [docs/ci-cd.md](docs/ci-cd.md).
 Current cleanup priorities are tracked in [docs/technical-debt.md](docs/technical-debt.md).
 Source-closure constraints and the cleanup plan are tracked in [docs/source-closure-and-cleanup.md](docs/source-closure-and-cleanup.md).
 Rewrite architecture and language decisions for Android, iOS, Windows, Kotlin Multiplatform, and Rust-owned hot paths are tracked in [docs/rewrite-strategy.md](docs/rewrite-strategy.md).
-Commercial readiness, invite-only positioning, distribution risks, and compliance boundaries are tracked in [docs/commercial-readiness-and-risk-plan.md](docs/commercial-readiness-and-risk-plan.md).
+Commercial readiness, invite-only positioning, distribution risks, and compliance boundaries are tracked in Russian in [docs/commercial-readiness-and-risk-plan.md](docs/commercial-readiness-and-risk-plan.md).
 Bundled asset notices are tracked in [docs/third-party-notices.md](docs/third-party-notices.md).
 
 ## Detaching From Matsuri
