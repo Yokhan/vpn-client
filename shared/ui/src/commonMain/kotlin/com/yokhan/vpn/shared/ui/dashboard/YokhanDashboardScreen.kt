@@ -122,9 +122,9 @@ object DashboardRocketTokens {
     const val RocketHeight = 228
     const val FlameWidth = 22
     const val FlameHeight = 75
-    const val LeftFlameX = -10
-    const val RightFlameX = 8
-    const val FlameY = 117
+    const val LeftFlameX = -11
+    const val RightFlameX = 11
+    const val FlameY = 176
     const val RocketHorizontalBleed = 12
     const val RocketVerticalBleed = 28
 }
@@ -1160,14 +1160,7 @@ private fun DashboardRocket(
                 clip = false
             },
     ) {
-        Image(
-            painter = rocketPainter,
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
-                .offset(x = rocketLeft.dp, y = rocketTop.dp)
-                .size(width = tuning.rocketWidth.dp, height = tuning.rocketHeight.dp),
-        )
+        // Flames are drawn first so the engine caps mask their top edge.
         Image(
             painter = flamePainter,
             contentDescription = null,
@@ -1195,6 +1188,14 @@ private fun DashboardRocket(
                     transformOrigin = TransformOrigin(0.5f, 0f)
                     clip = false
                 },
+        )
+        Image(
+            painter = rocketPainter,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .offset(x = rocketLeft.dp, y = rocketTop.dp)
+                .size(width = tuning.rocketWidth.dp, height = tuning.rocketHeight.dp),
         )
         if (tuning.rocketDebugOverlay) {
             Canvas(Modifier.matchParentSize()) {

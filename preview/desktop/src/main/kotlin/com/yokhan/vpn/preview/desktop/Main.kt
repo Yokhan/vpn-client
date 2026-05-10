@@ -362,7 +362,7 @@ private fun PreviewControlPanel(
         TuningSlider("Flame height", tuning.flameHeight, 54f..140f) {
             onTuningChange(tuning.copy(flameHeight = it))
         }
-        TuningSlider("Flame Y", tuning.flameY, 72f..158f) {
+        TuningSlider("Flame Y", tuning.flameY, 120f..210f) {
             onTuningChange(tuning.copy(flameY = it))
         }
         TuningSlider("Left flame X", tuning.leftFlameX, -28f..4f) {
