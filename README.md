@@ -116,6 +116,7 @@ Source-closure constraints and the cleanup plan are tracked in [docs/source-clos
 Rewrite architecture and language decisions for Android, iOS, Windows, Kotlin Multiplatform, and Rust-owned hot paths are tracked in [docs/rewrite-strategy.md](docs/rewrite-strategy.md).
 Commercial readiness, invite-only positioning, distribution risks, and compliance boundaries are tracked in Russian in [docs/commercial-readiness-and-risk-plan.md](docs/commercial-readiness-and-risk-plan.md).
 The staged Rocket Shell / Network Provider split is tracked in [docs/rocket-shell-provider-plan.md](docs/rocket-shell-provider-plan.md).
+Product, landing, provider, private distribution, and QA dependencies are tracked in [docs/product-landing-provider-execution-plan.md](docs/product-landing-provider-execution-plan.md).
 Bundled asset notices are tracked in [docs/third-party-notices.md](docs/third-party-notices.md).
 
 ## Detaching From Matsuri
