@@ -1,7 +1,7 @@
 package com.yokhan.vpn.app.provider
 
+import com.yokhan.vpn.shared.domain.CertificateFingerprint
 import io.nekohasekai.sagernet.BuildConfig
-import java.util.Locale
 
 object YokhanNetworkProviderContract {
     const val ROLE = "com.yokhan.vpn.provider.NETWORK_PROVIDER"
@@ -15,18 +15,10 @@ object YokhanNetworkProviderContract {
     val acceptedExternalCertificateSha256: Set<String> =
         BuildConfig.YOKHAN_PROVIDER_CERT_SHA256
             .split(',')
-            .mapNotNull { it.normalizedSha256OrNull() }
+            .mapNotNull(CertificateFingerprint::normalizeSha256)
             .toSet()
 
-    fun normalizeFingerprint(value: String): String? = value.normalizedSha256OrNull()
-
-    private fun String.normalizedSha256OrNull(): String? {
-        val normalized = trim()
-            .replace(":", "")
-            .replace(" ", "")
-            .lowercase(Locale.US)
-        return normalized.takeIf { it.length == 64 && it.all { char -> char in '0'..'9' || char in 'a'..'f' } }
-    }
+    fun normalizeFingerprint(value: String): String? = CertificateFingerprint.normalizeSha256(value)
 }
 
 enum class YokhanNetworkProviderSource {

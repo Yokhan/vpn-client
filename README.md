@@ -117,6 +117,7 @@ Rewrite architecture and language decisions for Android, iOS, Windows, Kotlin Mu
 Commercial readiness, invite-only positioning, distribution risks, and compliance boundaries are tracked in Russian in [docs/commercial-readiness-and-risk-plan.md](docs/commercial-readiness-and-risk-plan.md).
 The staged Rocket Shell / Network Provider split is tracked in [docs/rocket-shell-provider-plan.md](docs/rocket-shell-provider-plan.md).
 Product, landing, provider, private distribution, and QA dependencies are tracked in [docs/product-landing-provider-execution-plan.md](docs/product-landing-provider-execution-plan.md).
+Client-facing invite onboarding is available as a standalone no-build page in [landing/index.html](landing/index.html), with its brief and QA notes in [landing/](landing/).
 Bundled asset notices are tracked in [docs/third-party-notices.md](docs/third-party-notices.md).
 
 ## Detaching From Matsuri

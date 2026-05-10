@@ -1,0 +1,1281 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Yokhan Access</title>
+        <style>
+            :root {
+                --bg: #08080b;
+                --panel: rgba(255, 255, 255, 0.06);
+                --panel-strong: rgba(255, 255, 255, 0.09);
+                --line: rgba(255, 255, 255, 0.13);
+                --line-strong: rgba(248, 214, 134, 0.38);
+                --text: #f8f2e8;
+                --muted: #bdb5aa;
+                --faint: #81786f;
+                --gold: #f8d686;
+                --green: #9cf1c2;
+                --orange: #ff9158;
+                --red: #ffb8b8;
+                --shadow: rgba(0, 0, 0, 0.42);
+                --radius-xl: 30px;
+                --radius-lg: 22px;
+                --radius-md: 15px;
+                font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+            html {
+                scroll-behavior: smooth;
+                background: var(--bg);
+            }
+            body {
+                margin: 0;
+                min-height: 100vh;
+                color: var(--text);
+                background:
+                    radial-gradient(
+                        circle at 18% 4%,
+                        rgba(248, 214, 134, 0.18),
+                        transparent 28%
+                    ),
+                    radial-gradient(
+                        circle at 78% 10%,
+                        rgba(156, 241, 194, 0.12),
+                        transparent 26%
+                    ),
+                    linear-gradient(
+                        180deg,
+                        #08080b 0%,
+                        #111117 54%,
+                        #08080b 100%
+                    );
+                overflow-x: hidden;
+            }
+            body::before {
+                content: "";
+                position: fixed;
+                inset: 0;
+                pointer-events: none;
+                background-image:
+                    linear-gradient(
+                        rgba(255, 255, 255, 0.035) 1px,
+                        transparent 1px
+                    ),
+                    linear-gradient(
+                        90deg,
+                        rgba(255, 255, 255, 0.028) 1px,
+                        transparent 1px
+                    );
+                background-size: 80px 80px;
+                mask-image: linear-gradient(
+                    to bottom,
+                    rgba(0, 0, 0, 0.58),
+                    transparent 72%
+                );
+            }
+
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+            button,
+            input {
+                font: inherit;
+            }
+            button {
+                cursor: pointer;
+                border: 0;
+            }
+            button:focus-visible,
+            a:focus-visible,
+            input:focus-visible,
+            summary:focus-visible {
+                outline: 2px solid var(--gold);
+                outline-offset: 4px;
+            }
+
+            .page {
+                position: relative;
+                z-index: 1;
+                width: min(1160px, calc(100% - 32px));
+                margin: 0 auto;
+                padding: 24px 0 72px;
+            }
+            .topbar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                margin-bottom: 42px;
+            }
+            .brand {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                font-weight: 760;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+            }
+            .mark {
+                width: 40px;
+                height: 40px;
+                border: 1px solid var(--line-strong);
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                color: var(--gold);
+                background: radial-gradient(
+                    circle,
+                    rgba(248, 214, 134, 0.2),
+                    rgba(255, 255, 255, 0.04)
+                );
+            }
+            .nav {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            .nav a,
+            .btn,
+            .chip,
+            .copy-button {
+                min-height: 44px;
+                border-radius: 999px;
+                transition:
+                    background 0.18s ease,
+                    border-color 0.18s ease,
+                    color 0.18s ease,
+                    transform 0.18s ease;
+            }
+            .nav a,
+            .btn.secondary,
+            .chip {
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.045);
+                color: var(--muted);
+            }
+            .nav a {
+                display: inline-flex;
+                align-items: center;
+                padding: 11px 14px;
+            }
+            .nav a:hover,
+            .btn.secondary:hover,
+            .chip:hover {
+                color: var(--text);
+                border-color: rgba(255, 255, 255, 0.24);
+                background: rgba(255, 255, 255, 0.075);
+            }
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                padding: 12px 18px;
+                font-weight: 760;
+            }
+            .btn.primary,
+            .copy-button {
+                color: #15110a;
+                background: linear-gradient(135deg, var(--gold), #ffb06b);
+                box-shadow: 0 18px 52px rgba(248, 214, 134, 0.16);
+            }
+            .btn:hover,
+            .copy-button:hover {
+                transform: translateY(-1px);
+            }
+
+            .hero {
+                display: grid;
+                grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
+                gap: 22px;
+            }
+            .panel {
+                border: 1px solid var(--line);
+                background: linear-gradient(
+                    180deg,
+                    rgba(255, 255, 255, 0.075),
+                    rgba(255, 255, 255, 0.035)
+                );
+                box-shadow: 0 28px 90px var(--shadow);
+                backdrop-filter: blur(18px);
+                border-radius: var(--radius-xl);
+            }
+            .hero-main {
+                min-height: 540px;
+                padding: clamp(28px, 5vw, 58px);
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                overflow: hidden;
+                position: relative;
+            }
+            .hero-main::after {
+                content: "";
+                position: absolute;
+                width: 420px;
+                height: 420px;
+                right: -150px;
+                bottom: -160px;
+                border-radius: 50%;
+                background: radial-gradient(
+                    circle,
+                    rgba(248, 214, 134, 0.16),
+                    transparent 66%
+                );
+            }
+            .eyebrow {
+                margin: 0 0 16px;
+                color: var(--gold);
+                letter-spacing: 0.18em;
+                text-transform: uppercase;
+                font-size: 12px;
+                font-weight: 760;
+            }
+            h1 {
+                margin: 0;
+                max-width: 760px;
+                font-size: clamp(42px, 7vw, 86px);
+                line-height: 0.95;
+                letter-spacing: -0.07em;
+            }
+            .lead {
+                margin: 24px 0 0;
+                max-width: 660px;
+                color: var(--muted);
+                font-size: clamp(17px, 2vw, 22px);
+                line-height: 1.58;
+            }
+            .actions {
+                display: flex;
+                gap: 12px;
+                flex-wrap: wrap;
+                margin-top: 30px;
+                position: relative;
+                z-index: 1;
+            }
+
+            .hero-side {
+                min-height: 540px;
+                padding: 26px;
+                display: grid;
+                gap: 18px;
+                align-content: space-between;
+            }
+            .rocket-field {
+                min-height: 320px;
+                border: 1px solid rgba(156, 241, 194, 0.28);
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: radial-gradient(
+                    circle,
+                    rgba(156, 241, 194, 0.1),
+                    transparent 62%
+                );
+                position: relative;
+            }
+            .rocket-field::before,
+            .rocket-field::after {
+                content: "";
+                position: absolute;
+                border-radius: 50%;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .rocket-field::before {
+                inset: 15%;
+            }
+            .rocket-field::after {
+                inset: 31%;
+            }
+            .rocket {
+                position: relative;
+                z-index: 1;
+                width: 74px;
+                height: 172px;
+                border-radius: 48% 48% 38% 38%;
+                background:
+                    linear-gradient(
+                        90deg,
+                        transparent 0 23%,
+                        rgba(0, 0, 0, 0.15) 23% 27%,
+                        transparent 27% 73%,
+                        rgba(0, 0, 0, 0.15) 73% 77%,
+                        transparent 77%
+                    ),
+                    linear-gradient(
+                        180deg,
+                        #fffdf5,
+                        #d7d1c6 70%,
+                        #302b27 71% 100%
+                    );
+                box-shadow: 0 24px 50px rgba(0, 0, 0, 0.38);
+                animation: float 4.6s ease-in-out infinite;
+            }
+            .rocket::before,
+            .rocket::after {
+                content: "";
+                position: absolute;
+                bottom: -58px;
+                width: 17px;
+                height: 74px;
+                border-radius: 999px;
+                background: radial-gradient(
+                    circle at 50% 18%,
+                    #fff,
+                    #ffd88e 32%,
+                    #ff7229 70%,
+                    transparent 73%
+                );
+                animation: flame 1.1s ease-in-out infinite alternate;
+            }
+            .rocket::before {
+                left: 17px;
+            }
+            .rocket::after {
+                right: 17px;
+                animation-delay: 0.17s;
+            }
+            .status-list {
+                display: grid;
+                gap: 10px;
+            }
+            .status-row {
+                display: grid;
+                grid-template-columns: 10px 1fr;
+                gap: 11px;
+                align-items: start;
+                padding: 14px;
+                border: 1px solid var(--line);
+                border-radius: var(--radius-md);
+                background: rgba(0, 0, 0, 0.16);
+                color: var(--muted);
+                line-height: 1.45;
+            }
+            .dot {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                margin-top: 5px;
+                background: var(--green);
+                box-shadow: 0 0 20px rgba(156, 241, 194, 0.45);
+            }
+
+            section {
+                margin-top: 30px;
+            }
+            .section-head {
+                display: flex;
+                justify-content: space-between;
+                align-items: end;
+                gap: 22px;
+                margin: 64px 0 18px;
+            }
+            .section-head h2 {
+                margin: 0;
+                font-size: clamp(30px, 4vw, 50px);
+                line-height: 1;
+                letter-spacing: -0.055em;
+            }
+            .section-head p {
+                margin: 0;
+                color: var(--muted);
+                line-height: 1.62;
+                max-width: 570px;
+            }
+            .card-panel {
+                padding: 24px;
+            }
+            .scenario-tabs,
+            .provider-tabs {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                margin-bottom: 16px;
+            }
+            .chip {
+                padding: 11px 16px;
+            }
+            .chip[aria-pressed="true"] {
+                color: #15110a;
+                border-color: transparent;
+                background: linear-gradient(135deg, var(--gold), #ffbf76);
+                font-weight: 760;
+            }
+            .result-box {
+                padding: 22px;
+                border-radius: var(--radius-lg);
+                border: 1px solid var(--line);
+                background: rgba(0, 0, 0, 0.18);
+            }
+            .result-box h3,
+            .card h3,
+            .template h3 {
+                margin: 0 0 10px;
+                font-size: 24px;
+                letter-spacing: -0.025em;
+            }
+            .result-box p,
+            .card p,
+            .template p {
+                margin: 0;
+                color: var(--muted);
+                line-height: 1.62;
+            }
+            .cards {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 14px;
+            }
+            .card {
+                padding: 22px;
+                border-radius: var(--radius-xl);
+                border: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.045);
+                min-height: 230px;
+            }
+            .card small {
+                color: var(--gold);
+                font-size: 12px;
+                font-weight: 760;
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+            }
+
+            .steps {
+                display: grid;
+                gap: 12px;
+            }
+            .step {
+                display: grid;
+                grid-template-columns: 44px 1fr;
+                gap: 14px;
+                padding: 17px;
+                border: 1px solid var(--line);
+                border-radius: var(--radius-lg);
+                background: rgba(255, 255, 255, 0.04);
+            }
+            .step-number {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                color: #15110a;
+                font-weight: 800;
+                background: var(--gold);
+            }
+            .step h3 {
+                margin: 0 0 7px;
+            }
+            .step p {
+                margin: 0;
+                color: var(--muted);
+                line-height: 1.58;
+            }
+
+            .check-layout {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) 320px;
+                gap: 18px;
+                align-items: start;
+            }
+            .checklist {
+                display: grid;
+                gap: 10px;
+            }
+            .check-item {
+                display: grid;
+                grid-template-columns: 24px 1fr;
+                gap: 12px;
+                align-items: start;
+                padding: 14px;
+                border: 1px solid var(--line);
+                border-radius: var(--radius-lg);
+                background: rgba(255, 255, 255, 0.04);
+                color: var(--muted);
+                line-height: 1.5;
+            }
+            .check-item input {
+                width: 20px;
+                height: 20px;
+                margin-top: 2px;
+                accent-color: var(--gold);
+            }
+            .score-card {
+                position: sticky;
+                top: 18px;
+                padding: 22px;
+                border: 1px solid var(--line-strong);
+                border-radius: var(--radius-xl);
+                background: rgba(16, 16, 18, 0.94);
+            }
+            .score {
+                margin: 0;
+                font-size: 58px;
+                line-height: 1;
+                letter-spacing: -0.06em;
+            }
+            .progress {
+                height: 10px;
+                margin: 16px 0;
+                background: rgba(255, 255, 255, 0.09);
+                border-radius: 999px;
+                overflow: hidden;
+            }
+            .progress span {
+                display: block;
+                height: 100%;
+                width: 0%;
+                border-radius: inherit;
+                background: linear-gradient(
+                    90deg,
+                    var(--orange),
+                    var(--gold),
+                    var(--green)
+                );
+                transition: width 0.2s ease;
+            }
+            .score-card p:not(.score) {
+                margin: 0;
+                color: var(--muted);
+                line-height: 1.56;
+            }
+
+            .templates {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 14px;
+            }
+            .template {
+                padding: 20px;
+                border: 1px solid var(--line);
+                border-radius: var(--radius-xl);
+                background: rgba(255, 255, 255, 0.045);
+            }
+            .template pre {
+                white-space: pre-wrap;
+                margin: 14px 0;
+                padding: 14px;
+                min-height: 132px;
+                color: var(--muted);
+                line-height: 1.55;
+                border: 1px solid var(--line);
+                border-radius: var(--radius-md);
+                background: rgba(0, 0, 0, 0.2);
+                overflow-x: auto;
+            }
+            .copy-button {
+                width: 100%;
+                padding: 12px 16px;
+                font-weight: 760;
+            }
+            .glossary {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px;
+            }
+            details {
+                border: 1px solid var(--line);
+                border-radius: var(--radius-lg);
+                background: rgba(255, 255, 255, 0.04);
+                padding: 15px 16px;
+            }
+            summary {
+                cursor: pointer;
+                font-weight: 760;
+            }
+            details p {
+                margin: 12px 0 0;
+                color: var(--muted);
+                line-height: 1.6;
+            }
+            .notice {
+                padding: 22px;
+                border: 1px solid rgba(255, 184, 184, 0.25);
+                background: rgba(255, 184, 184, 0.055);
+                border-radius: var(--radius-xl);
+            }
+            .notice h3 {
+                margin: 0 0 10px;
+                color: var(--red);
+            }
+            .notice p {
+                margin: 0;
+                color: var(--muted);
+                line-height: 1.62;
+            }
+            footer {
+                margin-top: 48px;
+                color: var(--faint);
+                font-size: 14px;
+                line-height: 1.6;
+            }
+
+            @keyframes float {
+                0%,
+                100% {
+                    transform: translateY(0);
+                }
+                50% {
+                    transform: translateY(-10px);
+                }
+            }
+            @keyframes flame {
+                from {
+                    transform: scaleY(0.86);
+                    opacity: 0.78;
+                }
+                to {
+                    transform: scaleY(1.08);
+                    opacity: 1;
+                }
+            }
+            @media (max-width: 900px) {
+                .topbar,
+                .section-head {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+                .hero,
+                .cards,
+                .check-layout,
+                .templates,
+                .glossary {
+                    grid-template-columns: 1fr;
+                }
+                .hero-main,
+                .hero-side {
+                    min-height: auto;
+                }
+                .score-card {
+                    position: static;
+                }
+            }
+            @media (max-width: 520px) {
+                .page {
+                    width: min(100% - 22px, 1160px);
+                }
+                .nav {
+                    justify-content: flex-start;
+                }
+                .hero-main,
+                .hero-side,
+                .card-panel,
+                .card,
+                .template,
+                .notice {
+                    padding: 18px;
+                }
+                .rocket-field {
+                    min-height: 250px;
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                *,
+                *::before,
+                *::after {
+                    animation: none !important;
+                    transition: none !important;
+                    scroll-behavior: auto !important;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="page">
+            <header class="topbar">
+                <a class="brand" href="#top" aria-label="Yokhan Access"
+                    ><span class="mark">⌁</span><span>Yokhan Access</span></a
+                >
+                <nav class="nav" aria-label="Навигация">
+                    <a href="#fit">Кому подходит</a>
+                    <a href="#setup">Как устроено</a>
+                    <a href="#ready">Проверка</a>
+                    <a href="#support">Поддержка</a>
+                </nav>
+            </header>
+
+            <main id="top">
+                <section class="hero" aria-label="Главный экран">
+                    <div class="panel hero-main">
+                        <div>
+                            <p class="eyebrow">Доступ только по приглашению</p>
+                            <h1>Спокойный доступ для своих.</h1>
+                            <p class="lead">
+                                Yokhan помогает настроить защищенное подключение
+                                для доверенных людей: семьи, друзей и небольших
+                                команд. Без публичной рекламы, без сложных
+                                терминов на старте, с понятной установкой и
+                                живой поддержкой.
+                            </p>
+                        </div>
+                        <div class="actions">
+                            <button
+                                class="btn primary"
+                                type="button"
+                                data-scroll="#ready"
+                            >
+                                Проверить готовность
+                            </button>
+                            <button
+                                class="btn secondary"
+                                type="button"
+                                data-scroll="#support"
+                            >
+                                Спросить поддержку
+                            </button>
+                        </div>
+                    </div>
+                    <aside
+                        class="panel hero-side"
+                        aria-label="Коротко о процессе"
+                    >
+                        <div class="rocket-field" aria-hidden="true">
+                            <div class="rocket"></div>
+                        </div>
+                        <div class="status-list">
+                            <div class="status-row">
+                                <span class="dot"></span
+                                ><span
+                                    >Приглашение выдается вручную. Так проще
+                                    помочь и не терять контроль.</span
+                                >
+                            </div>
+                            <div class="status-row">
+                                <span class="dot"></span
+                                ><span
+                                    >Установка проходит по шагам: приложение,
+                                    сетевой компонент, профиль доступа.</span
+                                >
+                            </div>
+                            <div class="status-row">
+                                <span class="dot"></span
+                                ><span
+                                    >Если что-то не работает, человек сразу
+                                    знает, что прислать.</span
+                                >
+                            </div>
+                        </div>
+                    </aside>
+                </section>
+
+                <section id="fit">
+                    <div class="section-head">
+                        <h2>Кому это подходит</h2>
+                        <p>
+                            Выберите сценарий. Рекомендация ниже изменится,
+                            чтобы не читать лишнее.
+                        </p>
+                    </div>
+                    <div class="panel card-panel">
+                        <div
+                            class="scenario-tabs"
+                            role="group"
+                            aria-label="Сценарии"
+                        >
+                            <button
+                                class="chip"
+                                type="button"
+                                data-scenario="family"
+                                aria-pressed="true"
+                            >
+                                Семья
+                            </button>
+                            <button
+                                class="chip"
+                                type="button"
+                                data-scenario="friends"
+                                aria-pressed="false"
+                            >
+                                Друзья
+                            </button>
+                            <button
+                                class="chip"
+                                type="button"
+                                data-scenario="team"
+                                aria-pressed="false"
+                            >
+                                Команда
+                            </button>
+                            <button
+                                class="chip"
+                                type="button"
+                                data-scenario="care"
+                                aria-pressed="false"
+                            >
+                                Нужна помощь
+                            </button>
+                        </div>
+                        <div class="result-box" aria-live="polite">
+                            <h3 id="scenario-title">
+                                Для семьи: меньше терминов, больше ясности
+                            </h3>
+                            <p id="scenario-text">
+                                Подходит, если нужно один раз спокойно настроить
+                                телефоны близким и потом помогать без долгих
+                                объяснений.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="setup">
+                    <div class="section-head">
+                        <h2>Как устроена установка</h2>
+                        <p>
+                            Человеку важно знать не архитектуру, а порядок
+                            действий и зачем нужен каждый шаг.
+                        </p>
+                    </div>
+                    <div class="steps">
+                        <article class="step">
+                            <span class="step-number">1</span>
+                            <div>
+                                <h3>Получить приглашение</h3>
+                                <p>
+                                    Доступ выдается лично. Это помогает не
+                                    превращать сервис в публичную раздачу и
+                                    быстрее помогать конкретным людям.
+                                </p>
+                            </div>
+                        </article>
+                        <article class="step">
+                            <span class="step-number">2</span>
+                            <div>
+                                <h3>Установить приложение</h3>
+                                <p>
+                                    Основное приложение показывает статус,
+                                    профиль и подсказки. Оно не должно просить
+                                    лишнего и должно ясно объяснять следующий
+                                    шаг.
+                                </p>
+                            </div>
+                        </article>
+                        <article class="step">
+                            <span class="step-number">3</span>
+                            <div>
+                                <h3>Проверить сетевой компонент</h3>
+                                <p>
+                                    Для подключения нужен подписанный сетевой
+                                    компонент. Если подпись не совпала, запуск
+                                    останавливается: так безопаснее.
+                                </p>
+                            </div>
+                        </article>
+                        <article class="step">
+                            <span class="step-number">4</span>
+                            <div>
+                                <h3>Добавить профиль доступа</h3>
+                                <p>
+                                    Профиль можно заменить или отозвать. Если он
+                                    не добавлен, приложение должно честно
+                                    показать, что подключаться пока не к чему.
+                                </p>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="section-head">
+                        <h2>Состояние подключения</h2>
+                        <p>
+                            Эти состояния должны быть понятны без технической
+                            поддержки рядом.
+                        </p>
+                    </div>
+                    <div class="panel card-panel">
+                        <div
+                            class="provider-tabs"
+                            role="group"
+                            aria-label="Состояния"
+                        >
+                            <button
+                                class="chip"
+                                type="button"
+                                data-provider="ready"
+                                aria-pressed="true"
+                            >
+                                Готово
+                            </button>
+                            <button
+                                class="chip"
+                                type="button"
+                                data-provider="missing"
+                                aria-pressed="false"
+                            >
+                                Не установлен компонент
+                            </button>
+                            <button
+                                class="chip"
+                                type="button"
+                                data-provider="blocked"
+                                aria-pressed="false"
+                            >
+                                Подпись не совпала
+                            </button>
+                            <button
+                                class="chip"
+                                type="button"
+                                data-provider="profile"
+                                aria-pressed="false"
+                            >
+                                Нет профиля
+                            </button>
+                        </div>
+                        <div class="result-box" aria-live="polite">
+                            <h3 id="provider-title">Можно подключаться</h3>
+                            <p id="provider-text">
+                                Приложение установлено, сетевой компонент
+                                доверенный, профиль доступа добавлен.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="section-head">
+                        <h2>Что важно заранее</h2>
+                        <p>
+                            Если здесь есть сомнения, лучше сначала написать
+                            человеку, который выдал приглашение.
+                        </p>
+                    </div>
+                    <div class="cards">
+                        <article class="card">
+                            <small>Безопасность</small>
+                            <h3>Не ставьте APK из случайного места</h3>
+                            <p>
+                                Файл должен прийти из доверенного канала. Если
+                                источник непонятен, установку лучше остановить.
+                            </p>
+                        </article>
+                        <article class="card">
+                            <small>Согласие</small>
+                            <h3>Системное разрешение должно быть понятным</h3>
+                            <p>
+                                Телефон может показать запрос на сетевое
+                                подключение. Это нормальный шаг, но его не нужно
+                                подтверждать вслепую.
+                            </p>
+                        </article>
+                        <article class="card">
+                            <small>Поддержка</small>
+                            <h3>Ошибку не нужно расшифровывать самому</h3>
+                            <p>
+                                Достаточно прислать статус, модель телефона и
+                                скрин. Ниже есть готовый текст сообщения.
+                            </p>
+                        </article>
+                    </div>
+                </section>
+
+                <section id="ready">
+                    <div class="section-head">
+                        <h2>Проверка готовности</h2>
+                        <p>
+                            Отметьте пункты. Если готовность ниже 70%, установку
+                            лучше делать с поддержкой.
+                        </p>
+                    </div>
+                    <div class="panel card-panel check-layout">
+                        <div class="checklist" id="checklist">
+                            <label class="check-item"
+                                ><input type="checkbox" /> Есть приглашение или
+                                подтверждение доступа.</label
+                            >
+                            <label class="check-item"
+                                ><input type="checkbox" /> Файл приложения
+                                получен из доверенного канала.</label
+                            >
+                            <label class="check-item"
+                                ><input type="checkbox" /> Понятно, кто поможет,
+                                если установка не получится.</label
+                            >
+                            <label class="check-item"
+                                ><input type="checkbox" /> Телефон обновлен и на
+                                нем хватает места.</label
+                            >
+                            <label class="check-item"
+                                ><input type="checkbox" /> Человек понимает,
+                                зачем нужен сетевой компонент.</label
+                            >
+                            <label class="check-item"
+                                ><input type="checkbox" /> Профиль доступа уже
+                                выдан или будет выдан после установки.</label
+                            >
+                            <label class="check-item"
+                                ><input type="checkbox" /> Нет просьбы вводить
+                                пароли от личных аккаунтов.</label
+                            >
+                        </div>
+                        <aside class="score-card" aria-live="polite">
+                            <p class="score"><span id="score">0</span>%</p>
+                            <div class="progress" aria-hidden="true">
+                                <span id="progress"></span>
+                            </div>
+                            <p id="score-text">
+                                Начните с приглашения, источника файла и
+                                контакта поддержки.
+                            </p>
+                        </aside>
+                    </div>
+                </section>
+
+                <section id="support">
+                    <div class="section-head">
+                        <h2>Что написать в поддержку</h2>
+                        <p>
+                            Скопируйте подходящий текст и замените скобки своими
+                            данными.
+                        </p>
+                    </div>
+                    <div class="templates">
+                        <article class="template">
+                            <h3>Нужна первичная установка</h3>
+                            <p>
+                                Подходит, если вы получили приглашение, но еще
+                                не начали.
+                            </p>
+                            <pre id="message-start">
+Привет. Я хочу настроить Yokhan Access по приглашению. Телефон: [модель]. Android: [версия]. Подскажите, какой файл установить и какой следующий шаг.</pre
+                            >
+                            <button
+                                class="copy-button"
+                                type="button"
+                                data-copy="#message-start"
+                            >
+                                Скопировать сообщение
+                            </button>
+                        </article>
+                        <article class="template">
+                            <h3>Не получается подключиться</h3>
+                            <p>
+                                Подходит, если приложение уже установлено, но
+                                соединение не стартует.
+                            </p>
+                            <pre id="message-help">
+Привет. У меня не получается подключиться. Статус в приложении: [статус]. Телефон: [модель]. Что уже сделал: [коротко]. Прикладываю скрин ошибки.</pre
+                            >
+                            <button
+                                class="copy-button"
+                                type="button"
+                                data-copy="#message-help"
+                            >
+                                Скопировать сообщение
+                            </button>
+                        </article>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="section-head">
+                        <h2>Словарь без лишнего</h2>
+                        <p>
+                            Короткие объяснения слов, которые могут встретиться
+                            при установке.
+                        </p>
+                    </div>
+                    <div class="glossary">
+                        <details>
+                            <summary>Приглашение</summary>
+                            <p>
+                                Подтверждение, что вам выдали доступ. Без него
+                                приложение может быть установлено, но
+                                пользоваться будет нечем.
+                            </p>
+                        </details>
+                        <details>
+                            <summary>Профиль доступа</summary>
+                            <p>
+                                Настройка подключения. Ее можно выдать, заменить
+                                или отозвать, если доступ больше не нужен.
+                            </p>
+                        </details>
+                        <details>
+                            <summary>Сетевой компонент</summary>
+                            <p>
+                                Отдельная часть приложения, которая держит
+                                подключение. Ее подпись проверяется, чтобы не
+                                доверять случайному файлу.
+                            </p>
+                        </details>
+                        <details>
+                            <summary>Контрольная сумма</summary>
+                            <p>
+                                Короткая проверка файла. Если значение не
+                                совпало с тем, что выдали в канале поддержки,
+                                файл лучше не устанавливать.
+                            </p>
+                        </details>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="notice">
+                        <h3>Важная граница</h3>
+                        <p>
+                            Yokhan Access — частный инструмент для доверенного
+                            круга. Перед публичным распространением, рекламой
+                            или продажами в новой юрисдикции нужна отдельная
+                            юридическая проверка. Эта страница помогает спокойно
+                            установить и поддерживать доступ, но не заменяет
+                            правила вашей страны и здравый смысл.
+                        </p>
+                    </div>
+                </section>
+            </main>
+            <footer>
+                Yokhan Access. Доступ по приглашению. Ссылки на установку
+                добавляются только в доверенном канале.
+            </footer>
+        </div>
+
+        <script>
+            const scenarios = {
+                family: {
+                    title: "Для семьи: меньше терминов, больше ясности",
+                    text: "Подходит, если нужно один раз спокойно настроить телефоны близким и потом помогать без долгих объяснений.",
+                },
+                friends: {
+                    title: "Для друзей: быстро проверить и не ошибиться",
+                    text: "Подходит, если человек технически справится сам, но ему нужны правильный файл, статус и понятный способ попросить помощь.",
+                },
+                team: {
+                    title: "Для команды: контроль доступа важнее скорости",
+                    text: "Подходит, если нужно понимать, кому выдан доступ, когда его менять и как аккуратно отключить доступ.",
+                },
+                care: {
+                    title: "Если нужна помощь: не надо разбираться одному",
+                    text: "Подходит, если человек не хочет читать инструкции. Достаточно пройти чек-лист и отправить готовое сообщение.",
+                },
+            };
+            const providerStates = {
+                ready: {
+                    title: "Можно подключаться",
+                    text: "Приложение установлено, сетевой компонент доверенный, профиль доступа добавлен.",
+                },
+                missing: {
+                    title: "Нужно установить сетевой компонент",
+                    text: "Приложение видит, что не хватает части для подключения. Установите компонент только из доверенного канала.",
+                },
+                blocked: {
+                    title: "Запуск остановлен ради безопасности",
+                    text: "Подпись компонента не совпала. Не пытайтесь продолжать: попросите новый файл у поддержки.",
+                },
+                profile: {
+                    title: "Нужен профиль доступа",
+                    text: "Все установлено, но приложению пока не выдали настройку подключения. Напишите человеку, который пригласил вас.",
+                },
+            };
+            function setPressed(container, active) {
+                container.querySelectorAll("button").forEach((button) => {
+                    button.setAttribute(
+                        "aria-pressed",
+                        button === active ? "true" : "false",
+                    );
+                });
+            }
+            document.querySelectorAll("[data-scroll]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    const target = document.querySelector(
+                        button.dataset.scroll,
+                    );
+                    if (target)
+                        target.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                        });
+                });
+            });
+            document.querySelectorAll("[data-scenario]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    const item = scenarios[button.dataset.scenario];
+                    if (!item) return;
+                    setPressed(button.parentElement, button);
+                    document.querySelector("#scenario-title").textContent =
+                        item.title;
+                    document.querySelector("#scenario-text").textContent =
+                        item.text;
+                });
+            });
+            document.querySelectorAll("[data-provider]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    const item = providerStates[button.dataset.provider];
+                    if (!item) return;
+                    setPressed(button.parentElement, button);
+                    document.querySelector("#provider-title").textContent =
+                        item.title;
+                    document.querySelector("#provider-text").textContent =
+                        item.text;
+                });
+            });
+            const checks = Array.from(
+                document.querySelectorAll("#checklist input"),
+            );
+            const score = document.querySelector("#score");
+            const progress = document.querySelector("#progress");
+            const scoreText = document.querySelector("#score-text");
+            function updateScore() {
+                const done = checks.filter((input) => input.checked).length;
+                const value = Math.round((done / checks.length) * 100);
+                score.textContent = value;
+                progress.style.width = value + "%";
+                if (value >= 86)
+                    scoreText.textContent =
+                        "Можно ставить спокойно. Держите контакт поддержки рядом на всякий случай.";
+                else if (value >= 70)
+                    scoreText.textContent =
+                        "Почти готово. Лучше заранее уточнить недостающие пункты.";
+                else if (value >= 40)
+                    scoreText.textContent =
+                        "Рано ставить без помощи. Начните с приглашения, источника файла и профиля.";
+                else
+                    scoreText.textContent =
+                        "Начните с приглашения, источника файла и контакта поддержки.";
+            }
+            checks.forEach((input) =>
+                input.addEventListener("change", updateScore),
+            );
+            updateScore();
+            async function copyText(text) {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                    return;
+                }
+                const area = document.createElement("textarea");
+                area.value = text;
+                area.setAttribute("readonly", "");
+                area.style.position = "fixed";
+                area.style.left = "-9999px";
+                document.body.appendChild(area);
+                area.select();
+                document.execCommand("copy");
+                area.remove();
+            }
+            document.querySelectorAll("[data-copy]").forEach((button) => {
+                button.addEventListener("click", async () => {
+                    const target = document.querySelector(button.dataset.copy);
+                    if (!target) return;
+                    const initial = button.textContent;
+                    try {
+                        await copyText(target.textContent.trim());
+                        button.textContent = "Скопировано";
+                    } catch (error) {
+                        button.textContent = "Не удалось скопировать";
+                    }
+                    window.setTimeout(() => {
+                        button.textContent = initial;
+                    }, 1500);
+                });
+            });
+        </script>
+    </body>
+</html>

@@ -20,7 +20,7 @@ This plan is not legal advice. Any public commercial launch, especially involvin
 - GitHub Actions CI now triggers on branch push.
 - Desktop Compose preview exists for dashboard UI QA.
 - Landing skills are stored in `.agents/skills` for future Codex sessions.
-- No client landing should be built until the audience, copy boundary, distribution channel, and support flow are explicitly approved.
+- A client-facing invite onboarding page now exists in `landing/index.html`.
 
 ## Dependency Graph
 
@@ -61,7 +61,7 @@ Validation:
 
 ### P1. Product Boundary And Compliance Copy
 
-Status: pending.
+Status: in progress.
 
 Tasks:
 
@@ -81,7 +81,7 @@ Validation:
 
 ### P2. Landing Brief And Client-Facing Copy Boundary
 
-Status: pending.
+Status: completed.
 
 Tasks:
 
@@ -91,15 +91,16 @@ Tasks:
 4. Define what the page may say about private access, provider installation, signatures, support, and updates.
 5. Define what the page must not say: public bypass claims, guaranteed anonymity, guaranteed legality, hidden module language, or unrelated-game positioning.
 6. Define the support CTA and private distribution channel before adding download or update links.
-7. Only after the brief is approved, build a standalone no-build HTML page using `.agents/skills`.
+7. After the brief is approved, build a standalone no-build HTML page using `.agents/skills`.
 
 Depends on: P0, P1.
 
 Validation:
 
-- Brief is approved before implementation.
+- Brief is saved in `landing/brief.md`.
 - User-facing copy does not expose internal engineering process.
-- No HTML landing artifact is added before explicit implementation approval.
+- Standalone HTML landing is saved in `landing/index.html`.
+- QA notes are saved in `landing/qa-notes.md`.
 
 ### P3. Android Onboarding Provider Status
 
@@ -205,8 +206,8 @@ Validation:
 
 ## Immediate Pipeline
 
-1. Finish P0 in this commit: save project-local skills, templates, and this dependency plan.
-2. Do not build the client landing yet.
-3. Next commit: wire provider status into Compose settings/onboarding.
+1. Keep P1 compliance copy in progress while client wording evolves.
+2. Finish P2 QA for the standalone client landing.
+3. Finish P3 provider status tests and Android build validation.
 4. After device smoke test: start provider module split.
-5. Build the client landing only after the client-facing brief is approved.
+5. Keep private release/update documentation separate from public client copy.
