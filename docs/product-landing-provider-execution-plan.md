@@ -41,7 +41,7 @@ Hard rule: do not start P4 runtime split until P3 provider states are visible an
 
 ### P0. Project Skills And Planning
 
-Status: in progress.
+Status: completed.
 
 Tasks:
 
@@ -103,7 +103,7 @@ Validation:
 
 ### P3. Android Onboarding Provider Status
 
-Status: pending.
+Status: in progress.
 
 Tasks:
 
