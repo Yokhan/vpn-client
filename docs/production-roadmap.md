@@ -184,7 +184,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 
 ## 17. CI/CD
 
-- [ ] Fix or explain why GitHub push CI did not auto-run after commit `5a580e2`.
+- [x] Fix branch push CI trigger by making the `push.branches` filter explicit in `.github/workflows/ci.yml`.
 - [ ] Keep manual CI dispatch available for signed and unsigned APK builds.
 - [ ] Keep release workflow tag-driven and workflow-dispatch capable.
 - [ ] Publish deterministic artifacts with clear architecture names.
