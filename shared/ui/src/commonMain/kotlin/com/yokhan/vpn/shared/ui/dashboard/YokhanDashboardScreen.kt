@@ -113,6 +113,7 @@ data class DashboardUiTuning(
     val flameHeight: Int = DashboardRocketTokens.FlameHeight,
     val leftFlameX: Int = DashboardRocketTokens.LeftFlameX,
     val rightFlameX: Int = DashboardRocketTokens.RightFlameX,
+    val rocketY: Int = DashboardRocketTokens.RocketY,
     val flameY: Int = DashboardRocketTokens.FlameY,
     val rocketDebugOverlay: Boolean = false,
 )
@@ -124,7 +125,8 @@ object DashboardRocketTokens {
     const val FlameHeight = 75
     const val LeftFlameX = -10
     const val RightFlameX = 8
-    const val FlameY = 117
+    const val RocketY = -28
+    const val FlameY = 177
     const val RocketHorizontalBleed = 12
     const val RocketVerticalBleed = 28
 }
@@ -1109,15 +1111,14 @@ private fun DashboardRocket(
     var visible by remember { mutableStateOf(initiallyVisible) }
     val yOffset = remember { Animatable(if (initiallyVisible) 0f else 1.15f) }
     val alpha = remember { Animatable(if (initiallyVisible) 1f else 0f) }
-    val flameDrawHeight = (tuning.flameHeight * 1.25f).toInt() + 12
     val rocketHorizontalBleed = DashboardRocketTokens.RocketHorizontalBleed
     val rocketVerticalBleed = DashboardRocketTokens.RocketVerticalBleed
     val rocketLeft = rocketHorizontalBleed
-    val rocketTop = rocketVerticalBleed
+    val rocketTop = rocketVerticalBleed + tuning.rocketY
     val rocketCenterX = rocketLeft + tuning.rocketWidth / 2
     val leftFlameLeft = rocketCenterX + tuning.leftFlameX - tuning.flameWidth / 2
     val rightFlameLeft = rocketCenterX + tuning.rightFlameX - tuning.flameWidth / 2
-    val sceneHeight = maxOf(tuning.rocketHeight, tuning.flameY + flameDrawHeight) + rocketVerticalBleed * 2
+    val sceneHeight = tuning.rocketHeight + rocketVerticalBleed * 2
     val sceneWidth = tuning.rocketWidth + rocketHorizontalBleed * 2
     val rocketPainter = painterResource(Res.drawable.ic_dashboard_spaceship)
     val flamePainter = painterResource(Res.drawable.ic_dashboard_spaceship_flame)

@@ -356,13 +356,16 @@ private fun PreviewControlPanel(
         TuningSlider("Rocket height", tuning.rocketHeight, 170f..280f) {
             onTuningChange(tuning.copy(rocketHeight = it))
         }
+        TuningSlider("Rocket Y", tuning.rocketY, -70f..50f) {
+            onTuningChange(tuning.copy(rocketY = it))
+        }
         TuningSlider("Flame width", tuning.flameWidth, 12f..40f) {
             onTuningChange(tuning.copy(flameWidth = it))
         }
         TuningSlider("Flame height", tuning.flameHeight, 54f..140f) {
             onTuningChange(tuning.copy(flameHeight = it))
         }
-        TuningSlider("Flame Y", tuning.flameY, 72f..158f) {
+        TuningSlider("Flame Y", tuning.flameY, 72f..190f) {
             onTuningChange(tuning.copy(flameY = it))
         }
         TuningSlider("Left flame X", tuning.leftFlameX, -28f..4f) {
@@ -399,6 +402,7 @@ private fun DashboardUiTuning.asDebugText(): String {
     return "DashboardUiTuning(" +
         "rocketWidth=$rocketWidth, " +
         "rocketHeight=$rocketHeight, " +
+        "rocketY=$rocketY, " +
         "flameWidth=$flameWidth, " +
         "flameHeight=$flameHeight, " +
         "flameY=$flameY, " +
