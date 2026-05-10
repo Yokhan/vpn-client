@@ -42,6 +42,7 @@
         android:required="false" />
 
     <queries>
+        <package android:name="com.yokhan.vpn.provider" />
         <intent>
             <action android:name="io.nekohasekai.sagernet.plugin.ACTION_NATIVE_PLUGIN" />
         </intent>

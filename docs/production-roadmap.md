@@ -12,6 +12,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 - [ ] Keep product naming consistent as YokhanVPN / BUFF IT GATES only where intentionally exposed.
 - [ ] Track every remaining Matsuri/Neko reference and classify it as core dependency, inherited implementation detail, or removable UI debt.
 - [ ] Keep the Russian commercial, invite-only, and compliance boundary plan current in `docs/commercial-readiness-and-risk-plan.md`.
+- [ ] Keep the shell/provider split plan current in `docs/rocket-shell-provider-plan.md`.
 
 ## 02. Architecture Boundaries
 
@@ -22,6 +23,8 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 - [ ] Prevent composables from directly reading Android singletons such as `DataStore`.
 - [ ] Prevent UI components from starting services directly; actions should flow through host interfaces.
 - [ ] Replace mixed Fragment/View/Compose ownership with a single Compose shell owner.
+- [ ] Split the Android product into a Compose shell and a signed network provider only after the contract, signature checks, and migration fallback are stable.
+- [ ] Keep the current monolith as the temporary trusted provider until the external provider APK passes device QA.
 
 ## 03. Shared Design System
 
@@ -200,6 +203,7 @@ This is the working plan for moving YokhanVPN from a partially migrated Android 
 - [ ] Keep artifacts downloadable from GitHub Releases, not only Actions.
 - [ ] Document exact commands for local verification.
 - [ ] Ensure private/closed-source transition tasks do not break reproducible internal builds.
+- [ ] Publish Shell APK and Provider APK as separate, clearly labeled private artifacts once the split is enabled.
 
 ## 19. Codebase Cleanup
 

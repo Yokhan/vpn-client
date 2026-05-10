@@ -22,6 +22,8 @@ android {
     }
     defaultConfig {
         buildConfigField("boolean", "ENABLE_COMPOSE_DASHBOARD", composeDashboardEnabled.toString())
+        buildConfigField("String", "YOKHAN_PROVIDER_PACKAGE", "\"com.yokhan.vpn.provider\"")
+        buildConfigField("String", "YOKHAN_PROVIDER_CERT_SHA256", "\"\"")
     }
     bundle {
         language {
