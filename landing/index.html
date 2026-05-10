@@ -796,10 +796,13 @@
             }
 
             .ship-scene {
-                position: relative;
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                margin-left: calc(var(--rocket-scene-width) / -2);
+                margin-top: calc(var(--rocket-scene-height) / -2);
                 width: var(--rocket-scene-width);
                 height: var(--rocket-scene-height);
-                transform: translateY(-28px);
                 animation: rocket-dock 1400ms cubic-bezier(0.2, 0.8, 0.3, 1)
                     both;
             }
@@ -1236,7 +1239,7 @@
                     opacity: 0;
                 }
                 to {
-                    transform: translateY(-28px);
+                    transform: translateY(0);
                     opacity: 1;
                 }
             }
@@ -1318,17 +1321,13 @@
                     height: 198px;
                 }
 
-                .ship-scene {
-                    transform: translateY(-34px) scale(0.9);
-                }
-
                 @keyframes rocket-dock {
                     from {
-                        transform: translateY(110px) scale(0.9);
+                        transform: translateY(110px);
                         opacity: 0;
                     }
                     to {
-                        transform: translateY(-34px) scale(0.9);
+                        transform: translateY(0);
                         opacity: 1;
                     }
                 }

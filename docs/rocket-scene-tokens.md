@@ -36,6 +36,8 @@ flameTop = rocketTop + flameY = 177
 - Flame transform origin is top center.
 - Rocket Y moves the rocket and flame together; Flame Y moves only the flame relative to the rocket scene.
 - Rocket scene height is anchored to rocket height and vertical bleed; flame Y changes must not recenter the rocket.
+- Landing CSS must center the rocket scene explicitly with token-derived negative margins; browser grid centering can pin oversized scenes to the top edge.
+- Landing CSS must not add extra steady-state optical translate or scale; use these tokens as the only positioning source.
 - Disconnect animation moves rocket and flame as one scene, not as separate layers.
 - Debug overlay in desktop preview must stay available for pixel tuning.
 - Any future visual tuning changes this file, Compose defaults, and landing CSS in the same commit.
