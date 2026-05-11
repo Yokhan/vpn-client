@@ -41,6 +41,7 @@ Bring the app from a working Compose migration into a production-clean state: st
 4. Verify shared UI/domain and Android compilation before release work.
 5. Keep rocket/flame launch timing and z-order aligned with the web source so the flame is not hidden during arrival.
 6. Keep arrival and disconnect paths separate: arrival gets extra bottom scene bleed and delayed fade-in; disconnect keeps the upward flight path.
+7. Preserve manual rocket tuning values when fixing clipping: `rocketY=-28`, `flameY=177`, `leftFlameX=-10`, `rightFlameX=8`; solve clipping with containers/motion, not retuning.
 
 ## Rocket Tuning Workflow
 

@@ -99,8 +99,17 @@ private fun DashboardPreviewApp(window: AwtWindow) {
     var screenshotStatus by remember { mutableStateOf("No screenshot yet") }
     var tuning by remember { mutableStateOf(DashboardUiTuning()) }
     var formState by remember { mutableStateOf(yokhanSampleProfileFormState()) }
+    var replayConnectSignal by remember { mutableStateOf(0) }
     val connected = connectionStatus == ConnectionStatus.Connected
     val state = previewDashboardState(connectionStatus, testingConnection && connected)
+    LaunchedEffect(replayConnectSignal) {
+        if (replayConnectSignal > 0) {
+            testingConnection = false
+            connectionStatus = ConnectionStatus.Disconnected
+            delay(120)
+            connectionStatus = ConnectionStatus.Connecting
+        }
+    }
     LaunchedEffect(testingConnection) {
         if (testingConnection) {
             delay(900)
@@ -204,6 +213,7 @@ private fun DashboardPreviewApp(window: AwtWindow) {
                     ConnectionStatus.Connecting
                 }
             },
+            onReplayConnect = { replayConnectSignal += 1 },
             tuning = tuning,
             onTuningChange = { tuning = it },
             screenshotStatus = screenshotStatus,
@@ -272,6 +282,7 @@ private fun PreviewControlPanel(
     onPreviewModeChange: (PreviewMode) -> Unit,
     connectionStatus: ConnectionStatus,
     onToggle: () -> Unit,
+    onReplayConnect: () -> Unit,
     tuning: DashboardUiTuning,
     onTuningChange: (DashboardUiTuning) -> Unit,
     screenshotStatus: String,
@@ -329,6 +340,13 @@ private fun PreviewControlPanel(
                     else -> "Animate connect"
                 },
             )
+        }
+        Button(
+            onClick = onReplayConnect,
+            enabled = !transitioning,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7555B6)),
+        ) {
+            Text("Replay connect from OFF")
         }
         Button(
             onClick = onScreenshot,

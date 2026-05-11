@@ -56,6 +56,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -123,6 +124,7 @@ object DashboardRocketTokens {
     const val RocketHeight = 228
     const val FlameWidth = 22
     const val FlameHeight = 75
+    const val FlameMaxScale = 1.15f
     const val LeftFlameX = -10
     const val RightFlameX = 8
     const val RocketY = -28
@@ -1130,6 +1132,10 @@ private fun DashboardRocket(
     val flameDrawWidth = tuning.flameWidth * flameScaleX
     val flameDrawHeight = tuning.flameHeight * flameScale
     val flameDrawOffsetX = (flameDrawWidth - tuning.flameWidth) / 2f
+    val flameMaxScaleX = 1f + (DashboardRocketTokens.FlameMaxScale - 1f) * 0.4f
+    val flameMaxDrawWidth = tuning.flameWidth * flameMaxScaleX
+    val flameMaxDrawHeight = tuning.flameHeight * DashboardRocketTokens.FlameMaxScale
+    val flameMaxDrawOffsetX = (flameMaxDrawWidth - tuning.flameWidth) / 2f
     val sceneHeight = tuning.rocketHeight + rocketVerticalBleed * 2 + rocketBottomBleed
     val sceneWidth = tuning.rocketWidth + rocketHorizontalBleed * 2
     val rocketPainter = painterResource(Res.drawable.ic_dashboard_spaceship)
@@ -1186,22 +1192,48 @@ private fun DashboardRocket(
                 .offset(x = rocketLeft.dp, y = rocketTop.dp)
                 .size(width = tuning.rocketWidth.dp, height = tuning.rocketHeight.dp),
         )
-        Image(
-            painter = flamePainter,
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
+        Box(
             modifier = Modifier
-                .offset(x = (leftFlameLeft - flameDrawOffsetX).dp, y = (rocketTop + tuning.flameY).dp)
-                .size(width = flameDrawWidth.dp, height = flameDrawHeight.dp),
-        )
-        Image(
-            painter = flamePainter,
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
+                .offset(x = (leftFlameLeft - flameMaxDrawOffsetX).dp, y = (rocketTop + tuning.flameY).dp)
+                .size(width = flameMaxDrawWidth.dp, height = flameMaxDrawHeight.dp)
+                .graphicsLayer { clip = false },
+        ) {
+            Image(
+                painter = flamePainter,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .offset(x = flameMaxDrawOffsetX.dp)
+                    .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
+                    .graphicsLayer {
+                        scaleY = flameScale
+                        scaleX = flameScaleX
+                        transformOrigin = TransformOrigin(0.5f, 0f)
+                        clip = false
+                    },
+            )
+        }
+        Box(
             modifier = Modifier
-                .offset(x = (rightFlameLeft - flameDrawOffsetX).dp, y = (rocketTop + tuning.flameY).dp)
-                .size(width = flameDrawWidth.dp, height = flameDrawHeight.dp),
-        )
+                .offset(x = (rightFlameLeft - flameMaxDrawOffsetX).dp, y = (rocketTop + tuning.flameY).dp)
+                .size(width = flameMaxDrawWidth.dp, height = flameMaxDrawHeight.dp)
+                .graphicsLayer { clip = false },
+        ) {
+            Image(
+                painter = flamePainter,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .offset(x = flameMaxDrawOffsetX.dp)
+                    .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
+                    .graphicsLayer {
+                        scaleY = flameScale
+                        scaleX = flameScaleX
+                        transformOrigin = TransformOrigin(0.5f, 0f)
+                        clip = false
+                    },
+            )
+        }
         if (tuning.rocketDebugOverlay) {
             Canvas(Modifier.matchParentSize()) {
                 val stroke = 1.dp.toPx()
