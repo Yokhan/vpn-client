@@ -56,7 +56,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -130,6 +129,7 @@ object DashboardRocketTokens {
     const val FlameY = 177
     const val RocketHorizontalBleed = 12
     const val RocketVerticalBleed = 28
+    const val RocketBottomBleed = 72
 }
 
 @Immutable
@@ -1119,12 +1119,18 @@ private fun DashboardRocket(
     val alpha = remember { Animatable(if (initiallyVisible) 1f else 0f) }
     val rocketHorizontalBleed = DashboardRocketTokens.RocketHorizontalBleed
     val rocketVerticalBleed = DashboardRocketTokens.RocketVerticalBleed
+    val rocketBottomBleed = DashboardRocketTokens.RocketBottomBleed
+    val sceneOffsetCompensation = rocketBottomBleed / 2f
     val rocketLeft = rocketHorizontalBleed
     val rocketTop = rocketVerticalBleed + tuning.rocketY
     val rocketCenterX = rocketLeft + tuning.rocketWidth / 2
     val leftFlameLeft = rocketCenterX + tuning.leftFlameX - tuning.flameWidth / 2
     val rightFlameLeft = rocketCenterX + tuning.rightFlameX - tuning.flameWidth / 2
-    val sceneHeight = tuning.rocketHeight + rocketVerticalBleed * 2
+    val flameScaleX = 1f + (flameScale - 1f) * 0.4f
+    val flameDrawWidth = tuning.flameWidth * flameScaleX
+    val flameDrawHeight = tuning.flameHeight * flameScale
+    val flameDrawOffsetX = (flameDrawWidth - tuning.flameWidth) / 2f
+    val sceneHeight = tuning.rocketHeight + rocketVerticalBleed * 2 + rocketBottomBleed
     val sceneWidth = tuning.rocketWidth + rocketHorizontalBleed * 2
     val rocketPainter = painterResource(Res.drawable.ic_dashboard_spaceship)
     val flamePainter = painterResource(Res.drawable.ic_dashboard_spaceship_flame)
@@ -1138,7 +1144,12 @@ private fun DashboardRocket(
                 yOffset.snapTo(1.15f)
             }
             coroutineScope {
-                launch { alpha.animateTo(1f, tween(400, easing = CssEaseOut)) }
+                launch {
+                    if (alpha.value < 0.05f && yOffset.value > 0.5f) {
+                        delay(120)
+                    }
+                    alpha.animateTo(1f, tween(260, easing = CssEaseOut))
+                }
                 launch { yOffset.animateTo(0f, tween(700, easing = RocketLaunchEasing)) }
             }
         } else if (visible) {
@@ -1161,7 +1172,7 @@ private fun DashboardRocket(
         contentAlignment = Alignment.TopStart,
         modifier = Modifier
             .size(width = sceneWidth.dp, height = sceneHeight.dp)
-            .offset(y = ((tuning.rocketHeight + rocketVerticalBleed) * yOffset.value).dp)
+            .offset(y = (((tuning.rocketHeight + rocketVerticalBleed) * yOffset.value) + sceneOffsetCompensation).dp)
             .graphicsLayer {
                 this.alpha = alpha.value
                 clip = false
@@ -1180,28 +1191,16 @@ private fun DashboardRocket(
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier
-                .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
-                .offset(x = leftFlameLeft.dp, y = (rocketTop + tuning.flameY).dp)
-                .graphicsLayer {
-                    scaleY = flameScale
-                    scaleX = 1f + (flameScale - 1f) * 0.4f
-                    transformOrigin = TransformOrigin(0.5f, 0f)
-                    clip = false
-                },
+                .offset(x = (leftFlameLeft - flameDrawOffsetX).dp, y = (rocketTop + tuning.flameY).dp)
+                .size(width = flameDrawWidth.dp, height = flameDrawHeight.dp),
         )
         Image(
             painter = flamePainter,
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier
-                .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
-                .offset(x = rightFlameLeft.dp, y = (rocketTop + tuning.flameY).dp)
-                .graphicsLayer {
-                    scaleY = flameScale
-                    scaleX = 1f + (flameScale - 1f) * 0.4f
-                    transformOrigin = TransformOrigin(0.5f, 0f)
-                    clip = false
-                },
+                .offset(x = (rightFlameLeft - flameDrawOffsetX).dp, y = (rocketTop + tuning.flameY).dp)
+                .size(width = flameDrawWidth.dp, height = flameDrawHeight.dp),
         )
         if (tuning.rocketDebugOverlay) {
             Canvas(Modifier.matchParentSize()) {
@@ -1210,7 +1209,7 @@ private fun DashboardRocket(
                 val rocketSize = Size(tuning.rocketWidth.dp.toPx(), tuning.rocketHeight.dp.toPx())
                 val leftFlameTopLeft = Offset(leftFlameLeft.dp.toPx(), (rocketTop + tuning.flameY).dp.toPx())
                 val rightFlameTopLeft = Offset(rightFlameLeft.dp.toPx(), (rocketTop + tuning.flameY).dp.toPx())
-                val flameSize = Size(tuning.flameWidth.dp.toPx(), tuning.flameHeight.dp.toPx())
+                val flameSize = Size(flameDrawWidth.dp.toPx(), flameDrawHeight.dp.toPx())
                 drawRect(
                     color = Color.Cyan.copy(alpha = 0.72f),
                     topLeft = rocketTopLeft,
@@ -1219,13 +1218,13 @@ private fun DashboardRocket(
                 )
                 drawRect(
                     color = Color(0xFFFF7A1A).copy(alpha = 0.82f),
-                    topLeft = leftFlameTopLeft,
+                    topLeft = leftFlameTopLeft - Offset(flameDrawOffsetX.dp.toPx(), 0f),
                     size = flameSize,
                     style = Stroke(stroke),
                 )
                 drawRect(
                     color = Color(0xFFFF7A1A).copy(alpha = 0.82f),
-                    topLeft = rightFlameTopLeft,
+                    topLeft = rightFlameTopLeft - Offset(flameDrawOffsetX.dp.toPx(), 0f),
                     size = flameSize,
                     style = Stroke(stroke),
                 )

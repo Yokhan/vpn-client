@@ -115,6 +115,7 @@ This is the execution pipeline for turning the current transition codebase into 
 - Progress: standalone settings hosts and edit dialogs use the dark design-system palette to avoid mixed legacy surfaces while state-owned shell/route frames can switch OFF/ON.
 - Progress: OFF/ON palette switching is restored as a product state signal; dashboard, shell, and route frames now derive colors from service state instead of forcing the connected palette.
 - Progress: rocket launch timing is back to the source 700 ms curve, and the launch panel is drawn above following rows so arriving flames are not hidden by neighboring controls.
+- Progress: rocket arrival now has extra bottom scene bleed and delayed fade-in, so the ship/flame can enter from below without visible clipping while disconnect flight remains unchanged.
 - Acceptance: dashboard remains smooth on Android device and desktop preview.
 
 ### P11. Legacy Resource Cleanup
