@@ -43,7 +43,7 @@ import androidx.fragment.app.FragmentContainerView
 import com.yokhan.vpn.app.ui.compose.YokhanRouteStatusDot
 import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
 import com.yokhan.vpn.shared.ui.design.YokhanAccent
-import com.yokhan.vpn.shared.ui.design.YokhanGreen
+import com.yokhan.vpn.shared.ui.design.YokhanPalette
 import com.yokhan.vpn.shared.ui.design.YokhanRadius
 import com.yokhan.vpn.shared.ui.design.YokhanSpacing
 import com.yokhan.vpn.shared.ui.design.yokhanPalette
@@ -71,7 +71,7 @@ fun YokhanMainShell(
     val spaceActive = serviceState == BaseService.State.Connecting ||
         serviceState == BaseService.State.Connected ||
         serviceState == BaseService.State.Stopping
-    val colors = yokhanPalette(spaceActive = true)
+    val colors = yokhanPalette(spaceActive = spaceActive)
     val typography = yokhanTypography()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -132,6 +132,7 @@ fun YokhanMainShell(
                         ShellNavItem(
                             item = item,
                             selected = item.route == selectedRoute,
+                            colors = colors,
                             onClick = {
                                 onRouteSelected(item.route)
                                 scope.launch { drawerState.close() }
@@ -151,9 +152,8 @@ fun YokhanMainShell(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         YokhanRouteStatusDot(
-                            active = serviceState.connected,
+                            active = true,
                             colors = colors,
-                            activeColor = YokhanGreen,
                         )
                         Text(
                             text = if (serviceState.connected) {
@@ -204,9 +204,9 @@ fun YokhanMainShell(
 private fun ShellNavItem(
     item: ShellNavItemModel,
     selected: Boolean,
+    colors: YokhanPalette,
     onClick: () -> Unit,
 ) {
-    val colors = yokhanPalette(spaceActive = true)
     val typography = yokhanTypography()
     val marker = if (selected) YokhanAccent else Color.Transparent
     Row(

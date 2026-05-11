@@ -65,6 +65,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.yokhan.vpn.shared.domain.ConnectionStatus
 import com.yokhan.vpn.shared.domain.DashboardState
 import com.yokhan.vpn.shared.ui.design.YokhanAccent
@@ -200,6 +201,7 @@ fun YokhanDashboardScreen(
     val scrollState = rememberScrollState()
     var visualSpaceActive by remember { mutableStateOf(state.shouldAnimateSpace) }
     var starfieldMounted by remember { mutableStateOf(state.shouldAnimateSpace) }
+    val themeSpaceActive = state.shouldAnimateSpace || state.connectionStatus == ConnectionStatus.Disconnecting
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal > 0 && scrollState.value > 0) {
             scrollState.animateScrollTo(0, tween(520, easing = CssEaseOut))
@@ -218,7 +220,7 @@ fun YokhanDashboardScreen(
             starfieldMounted = false
         }
     }
-    val targetColors = yokhanPalette(spaceActive = true)
+    val targetColors = yokhanPalette(spaceActive = themeSpaceActive)
     val colors = DashboardColors(
         background = animateColorAsState(
             targetValue = targetColors.background,
@@ -263,7 +265,7 @@ fun YokhanDashboardScreen(
     )
     val spaceLayerAlpha by animateFloatAsState(
         targetValue = if (visualSpaceActive) 1f else 0f,
-        animationSpec = tween(1200, easing = CssEaseIn),
+        animationSpec = tween(600, easing = CssEase),
         label = "dashboard-space-layer",
     )
     val typography = dashboardTypography()
@@ -428,7 +430,9 @@ private fun LaunchPanel(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 20.dp),
+            .padding(top = 20.dp)
+            .graphicsLayer { clip = false }
+            .zIndex(2f),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -897,6 +901,7 @@ private fun DashboardStatsBar(
                 labels.status,
                 colors.copy(primary = if (connected) DashboardGreen else DashboardRed),
                 typography,
+                iconColor = if (connected) DashboardGreen else DashboardRed,
             )
             StatsDivider(colors)
             StatsSegment("◇", state.activeProfileProtocol.name.uppercase(), labels.protocol, colors, typography)
@@ -911,6 +916,7 @@ private fun RowScope.StatsSegment(
     label: String,
     colors: DashboardColors,
     typography: DashboardTypography,
+    iconColor: Color = colors.tertiary,
 ) {
     Column(
         modifier = Modifier
@@ -922,7 +928,7 @@ private fun RowScope.StatsSegment(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = icon,
-                color = colors.tertiary,
+                color = iconColor,
                 fontFamily = typography.mono,
                 fontSize = 12.sp,
                 lineHeight = 12.sp,
@@ -1133,7 +1139,7 @@ private fun DashboardRocket(
             }
             coroutineScope {
                 launch { alpha.animateTo(1f, tween(400, easing = CssEaseOut)) }
-                launch { yOffset.animateTo(0f, tween(1400, easing = RocketLaunchEasing)) }
+                launch { yOffset.animateTo(0f, tween(700, easing = RocketLaunchEasing)) }
             }
         } else if (visible) {
             coroutineScope {

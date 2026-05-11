@@ -15,7 +15,7 @@ This is the execution pipeline for turning the current transition codebase into 
 
 ## Current Cursor
 
-`P09-visual-system-consolidation`: consolidate shared visual tokens/components across Compose screens.
+`P10-animation-and-performance-pass`: stabilize dashboard state transitions, rocket/flame motion, and service-state indicators after the Compose migration.
 
 ## Pipeline
 
@@ -112,7 +112,9 @@ This is the execution pipeline for turning the current transition codebase into 
 - Progress: rocket/flame scene now keeps flame alive through disconnect flight, adds vertical bleed to avoid clipping, and desktop preview animates connecting/disconnecting states.
 - Progress: dashboard hot updates reuse cached profile UI rows instead of remapping the profile list for timer/speed ticks.
 - Progress: stabilization/refactor plan is tracked in `docs/stabilization-refactor-plan.md` with lifecycle, tuning, onboarding, preview, and release hardening workstreams.
-- Progress: app window, shell, route frames, settings hosts, and edit dialogs now use the dark design-system palette to avoid beige flashes and mixed legacy surfaces.
+- Progress: standalone settings hosts and edit dialogs use the dark design-system palette to avoid mixed legacy surfaces while state-owned shell/route frames can switch OFF/ON.
+- Progress: OFF/ON palette switching is restored as a product state signal; dashboard, shell, and route frames now derive colors from service state instead of forcing the connected palette.
+- Progress: rocket launch timing is back to the source 700 ms curve, and the launch panel is drawn above following rows so arriving flames are not hidden by neighboring controls.
 - Acceptance: dashboard remains smooth on Android device and desktop preview.
 
 ### P11. Legacy Resource Cleanup
