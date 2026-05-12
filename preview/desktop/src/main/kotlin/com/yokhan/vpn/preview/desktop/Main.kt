@@ -392,8 +392,8 @@ private fun PreviewControlPanel(
         TuningSlider("Right flame X", tuning.rightFlameX, -4f..28f) {
             onTuningChange(tuning.copy(rightFlameX = it))
         }
-        TuningSlider("Bottom stats pad", tuning.statsBarBottomPadding, 8f..34f) {
-            onTuningChange(tuning.copy(statsBarBottomPadding = it))
+        TuningSlider("Content bottom pad", tuning.contentBottomPadding, 16f..96f) {
+            onTuningChange(tuning.copy(contentBottomPadding = it))
         }
         Text(
             text = "Current mode: ${previewMode.label}; VPN state: ${connectionStatus.name.lowercase()}",
@@ -426,7 +426,7 @@ private fun DashboardUiTuning.asDebugText(): String {
         "flameY=$flameY, " +
         "leftFlameX=$leftFlameX, " +
         "rightFlameX=$rightFlameX, " +
-        "statsBarBottomPadding=$statsBarBottomPadding" +
+        "contentBottomPadding=$contentBottomPadding" +
         ")"
 }
 

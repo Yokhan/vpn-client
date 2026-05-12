@@ -5,6 +5,11 @@
     <string name="app_desc">The universal proxy toolchain for Android, written in Kotlin.</string>
     <string name="yokhan_app_desc">Private Yokhan VPN client with a shared Compose UI, Android service core, and repo-owned release pipeline.</string>
     <string name="dashboard_home">Home</string>
+    <string name="shell_nav_home">Главная</string>
+    <string name="shell_nav_configs">Конфиги</string>
+    <string name="shell_nav_groups">Группы</string>
+    <string name="shell_nav_routes">Маршруты</string>
+    <string name="shell_nav_settings">Настройки</string>
     <string name="dashboard_title">Панель управления</string>
     <string name="dashboard_state_ready">Готов к подключению</string>
     <string name="dashboard_state_connected">Подключено</string>

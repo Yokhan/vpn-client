@@ -105,9 +105,8 @@ data class DashboardUiActions(
 
 @Immutable
 data class DashboardUiTuning(
-    val contentBottomPadding: Int = 132,
+    val contentBottomPadding: Int = 36,
     val testButtonTopPadding: Int = 12,
-    val statsBarBottomPadding: Int = 28,
     val rocketWidth: Int = DashboardRocketTokens.RocketWidth,
     val rocketHeight: Int = DashboardRocketTokens.RocketHeight,
     val flameWidth: Int = DashboardRocketTokens.FlameWidth,
@@ -284,27 +283,33 @@ fun YokhanDashboardScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(start = 12.dp, end = 12.dp, bottom = tuning.contentBottomPadding.dp),
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)),
         ) {
-            DashboardToolbar(colors, labels, typography, actions)
-            CurrentConfigCard(state, colors, labels, typography)
-            LaunchPanel(state, connected, visualSpaceActive, colors, labels, typography, actions, tuning)
-            ConnectionStatusRow(state, connected, colors, labels, typography)
-            ConnectionTestButton(state, colors, labels, typography, actions, tuning)
-            ProfilesCard(profiles, colors, labels, typography, actions)
-            Spacer(Modifier.height(160.dp))
+            Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp)) {
+                DashboardToolbar(colors, labels, typography, actions)
+                DashboardTelemetryStrip(
+                    state = state,
+                    connected = connected,
+                    colors = colors,
+                    labels = labels,
+                    typography = typography,
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(start = 12.dp, end = 12.dp, bottom = tuning.contentBottomPadding.dp),
+            ) {
+                CurrentConfigCard(state, colors, labels, typography)
+                LaunchPanel(state, connected, visualSpaceActive, colors, labels, typography, actions, tuning)
+                ConnectionStatusRow(state, connected, colors, labels, typography)
+                ConnectionTestButton(state, colors, labels, typography, actions, tuning)
+                ProfilesCard(profiles, colors, labels, typography, actions)
+                Spacer(Modifier.height(40.dp))
+            }
         }
-
-        DashboardStatsBar(
-            state = state,
-            connected = connected,
-            colors = colors,
-            labels = labels,
-            typography = typography,
-            tuning = tuning,
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
     }
 }
 
@@ -867,32 +872,34 @@ private fun ProfileRow(
 }
 
 @Composable
-private fun DashboardStatsBar(
+private fun DashboardTelemetryStrip(
     state: DashboardState,
     connected: Boolean,
     colors: DashboardColors,
     labels: DashboardUiLabels,
     typography: DashboardTypography,
-    tuning: DashboardUiTuning,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+            .padding(bottom = 10.dp)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        colors.primary.copy(alpha = 0.035f),
+                        colors.background.copy(alpha = 0.0f),
+                    ),
+                ),
+                RoundedCornerShape(16.dp),
+            )
+            .border(1.dp, colors.border, RoundedCornerShape(16.dp)),
     ) {
-        Box(
-            Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(colors.divider)
-        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.Transparent)
-                .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = tuning.statsBarBottomPadding.dp),
+                .padding(start = 4.dp, end = 4.dp, top = 9.dp, bottom = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StatsSegment("◷", if (state.isConnectionTestRunning) "..." else state.latencyLabel, labels.latency, colors, typography)
