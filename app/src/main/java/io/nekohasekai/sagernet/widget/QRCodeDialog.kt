@@ -1,4 +1,4 @@
-package io.nekohasekai.sagernet.widget
+﻿package io.nekohasekai.sagernet.widget
 
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -19,7 +19,7 @@ import com.google.zxing.WriterException
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.readableMessage
-import com.yokhan.vpn.app.ui.MainActivity
+import com.yokhan.gates.app.ui.MainActivity
 import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
 

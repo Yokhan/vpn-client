@@ -1,4 +1,4 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+﻿import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.library")
@@ -31,7 +31,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.yokhan.vpn.shared.ui"
+    namespace = "com.yokhan.gates.shared.ui"
     compileSdk = 35
 
     defaultConfig {

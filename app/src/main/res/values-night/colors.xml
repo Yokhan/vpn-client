@@ -3,7 +3,7 @@
     <color name="fab_color_progress">@color/material_light_white</color>
     <color name="preference_simple_menu_background">#1A1A2E</color>
 
-    <!-- YokhanVPN dark theme overrides -->
+    <!-- GATES dark theme overrides -->
     <color name="buffit_contrast">#111117</color>
     <color name="buffit_auth_title">#111117</color>
     <color name="buffit_workout_bar">#0D000000</color>

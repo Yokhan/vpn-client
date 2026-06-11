@@ -290,7 +290,7 @@
 
     <color name="preference_simple_menu_background">#FAFAFA</color>
 
-    <!-- YokhanVPN Design System tokens -->
+    <!-- GATES Design System tokens -->
     <color name="buffit_main">#F5F5F5</color>
     <color name="buffit_contrast">#1A1A2E</color>
     <color name="buffit_main_dark">#121212</color>

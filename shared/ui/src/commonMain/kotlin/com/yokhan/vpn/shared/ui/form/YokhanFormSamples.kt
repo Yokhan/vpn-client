@@ -1,72 +1,72 @@
-package com.yokhan.vpn.shared.ui.form
+package com.yokhan.gates.shared.ui.form
 
 fun yokhanSampleProfileFormState(): YokhanFormState {
     return YokhanFormState(
-        title = "Профиль VLESS",
-        subtitle = "Общий Compose form-kit: поля, селекторы, валидация, dirty-state и save/cancel контракт.",
+        title = "РџСЂРѕС„РёР»СЊ VLESS",
+        subtitle = "РћР±С‰РёР№ Compose form-kit: РїРѕР»СЏ, СЃРµР»РµРєС‚РѕСЂС‹, РІР°Р»РёРґР°С†РёСЏ, dirty-state Рё save/cancel РєРѕРЅС‚СЂР°РєС‚.",
         dirty = false,
         sections = listOf(
             YokhanFormSection(
                 id = "profile",
-                title = "ОСНОВНОЕ",
-                description = "Этот экран использует те же shared-ui примитивы, которые дальше пойдут в Android формы.",
+                title = "РћРЎРќРћР’РќРћР•",
+                description = "Р­С‚РѕС‚ СЌРєСЂР°РЅ РёСЃРїРѕР»СЊР·СѓРµС‚ С‚Рµ Р¶Рµ shared-ui РїСЂРёРјРёС‚РёРІС‹, РєРѕС‚РѕСЂС‹Рµ РґР°Р»СЊС€Рµ РїРѕР№РґСѓС‚ РІ Android С„РѕСЂРјС‹.",
                 fields = listOf(
                     YokhanFormField.Text(
                         id = "name",
-                        label = "Название",
+                        label = "РќР°Р·РІР°РЅРёРµ",
                         value = "Bridge-igor",
-                        placeholder = "Название профиля",
+                        placeholder = "РќР°Р·РІР°РЅРёРµ РїСЂРѕС„РёР»СЏ",
                         required = true,
                     ),
                     YokhanFormField.Text(
                         id = "server",
-                        label = "Сервер",
+                        label = "РЎРµСЂРІРµСЂ",
                         value = "edge.example.net",
                         placeholder = "example.com",
                         required = true,
                     ),
                     YokhanFormField.Port(
                         id = "port",
-                        label = "Порт",
+                        label = "РџРѕСЂС‚",
                         value = "443",
                         validation = YokhanFormValidation(
                             state = YokhanFormValidationState.Success,
-                            message = "Порт в допустимом диапазоне.",
+                            message = "РџРѕСЂС‚ РІ РґРѕРїСѓСЃС‚РёРјРѕРј РґРёР°РїР°Р·РѕРЅРµ.",
                         ),
                     ),
                     YokhanFormField.Password(
                         id = "uuid",
-                        label = "UUID / пароль",
-                        value = "17761155-5414-1000-9000-yokhanvpn",
+                        label = "UUID / РїР°СЂРѕР»СЊ",
+                        value = "17761155-5414-1000-9000-gates",
                         required = true,
                     ),
                 ),
             ),
             YokhanFormSection(
                 id = "transport",
-                title = "ТРАНСПОРТ",
+                title = "РўР РђРќРЎРџРћР Рў",
                 fields = listOf(
                     YokhanFormField.Select(
                         id = "security",
-                        label = "Безопасность",
+                        label = "Р‘РµР·РѕРїР°СЃРЅРѕСЃС‚СЊ",
                         selectedOptionId = "reality",
                         options = listOf(
-                            YokhanFormOption("reality", "REALITY", "Современный режим маскировки TLS."),
-                            YokhanFormOption("tls", "TLS", "Классический TLS-транспорт."),
-                            YokhanFormOption("none", "NONE", "Без шифрования транспорта."),
+                            YokhanFormOption("reality", "REALITY", "РЎРѕРІСЂРµРјРµРЅРЅС‹Р№ СЂРµР¶РёРј РјР°СЃРєРёСЂРѕРІРєРё TLS."),
+                            YokhanFormOption("tls", "TLS", "РљР»Р°СЃСЃРёС‡РµСЃРєРёР№ TLS-С‚СЂР°РЅСЃРїРѕСЂС‚."),
+                            YokhanFormOption("none", "NONE", "Р‘РµР· С€РёС„СЂРѕРІР°РЅРёСЏ С‚СЂР°РЅСЃРїРѕСЂС‚Р°."),
                         ),
                     ),
                     YokhanFormField.Switch(
                         id = "udp",
                         label = "UDP relay",
                         checked = true,
-                        helper = "Переключатель сразу отдаёт событие наружу, без внутреннего состояния в UI.",
+                        helper = "РџРµСЂРµРєР»СЋС‡Р°С‚РµР»СЊ СЃСЂР°Р·Сѓ РѕС‚РґР°С‘С‚ СЃРѕР±С‹С‚РёРµ РЅР°СЂСѓР¶Сѓ, Р±РµР· РІРЅСѓС‚СЂРµРЅРЅРµРіРѕ СЃРѕСЃС‚РѕСЏРЅРёСЏ РІ UI.",
                     ),
                     YokhanFormField.Info(
                         id = "subscription",
-                        label = "Источник",
+                        label = "РСЃС‚РѕС‡РЅРёРє",
                         value = "Subscription #1776115554141",
-                        helper = "Информационные строки не редактируются и не создают dirty-state.",
+                        helper = "РРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹Рµ СЃС‚СЂРѕРєРё РЅРµ СЂРµРґР°РєС‚РёСЂСѓСЋС‚СЃСЏ Рё РЅРµ СЃРѕР·РґР°СЋС‚ dirty-state.",
                     ),
                 ),
             ),

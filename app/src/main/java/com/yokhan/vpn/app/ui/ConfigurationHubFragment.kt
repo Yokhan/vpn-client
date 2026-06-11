@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+﻿package com.yokhan.gates.app.ui
 
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -33,21 +33,22 @@ import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.snackbar
 import io.nekohasekai.sagernet.ktx.startFilesForResult
-import com.yokhan.vpn.app.ui.compose.YokhanButtonGrid
-import com.yokhan.vpn.app.ui.compose.YokhanCaption
-import com.yokhan.vpn.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.vpn.app.ui.compose.YokhanDivider
-import com.yokhan.vpn.app.ui.compose.YokhanHeadline
-import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
-import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
-import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
-import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
-import com.yokhan.vpn.app.ui.compose.YokhanStatPair
-import com.yokhan.vpn.app.ui.shell.YokhanManualProfileProtocol
-import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
-import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
-import com.yokhan.vpn.app.ui.shell.YokhanShellSubRoute
-import com.yokhan.vpn.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.app.auth.YokhanKeycloakAuth
+import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
+import com.yokhan.gates.app.ui.compose.YokhanCaption
+import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
+import com.yokhan.gates.app.ui.compose.YokhanDivider
+import com.yokhan.gates.app.ui.compose.YokhanHeadline
+import com.yokhan.gates.app.ui.compose.YokhanMonoValue
+import com.yokhan.gates.app.ui.compose.YokhanRouteAction
+import com.yokhan.gates.app.ui.compose.YokhanRouteCard
+import com.yokhan.gates.app.ui.compose.YokhanRouteFrame
+import com.yokhan.gates.app.ui.compose.YokhanStatPair
+import com.yokhan.gates.app.ui.shell.YokhanManualProfileProtocol
+import com.yokhan.gates.app.ui.shell.YokhanShellActivityRoute
+import com.yokhan.gates.app.ui.shell.YokhanShellRoute
+import com.yokhan.gates.app.ui.shell.YokhanShellSubRoute
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -225,6 +226,12 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
             ) {
                 YokhanButtonGrid(
                     actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.yokhan_auth_login_action),
+                            primary = true,
+                            enabled = YokhanKeycloakAuth.isConfigured(),
+                            onClick = { (activity as? MainActivity)?.startYokhanLogin() },
+                        ),
                         YokhanRouteAction(
                             title = stringResource(R.string.add_profile_methods_scan_qr_code),
                             onClick = {

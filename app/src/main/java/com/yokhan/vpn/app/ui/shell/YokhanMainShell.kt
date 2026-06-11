@@ -1,7 +1,9 @@
-package com.yokhan.vpn.app.ui.shell
+﻿package com.yokhan.gates.app.ui.shell
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,6 +34,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -48,15 +51,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentContainerView
-import com.yokhan.vpn.app.ui.compose.YokhanRouteStatusDot
-import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
-import com.yokhan.vpn.shared.ui.design.YokhanAccent
-import com.yokhan.vpn.shared.ui.design.YokhanPalette
-import com.yokhan.vpn.shared.ui.design.YokhanRadius
-import com.yokhan.vpn.shared.ui.design.YokhanSpacing
-import com.yokhan.vpn.shared.ui.design.YokhanTypography
-import com.yokhan.vpn.shared.ui.design.yokhanPalette
-import com.yokhan.vpn.shared.ui.design.yokhanTypography
+import com.yokhan.gates.app.ui.compose.YokhanRouteStatusDot
+import com.yokhan.gates.app.ui.compose.yokhanOutlinedSurface
+import com.yokhan.gates.shared.ui.design.YokhanAccent
+import com.yokhan.gates.shared.ui.design.YokhanMotion
+import com.yokhan.gates.shared.ui.design.YokhanPalette
+import com.yokhan.gates.shared.ui.design.YokhanRadius
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.shared.ui.design.YokhanStarfield
+import com.yokhan.gates.shared.ui.design.YokhanTypography
+import com.yokhan.gates.shared.ui.design.yokhanPalette
+import com.yokhan.gates.shared.ui.design.yokhanTypography
+import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.bg.BaseService
 import kotlinx.coroutines.launch
@@ -75,7 +81,7 @@ fun YokhanMainShell(
     onRouteSelected: (YokhanShellRoute) -> Unit,
     onDrawerOpenChanged: (Boolean) -> Unit,
     onFragmentHostReady: (FragmentContainerView) -> Unit,
-    dashboardContent: @Composable () -> Unit,
+    content: @Composable () -> Unit,
 ) {
     val spaceActive = serviceState == BaseService.State.Connecting ||
         serviceState == BaseService.State.Connected ||
@@ -88,8 +94,14 @@ fun YokhanMainShell(
     val bottomNavItems = rememberShellBottomNavItems()
     val showingDashboard = selectedRoute == YokhanShellRoute.Home
     val density = LocalDensity.current
+    val topSafePadding = with(density) { WindowInsets.safeDrawing.getTop(this).toDp() }
     val bottomSafePadding = with(density) { WindowInsets.safeDrawing.getBottom(this).toDp() }
     val bottomContentPadding = ShellBottomNavigationHeight + bottomSafePadding
+    val starfieldAlpha by animateFloatAsState(
+        targetValue = if (spaceActive) 1f else 0f,
+        animationSpec = tween(600, easing = YokhanMotion.CssEase),
+        label = "shell-starfield-alpha",
+    )
 
     LaunchedEffect(drawerCommand.sequence) {
         if (drawerCommand.open) drawerState.open() else drawerState.close()
@@ -190,6 +202,13 @@ fun YokhanMainShell(
                 .fillMaxSize()
                 .background(colors.background),
         ) {
+            if (spaceActive || starfieldAlpha > 0.01f) {
+                YokhanStarfield(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(starfieldAlpha),
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -209,10 +228,11 @@ fun YokhanMainShell(
                     },
                     modifier = Modifier
                         .fillMaxSize()
+                        .padding(top = if (showingDashboard) 0.dp else topSafePadding)
                         .alpha(if (showingDashboard) 0f else 1f),
                 )
                 if (showingDashboard) {
-                    dashboardContent()
+                    content()
                 }
             }
             ShellBottomNavigation(
@@ -375,16 +395,18 @@ private fun ShellNavItem(
 
 @Composable
 private fun rememberShellNavItems(): List<ShellNavItemModel> {
-    return listOf(
-        ShellNavItemModel(YokhanShellRoute.Home, stringResource(R.string.dashboard_home), "01"),
-        ShellNavItemModel(YokhanShellRoute.Configuration, stringResource(R.string.menu_configuration), "02"),
-        ShellNavItemModel(YokhanShellRoute.Group, stringResource(R.string.menu_group), "03"),
-        ShellNavItemModel(YokhanShellRoute.Route, stringResource(R.string.menu_route), "04"),
-        ShellNavItemModel(YokhanShellRoute.Settings, stringResource(R.string.settings), "05"),
-        ShellNavItemModel(YokhanShellRoute.Tools, stringResource(R.string.menu_tools), "06"),
-        ShellNavItemModel(YokhanShellRoute.Logcat, stringResource(R.string.menu_log), "07"),
-        ShellNavItemModel(YokhanShellRoute.About, stringResource(R.string.menu_about), "08"),
-    )
+    return buildList {
+        add(ShellNavItemModel(YokhanShellRoute.Home, stringResource(R.string.dashboard_home), "01"))
+        add(ShellNavItemModel(YokhanShellRoute.Configuration, stringResource(R.string.menu_configuration), "02"))
+        add(ShellNavItemModel(YokhanShellRoute.Group, stringResource(R.string.menu_group), "03"))
+        add(ShellNavItemModel(YokhanShellRoute.Route, stringResource(R.string.menu_route), "04"))
+        add(ShellNavItemModel(YokhanShellRoute.Settings, stringResource(R.string.settings), "05"))
+        add(ShellNavItemModel(YokhanShellRoute.Tools, stringResource(R.string.menu_tools), "06"))
+        if (BuildConfig.DEBUG) {
+            add(ShellNavItemModel(YokhanShellRoute.Logcat, stringResource(R.string.menu_log), "07"))
+        }
+        add(ShellNavItemModel(YokhanShellRoute.About, stringResource(R.string.menu_about), if (BuildConfig.DEBUG) "08" else "07"))
+    }
 }
 
 @Composable

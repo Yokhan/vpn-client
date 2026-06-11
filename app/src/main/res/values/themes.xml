@@ -5,7 +5,7 @@
         <item name="actionModeCloseDrawable">@drawable/ic_navigation_close</item>
         <item name="colorButtonNormal">?colorAccent</item>
         <item name="android:navigationBarColor">@color/dashboard_space_bg</item>
-        <!-- YokhanVPN Design System tokens -->
+        <!-- GATES Design System tokens -->
         <item name="android:colorBackground">@color/dashboard_space_bg</item>
         <item name="android:windowBackground">@color/dashboard_space_bg</item>
         <item name="android:textColorPrimary">@color/dashboard_space_text_primary</item>
@@ -67,7 +67,7 @@
         <item name="actionModeCloseDrawable">@drawable/ic_navigation_close</item>
         <item name="colorButtonNormal">?colorAccent</item>
         <item name="android:navigationBarColor">@color/dashboard_space_bg</item>
-        <!-- YokhanVPN Design System tokens -->
+        <!-- GATES Design System tokens -->
         <item name="android:colorBackground">@color/dashboard_space_bg</item>
         <item name="android:windowBackground">@color/dashboard_space_bg</item>
         <item name="android:textColorPrimary">@color/dashboard_space_text_primary</item>

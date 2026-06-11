@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2021 Squircle IDE contributors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.yokhan.vpn.app.ui.preference
+package com.yokhan.gates.app.ui.preference
 
 import android.content.Context
 import android.graphics.Color

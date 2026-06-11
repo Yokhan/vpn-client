@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui.preference
+﻿package com.yokhan.gates.app.ui.preference
 
 import android.content.Context
 import android.content.res.Resources

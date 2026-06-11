@@ -1,12 +1,12 @@
-package com.yokhan.vpn.app.ui
+﻿package com.yokhan.gates.app.ui
 
-import com.yokhan.vpn.shared.domain.ConnectionSnapshot
-import com.yokhan.vpn.shared.domain.ConnectionStatus
-import com.yokhan.vpn.shared.domain.DashboardState
-import com.yokhan.vpn.shared.domain.DashboardStateMapper
-import com.yokhan.vpn.shared.domain.ProfileSummary
-import com.yokhan.vpn.shared.domain.TrafficSnapshot
-import com.yokhan.vpn.shared.domain.VpnProtocol
+import com.yokhan.gates.shared.domain.ConnectionSnapshot
+import com.yokhan.gates.shared.domain.ConnectionStatus
+import com.yokhan.gates.shared.domain.DashboardState
+import com.yokhan.gates.shared.domain.DashboardStateMapper
+import com.yokhan.gates.shared.domain.ProfileSummary
+import com.yokhan.gates.shared.domain.TrafficSnapshot
+import com.yokhan.gates.shared.domain.VpnProtocol
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.ProxyEntity
 

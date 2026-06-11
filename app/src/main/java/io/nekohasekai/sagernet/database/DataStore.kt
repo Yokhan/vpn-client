@@ -235,7 +235,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
 
     var appendHttpProxy by configurationStore.boolean(Key.APPEND_HTTP_PROXY)
     var enableLocalInbound by configurationStore.boolean(Key.ENABLE_LOCAL_INBOUND)
-    var stealthMode by configurationStore.boolean(Key.STEALTH_MODE)
+    var stealthMode by configurationStore.boolean(Key.STEALTH_MODE) { true }
     var enableRuBypass by configurationStore.boolean(Key.ENABLE_RU_BYPASS) { true }
     var serverExcludePackages by configurationStore.string(Key.SERVER_EXCLUDE_PACKAGES)
     var connectionTestURL by configurationStore.string(Key.CONNECTION_TEST_URL) { CONNECTION_TEST_URL }

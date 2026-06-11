@@ -40,6 +40,7 @@
 -dontwarn org.bouncycastle.jce.provider.BouncyCastleProvider
 -dontwarn org.bouncycastle.jsse.BCSSLParameters
 -dontwarn org.bouncycastle.jsse.BCSSLSocket
+-dontwarn sun.security.x509.X509Key
 -dontwarn org.bouncycastle.jsse.provider.BouncyCastleJsseProvider
 -dontwarn org.openjsse.javax.net.ssl.SSLParameters
 -dontwarn org.openjsse.javax.net.ssl.SSLSocket

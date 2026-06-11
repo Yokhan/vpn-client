@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+﻿package com.yokhan.gates.app.ui
 
 import android.os.Bundle
 import androidx.activity.compose.setContent
@@ -25,24 +25,24 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.yokhan.vpn.shared.ui.design.YokhanPalette
-import com.yokhan.vpn.shared.ui.design.YokhanSpacing
-import com.yokhan.vpn.shared.ui.design.YokhanTypography
+import com.yokhan.gates.shared.ui.design.YokhanPalette
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.shared.ui.design.YokhanTypography
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
-import com.yokhan.vpn.app.ui.compose.YokhanBody
-import com.yokhan.vpn.app.ui.compose.YokhanButtonGrid
-import com.yokhan.vpn.app.ui.compose.YokhanCaption
-import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
-import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
-import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
-import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
-import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
-import com.yokhan.vpn.shared.ui.design.YokhanRadius
+import com.yokhan.gates.app.ui.compose.YokhanBody
+import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
+import com.yokhan.gates.app.ui.compose.YokhanCaption
+import com.yokhan.gates.app.ui.compose.YokhanMonoValue
+import com.yokhan.gates.app.ui.compose.YokhanRouteAction
+import com.yokhan.gates.app.ui.compose.YokhanRouteCard
+import com.yokhan.gates.app.ui.compose.YokhanRouteFrame
+import com.yokhan.gates.app.ui.compose.yokhanOutlinedSurface
+import com.yokhan.gates.shared.ui.design.YokhanRadius
 import libcore.Libcore
 
 class StunActivity : ThemedActivity() {

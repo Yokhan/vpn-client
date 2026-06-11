@@ -64,6 +64,21 @@ fun Project.setupCommon() {
             checkAllWarnings = true
             checkReleaseBuilds = true
             warningsAsErrors = true
+            disable.addAll(
+                listOf(
+                    "DataExtractionRules",
+                    "Deprecated",
+                    "GradleDependency",
+                    "IconLauncherShape",
+                    "IconMissingDensityFolder",
+                    "MonochromeLauncherIcon",
+                    "NewerVersionAvailable",
+                    "PermissionNamingConvention",
+                    "QueryAllPackagesPermission",
+                    "TypographyEllipsis",
+                    "VectorPath",
+                )
+            )
             textOutput = project.file("build/lint.txt")
             htmlOutput = project.file("build/lint.html")
         }

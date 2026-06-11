@@ -1,9 +1,17 @@
 # Sensitive apps that should stay outside the device VPN in stealth mode.
 # Keep this list conservative: finance, identity, and high-friction commerce.
 ru.sberbankmobile
+ru.sberbank.sberbankid
 com.idamob.tinkoff.android
+ru.tinkoff.investing
+ru.tinkoff.insurance
 ru.vtb24.mobilebanking.android
 ru.alfabank.mobile.android
+ru.otpbank.mobile
+ru.gazprompay.android
 ru.gosuslugi.pos
+ru.gosuslugi.android
+ru.foodfox.client
+com.yandex.lavka
 ru.ozon.app.android
 com.wildberries.ru

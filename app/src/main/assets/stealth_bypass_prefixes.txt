@@ -1,0 +1,11 @@
+# Conservative sensitive prefixes for stealth mode.
+ru.sberbank.
+com.sberbank.
+ru.tinkoff.
+com.tbank.
+ru.vtb.
+ru.alfabank.
+ru.gazprombank.
+ru.gosuslugi.
+ru.foodfox.
+com.yandex.lavka.

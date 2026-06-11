@@ -1,8 +1,8 @@
-package com.yokhan.vpn.app.ui.profile
+﻿package com.yokhan.gates.app.ui.profile
 
-import com.yokhan.vpn.shared.ui.form.YokhanFormField
-import com.yokhan.vpn.shared.ui.form.YokhanFormSection
-import com.yokhan.vpn.shared.ui.form.YokhanFormState
+import com.yokhan.gates.shared.ui.form.YokhanFormField
+import com.yokhan.gates.shared.ui.form.YokhanFormSection
+import com.yokhan.gates.shared.ui.form.YokhanFormState
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore

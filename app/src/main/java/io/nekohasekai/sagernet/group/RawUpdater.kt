@@ -1,6 +1,7 @@
-package io.nekohasekai.sagernet.group
+﻿package io.nekohasekai.sagernet.group
 
 import android.annotation.SuppressLint
+import com.yokhan.gates.app.manifest.YokhanRouteManifestManager
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.*
 import io.nekohasekai.sagernet.fmt.AbstractBean
@@ -55,33 +56,49 @@ object RawUpdater : GroupUpdater() {
             proxies = contentText?.let { parseRaw(contentText) }
                 ?: error(app.getString(R.string.no_proxies_found_in_subscription))
         } else {
+            val manifestPayload = runCatching {
+                YokhanRouteManifestManager.rawSubscriptionPayloadFor(app, link)
+            }.onFailure {
+                Logs.w(it)
+            }.getOrNull()
+            val manifestProxies = manifestPayload?.let { payload ->
+                runCatching {
+                    parseRaw(payload) ?: error(app.getString(R.string.no_proxies_found))
+                }.onFailure {
+                    Logs.w(it)
+                }.getOrNull()
+            }
+            if (manifestProxies != null) {
+                proxies = manifestProxies
+                subscription.subscriptionUserinfo = ""
+            } else {
+                val response = Libcore.newHttpClient().apply {
+                    trySocks5(DataStore.mixedPort)
+                    tryH3Direct()
+                    when (DataStore.appTLSVersion) {
+                        "1.3" -> restrictedTLS()
+                    }
+                }.newRequest().apply {
+                    if (DataStore.allowInsecureOnRequest) {
+                        allowInsecure()
+                    }
+                    setURL(subscription.link)
+                    setUserAgent(subscription.customUserAgent.takeIf { it.isNotBlank() } ?: USER_AGENT)
+                }.execute()
+                proxies = parseRaw(Util.getStringBox(response.contentString))
+                    ?: error(app.getString(R.string.no_proxies_found))
 
-            val response = Libcore.newHttpClient().apply {
-                trySocks5(DataStore.mixedPort)
-                tryH3Direct()
-                when (DataStore.appTLSVersion) {
-                    "1.3" -> restrictedTLS()
-                }
-            }.newRequest().apply {
-                if (DataStore.allowInsecureOnRequest) {
-                    allowInsecure()
-                }
-                setURL(subscription.link)
-                setUserAgent(subscription.customUserAgent.takeIf { it.isNotBlank() } ?: USER_AGENT)
-            }.execute()
-            proxies = parseRaw(Util.getStringBox(response.contentString))
-                ?: error(app.getString(R.string.no_proxies_found))
+                subscription.subscriptionUserinfo =
+                    Util.getStringBox(response.getHeader("Subscription-Userinfo"))
 
-            subscription.subscriptionUserinfo =
-                Util.getStringBox(response.getHeader("Subscription-Userinfo"))
-
-            // 修改默认名字
-            if (proxyGroup.name?.startsWith("Subscription #") == true) {
-                var remoteName = Util.getStringBox(response.getHeader("content-disposition"))
-                if (remoteName.isNotBlank()) {
-                    remoteName = Util.decodeFilename(remoteName)
+                // дї®ж”№й»и®¤еђЌе­—
+                if (proxyGroup.name?.startsWith("Subscription #") == true) {
+                    var remoteName = Util.getStringBox(response.getHeader("content-disposition"))
                     if (remoteName.isNotBlank()) {
-                        proxyGroup.name = remoteName
+                        remoteName = Util.decodeFilename(remoteName)
+                        if (remoteName.isNotBlank()) {
+                            proxyGroup.name = remoteName
+                        }
                     }
                 }
             }
@@ -161,7 +178,7 @@ object RawUpdater : GroupUpdater() {
             if (toReplace.contains(name)) {
                 val entity = toReplace[name]!!
                 val existsBean = entity.requireBean()
-                // 更新订阅，保留自定义覆写设置
+                // ж›ґж–°и®ўй…пјЊдїќз•™и‡Єе®љд№‰и¦†е†™и®ѕзЅ®
                 bean.customOutboundJson = existsBean.customOutboundJson
                 bean.customConfigJson = existsBean.customConfigJson
                 when {

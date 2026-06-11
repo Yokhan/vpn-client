@@ -1,7 +1,8 @@
-package com.yokhan.vpn.app.ui.compose
+﻿package com.yokhan.gates.app.ui.compose
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -32,7 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -40,20 +40,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.yokhan.vpn.shared.ui.design.YokhanGreen
-import com.yokhan.vpn.shared.ui.design.YokhanMotion
-import com.yokhan.vpn.shared.ui.design.YokhanPalette
-import com.yokhan.vpn.shared.ui.design.YokhanRadius
-import com.yokhan.vpn.shared.ui.design.YokhanSpacing
-import com.yokhan.vpn.shared.ui.design.YokhanStroke
-import com.yokhan.vpn.shared.ui.design.YokhanTypography
-import com.yokhan.vpn.shared.ui.design.yokhanPalette
-import com.yokhan.vpn.shared.ui.design.yokhanTypography
+import com.yokhan.gates.shared.ui.design.YokhanGreen
+import com.yokhan.gates.shared.ui.design.YokhanMotion
+import com.yokhan.gates.shared.ui.design.YokhanPalette
+import com.yokhan.gates.shared.ui.design.YokhanRadius
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.shared.ui.design.YokhanStarfield
+import com.yokhan.gates.shared.ui.design.YokhanStroke
+import com.yokhan.gates.shared.ui.design.YokhanTypography
+import com.yokhan.gates.shared.ui.design.yokhanPalette
+import com.yokhan.gates.shared.ui.design.yokhanTypography
 
 @Immutable
 data class YokhanRouteAction(
@@ -83,7 +86,6 @@ fun YokhanRouteFrame(
     ) {
         YokhanRouteStars(
             active = spaceActive,
-            color = colors.secondary,
             modifier = Modifier.fillMaxSize(),
         )
         Column(
@@ -135,7 +137,6 @@ fun YokhanRouteLazyFrame(
     ) {
         YokhanRouteStars(
             active = spaceActive,
-            color = colors.secondary,
             modifier = Modifier.fillMaxSize(),
         )
         Column(
@@ -186,7 +187,6 @@ fun YokhanRouteSurface(
     ) {
         YokhanRouteStars(
             active = spaceActive,
-            color = colors.secondary,
             modifier = Modifier.fillMaxSize(),
         )
         Column(
@@ -683,6 +683,7 @@ private fun YokhanToggle(
         animationSpec = tween(220, easing = YokhanMotion.CssEaseOut),
         label = "route-toggle",
     )
+    val density = LocalDensity.current
     Box(
         modifier = Modifier
             .width(48.dp)
@@ -694,7 +695,7 @@ private fun YokhanToggle(
     ) {
         Box(
             modifier = Modifier
-                .offset(x = knobOffset)
+                .offset { IntOffset(with(density) { knobOffset.roundToPx() }, 0) }
                 .size(24.dp)
                 .clip(CircleShape)
                 .background(if (checked) colors.accent else colors.primary.copy(alpha = 0.78f)),
@@ -705,50 +706,17 @@ private fun YokhanToggle(
 @Composable
 private fun YokhanRouteStars(
     active: Boolean,
-    color: Color,
     modifier: Modifier = Modifier,
 ) {
-    val alpha by animateColorAsState(
-        targetValue = if (active) color.copy(alpha = 0.82f) else Color.Transparent,
+    val alpha by animateFloatAsState(
+        targetValue = if (active) 1f else 0f,
         animationSpec = tween(600, easing = YokhanMotion.CssEase),
         label = "route-stars-alpha",
     )
-    val stars = remember {
-        listOf(
-            0.07f to 0.09f,
-            0.19f to 0.22f,
-            0.43f to 0.08f,
-            0.61f to 0.19f,
-            0.91f to 0.13f,
-            0.13f to 0.43f,
-            0.35f to 0.53f,
-            0.72f to 0.47f,
-            0.88f to 0.62f,
-            0.22f to 0.81f,
-            0.55f to 0.89f,
-            0.79f to 0.77f,
+    if (active || alpha > 0.01f) {
+        YokhanStarfield(
+            modifier = modifier.alpha(alpha),
         )
-    }
-    Canvas(modifier = modifier) {
-        stars.forEachIndexed { index, star ->
-            val radius = if (index % 4 == 0) 2.0f else 1.2f
-            drawCircle(
-                color = alpha,
-                radius = radius.dp.toPx(),
-                center = Offset(size.width * star.first, size.height * star.second),
-            )
-        }
-        if (active) {
-            listOf(0.18f to 0.16f, 0.58f to 0.36f, 0.82f to 0.28f, 0.28f to 0.66f).forEach {
-                drawLine(
-                    color = alpha.copy(alpha = 0.62f),
-                    start = Offset(size.width * it.first, size.height * it.second),
-                    end = Offset(size.width * it.first, size.height * it.second + 22.dp.toPx()),
-                    strokeWidth = 1.5.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
-            }
-        }
     }
 }
 

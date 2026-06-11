@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.provider
+﻿package com.yokhan.gates.app.provider
 
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager

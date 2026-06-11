@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui.profile.binding
+﻿package com.yokhan.gates.app.ui.profile.binding
 
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat

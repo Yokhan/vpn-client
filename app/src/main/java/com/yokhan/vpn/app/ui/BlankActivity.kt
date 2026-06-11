@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+﻿package com.yokhan.gates.app.ui
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity

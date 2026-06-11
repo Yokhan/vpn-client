@@ -1,8 +1,8 @@
-package com.yokhan.vpn.app.ui
+﻿package com.yokhan.gates.app.ui
 
 import androidx.fragment.app.Fragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.yokhan.vpn.app.ui.shell.YokhanManualProfileProtocol
+import com.yokhan.gates.app.ui.shell.YokhanManualProfileProtocol
 import io.nekohasekai.sagernet.R
 
 object ProfileAddController {

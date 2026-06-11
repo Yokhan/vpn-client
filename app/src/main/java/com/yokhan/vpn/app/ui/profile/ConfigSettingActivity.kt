@@ -1,11 +1,11 @@
-package com.yokhan.vpn.app.ui.profile
+﻿package com.yokhan.gates.app.ui.profile
 
-import com.yokhan.vpn.shared.ui.form.YokhanFormField
-import com.yokhan.vpn.shared.ui.form.YokhanFormSection
-import com.yokhan.vpn.shared.ui.form.YokhanFormState
-import com.yokhan.vpn.shared.ui.form.YokhanFormTextMode
-import com.yokhan.vpn.shared.ui.form.YokhanFormValidation
-import com.yokhan.vpn.shared.ui.form.YokhanFormValidationState
+import com.yokhan.gates.shared.ui.form.YokhanFormField
+import com.yokhan.gates.shared.ui.form.YokhanFormSection
+import com.yokhan.gates.shared.ui.form.YokhanFormState
+import com.yokhan.gates.shared.ui.form.YokhanFormTextMode
+import com.yokhan.gates.shared.ui.form.YokhanFormValidation
+import com.yokhan.gates.shared.ui.form.YokhanFormValidationState
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import moe.matsuri.nb4a.proxy.config.ConfigBean

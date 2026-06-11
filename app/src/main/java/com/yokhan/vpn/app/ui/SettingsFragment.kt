@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+﻿package com.yokhan.gates.app.ui
 
 import android.os.Bundle
 import android.view.View
@@ -13,33 +13,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.preference.PreferenceDataStore
-import com.yokhan.vpn.app.provider.YokhanNetworkProviderDetector
-import com.yokhan.vpn.app.provider.YokhanNetworkProviderStatusMapper
-import com.yokhan.vpn.app.ui.compose.YokhanBody
-import com.yokhan.vpn.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.app.provider.YokhanNetworkProviderDetector
+import com.yokhan.gates.app.provider.YokhanNetworkProviderStatusMapper
+import com.yokhan.gates.app.routing.RuCompatibilityClassifier
+import com.yokhan.gates.app.ui.compose.YokhanBody
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener
 import io.nekohasekai.sagernet.ktx.needReload
-import com.yokhan.vpn.app.ui.compose.YokhanButtonGrid
-import com.yokhan.vpn.app.ui.compose.YokhanCaption
-import com.yokhan.vpn.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.vpn.app.ui.compose.YokhanDivider
-import com.yokhan.vpn.app.ui.compose.YokhanHeadline
-import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
-import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
-import com.yokhan.vpn.app.ui.compose.YokhanRouteButton
-import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
-import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
-import com.yokhan.vpn.app.ui.compose.YokhanStatusPill
-import com.yokhan.vpn.app.ui.compose.YokhanToggleRow
-import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
-import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
-import com.yokhan.vpn.app.ui.shell.YokhanShellSubRoute
-import com.yokhan.vpn.shared.domain.NetworkProviderState
-import com.yokhan.vpn.shared.domain.NetworkProviderSummary
+import io.nekohasekai.sagernet.utils.PackageCache
+import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
+import com.yokhan.gates.app.ui.compose.YokhanCaption
+import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
+import com.yokhan.gates.app.ui.compose.YokhanDivider
+import com.yokhan.gates.app.ui.compose.YokhanHeadline
+import com.yokhan.gates.app.ui.compose.YokhanMonoValue
+import com.yokhan.gates.app.ui.compose.YokhanRouteAction
+import com.yokhan.gates.app.ui.compose.YokhanRouteButton
+import com.yokhan.gates.app.ui.compose.YokhanRouteCard
+import com.yokhan.gates.app.ui.compose.YokhanRouteFrame
+import com.yokhan.gates.app.ui.compose.YokhanStatusPill
+import com.yokhan.gates.app.ui.compose.YokhanToggleRow
+import com.yokhan.gates.app.ui.shell.YokhanShellActivityRoute
+import com.yokhan.gates.app.ui.shell.YokhanShellRoute
+import com.yokhan.gates.app.ui.shell.YokhanShellSubRoute
+import com.yokhan.gates.shared.domain.NetworkProviderState
+import com.yokhan.gates.shared.domain.NetworkProviderSummary
 
 class SettingsFragment : YokhanComposeRouteFragment(),
     OnPreferenceDataStoreChangeListener {
@@ -100,7 +102,7 @@ class SettingsFragment : YokhanComposeRouteFragment(),
                     colors = colors,
                     typography = typography,
                 )
-                com.yokhan.vpn.app.ui.compose.YokhanBody(
+                com.yokhan.gates.app.ui.compose.YokhanBody(
                     text = state?.serviceModeSummary ?: "",
                     colors = colors,
                     typography = typography,
@@ -237,6 +239,20 @@ class SettingsFragment : YokhanComposeRouteFragment(),
                     modifier = Modifier.padding(top = 4.dp),
                 )
                 YokhanMonoValue(
+                    text = state?.ruCompatibilityValue ?: "--",
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 13.dp),
+                    sizeSp = 12,
+                    maxLines = 2,
+                )
+                YokhanCaption(
+                    text = stringResource(R.string.settings_ru_compatibility),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                YokhanMonoValue(
                     text = state?.dnsSummaryValue ?: "--",
                     colors = colors,
                     typography = typography,
@@ -295,6 +311,14 @@ class SettingsFragment : YokhanComposeRouteFragment(),
                             },
                         ),
                         YokhanRouteAction(
+                            title = stringResource(R.string.settings_ru_compatibility),
+                            onClick = {
+                                (activity as? MainActivity)?.openActivityRoute(
+                                    YokhanShellActivityRoute.RuCompatibility,
+                                )
+                            },
+                        ),
+                        YokhanRouteAction(
                             title = stringResource(R.string.settings_open_routes),
                             onClick = { (activity as? MainActivity)?.displayRoute(YokhanShellRoute.Route) },
                         ),
@@ -337,6 +361,7 @@ class SettingsFragment : YokhanComposeRouteFragment(),
                 shellPackageName = context.packageName,
             ).detect(),
         )
+        val compatibilitySummary = compatibilitySummary(context)
         settingsState.value = SettingsUiState(
             serviceModeValue = getString(
                 if (isVpnMode) R.string.service_mode_vpn else R.string.service_mode_proxy
@@ -366,6 +391,7 @@ class SettingsFragment : YokhanComposeRouteFragment(),
                     R.string.settings_proxy_apps_disabled
                 }
             ),
+            ruCompatibilityValue = compatibilitySummary,
             dnsSummaryValue = getString(
                 R.string.settings_dns_summary_value,
                 DataStore.remoteDns,
@@ -402,6 +428,26 @@ class SettingsFragment : YokhanComposeRouteFragment(),
             }
         }
         (activity as? MainActivity)?.refreshNavMenu(DataStore.enableClashAPI && !enabled)
+    }
+
+    private fun compatibilitySummary(context: android.content.Context): String {
+        val classifier = RuCompatibilityClassifier(context)
+        val ruleCount = classifier.countRules()
+        val installedPackages = runCatching {
+            PackageCache.installedPackages.keys.filterNot { it == context.packageName }
+        }.getOrDefault(emptyList())
+        val directCount = if (installedPackages.isEmpty()) {
+            0
+        } else {
+            classifier.directPackages(installedPackages).size
+        }
+        return getString(
+            R.string.settings_ru_compatibility_summary,
+            directCount,
+            installedPackages.size,
+            ruleCount.exactDirect,
+            ruleCount.prefixDirect,
+        )
     }
 
     private fun NetworkProviderSummary.titleText(): String {
@@ -466,6 +512,7 @@ class SettingsFragment : YokhanComposeRouteFragment(),
         val directSpeed: Boolean,
         val autoConnect: Boolean,
         val appRoutingValue: String,
+        val ruCompatibilityValue: String,
         val dnsSummaryValue: String,
         val networkSummaryValue: String,
         val advancedSummaryValue: String,

@@ -1,14 +1,14 @@
-package com.yokhan.vpn.app.provider
+﻿package com.yokhan.gates.app.provider
 
-import com.yokhan.vpn.shared.domain.CertificateFingerprint
+import com.yokhan.gates.shared.domain.CertificateFingerprint
 import io.nekohasekai.sagernet.BuildConfig
 
 object YokhanNetworkProviderContract {
-    const val ROLE = "com.yokhan.vpn.provider.NETWORK_PROVIDER"
-    const val ACTION_STATUS = "com.yokhan.vpn.provider.action.STATUS"
-    const val ACTION_CONNECT = "com.yokhan.vpn.provider.action.CONNECT"
-    const val ACTION_DISCONNECT = "com.yokhan.vpn.provider.action.DISCONNECT"
-    const val EXTRA_PROFILE_ID = "com.yokhan.vpn.provider.extra.PROFILE_ID"
+    const val ROLE = "com.yokhan.gates.provider.NETWORK_PROVIDER"
+    const val ACTION_STATUS = "com.yokhan.gates.provider.action.STATUS"
+    const val ACTION_CONNECT = "com.yokhan.gates.provider.action.CONNECT"
+    const val ACTION_DISCONNECT = "com.yokhan.gates.provider.action.DISCONNECT"
+    const val EXTRA_PROFILE_ID = "com.yokhan.gates.provider.extra.PROFILE_ID"
 
     val externalPackage: String = BuildConfig.YOKHAN_PROVIDER_PACKAGE
     val monolithPackage: String = BuildConfig.APPLICATION_ID

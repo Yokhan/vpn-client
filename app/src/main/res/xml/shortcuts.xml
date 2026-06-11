@@ -7,8 +7,8 @@
         android:shortcutShortLabel="@string/quick_toggle">
         <intent
             android:action="android.intent.action.MAIN"
-            android:targetClass="com.yokhan.vpn.app.ui.QuickToggleShortcut"
-            android:targetPackage="com.buffitgates.vpnservice" />
+            android:targetClass="com.yokhan.gates.app.ui.QuickToggleShortcut"
+            android:targetPackage="com.buffit.gates" />
     </shortcut>
     <shortcut
         android:icon="@drawable/ic_qu_shadowsocks_launcher"
@@ -17,8 +17,8 @@
         android:shortcutShortLabel="@string/quick_enable">
         <intent
             android:action="android.intent.action.MAIN"
-            android:targetClass="com.yokhan.vpn.app.ui.QuickEnableShortcut"
-            android:targetPackage="com.buffitgates.vpnservice" />
+            android:targetClass="com.yokhan.gates.app.ui.QuickEnableShortcut"
+            android:targetPackage="com.buffit.gates" />
     </shortcut>
     <shortcut
         android:icon="@drawable/ic_qu_shadowsocks_launcher"
@@ -27,8 +27,8 @@
         android:shortcutShortLabel="@string/quick_disable">
         <intent
             android:action="android.intent.action.MAIN"
-            android:targetClass="com.yokhan.vpn.app.ui.QuickDisableShortcut"
-            android:targetPackage="com.buffitgates.vpnservice" />
+            android:targetClass="com.yokhan.gates.app.ui.QuickDisableShortcut"
+            android:targetPackage="com.buffit.gates" />
     </shortcut>
     <shortcut
         android:icon="@drawable/ic_qu_camera_launcher"
@@ -37,7 +37,7 @@
         android:shortcutShortLabel="@string/add_profile_methods_scan_qr_code">
         <intent
             android:action="android.intent.action.MAIN"
-            android:targetClass="com.yokhan.vpn.app.ui.ScannerActivity"
-            android:targetPackage="com.buffitgates.vpnservice" />
+            android:targetClass="com.yokhan.gates.app.ui.ScannerActivity"
+            android:targetPackage="com.buffit.gates" />
     </shortcut>
 </shortcuts>

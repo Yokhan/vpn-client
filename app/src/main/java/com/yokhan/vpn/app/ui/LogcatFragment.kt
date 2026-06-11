@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+package com.yokhan.gates.app.ui
 
 import android.os.Bundle
 import android.view.View
@@ -11,17 +11,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.yokhan.vpn.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.snackbar
-import com.yokhan.vpn.app.ui.compose.YokhanButtonGrid
-import com.yokhan.vpn.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
-import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
-import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
+import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
+import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
+import com.yokhan.gates.app.ui.compose.YokhanRouteAction
+import com.yokhan.gates.app.ui.compose.YokhanRouteCard
+import com.yokhan.gates.app.ui.compose.YokhanRouteFrame
 import libcore.Libcore
 import moe.matsuri.nb4a.utils.SendLog
 
@@ -104,7 +104,7 @@ class LogcatFragment : YokhanComposeRouteFragment() {
     private fun sendLogcat() {
         val context = requireContext()
         runOnDefaultDispatcher {
-            SendLog.sendLog(context, "YokhanVPN")
+            SendLog.sendLog(context, "GATES")
         }
     }
 }

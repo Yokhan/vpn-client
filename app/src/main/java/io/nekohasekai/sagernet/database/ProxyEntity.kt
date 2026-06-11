@@ -1,4 +1,4 @@
-package io.nekohasekai.sagernet.database
+﻿package io.nekohasekai.sagernet.database
 
 import android.content.Context
 import android.content.Intent
@@ -30,7 +30,7 @@ import io.nekohasekai.sagernet.fmt.tuic.toUri
 import io.nekohasekai.sagernet.fmt.v2ray.*
 import io.nekohasekai.sagernet.fmt.wireguard.WireGuardBean
 import io.nekohasekai.sagernet.ktx.app
-import com.yokhan.vpn.app.ui.profile.*
+import com.yokhan.gates.app.ui.profile.*
 import moe.matsuri.nb4a.SingBoxOptions.MultiplexOptions
 import moe.matsuri.nb4a.proxy.anytls.AnyTLSBean
 import moe.matsuri.nb4a.proxy.anytls.toUri
@@ -185,7 +185,7 @@ data class ProxyEntity(
         TYPE_TROJAN -> "Trojan"
         TYPE_TROJAN_GO -> "Trojan-Go"
         TYPE_MIERU -> "Mieru"
-        TYPE_NAIVE -> "Naïve"
+        TYPE_NAIVE -> "Naive"
         TYPE_HYSTERIA -> "Hysteria" + hysteriaBean!!.protocolVersion
         TYPE_SSH -> "SSH"
         TYPE_WG -> "WireGuard"

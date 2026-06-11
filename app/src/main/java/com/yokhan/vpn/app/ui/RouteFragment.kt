@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+package com.yokhan.gates.app.ui
 
 import android.os.Bundle
 import android.view.View
@@ -18,9 +18,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.yokhan.vpn.shared.ui.design.YokhanPalette
-import com.yokhan.vpn.shared.ui.design.YokhanSpacing
-import com.yokhan.vpn.shared.ui.design.YokhanTypography
+import com.yokhan.gates.shared.ui.design.YokhanPalette
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.shared.ui.design.YokhanTypography
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
@@ -30,19 +30,19 @@ import io.nekohasekai.sagernet.ktx.launchCustomTab
 import io.nekohasekai.sagernet.ktx.needReload
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
-import com.yokhan.vpn.app.ui.compose.YokhanBody
-import com.yokhan.vpn.app.ui.compose.YokhanButtonGrid
-import com.yokhan.vpn.app.ui.compose.YokhanCaption
-import com.yokhan.vpn.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.vpn.app.ui.compose.YokhanDivider
-import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
-import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
-import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
-import com.yokhan.vpn.app.ui.compose.YokhanRouteLazyFrame
-import com.yokhan.vpn.app.ui.compose.YokhanStatusPill
-import com.yokhan.vpn.app.ui.compose.YokhanToggleRow
-import com.yokhan.vpn.app.ui.compose.yokhanOutlinedSurface
-import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
+import com.yokhan.gates.app.ui.compose.YokhanBody
+import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
+import com.yokhan.gates.app.ui.compose.YokhanCaption
+import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
+import com.yokhan.gates.app.ui.compose.YokhanDivider
+import com.yokhan.gates.app.ui.compose.YokhanMonoValue
+import com.yokhan.gates.app.ui.compose.YokhanRouteAction
+import com.yokhan.gates.app.ui.compose.YokhanRouteCard
+import com.yokhan.gates.app.ui.compose.YokhanRouteLazyFrame
+import com.yokhan.gates.app.ui.compose.YokhanStatusPill
+import com.yokhan.gates.app.ui.compose.YokhanToggleRow
+import com.yokhan.gates.app.ui.compose.yokhanOutlinedSurface
+import com.yokhan.gates.app.ui.shell.YokhanShellActivityRoute
 
 class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener {
 
@@ -165,7 +165,7 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
                 actions = listOf(
                     YokhanRouteAction(
                         title = "GitHub",
-                        onClick = { requireContext().launchCustomTab("https://github.com/Yokhan/YokhanVPN") },
+                        onClick = { requireContext().launchCustomTab("https://yokhanfitness.ru/hub/gates") },
                     ),
                 ),
                 colors = colors,

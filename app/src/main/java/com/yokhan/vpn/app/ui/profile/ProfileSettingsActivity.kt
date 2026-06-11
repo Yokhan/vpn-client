@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui.profile
+﻿package com.yokhan.gates.app.ui.profile
 
 import android.annotation.SuppressLint
 import android.content.DialogInterface
@@ -42,10 +42,10 @@ import com.github.shadowsocks.plugin.fragment.AlertDialogFragment
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.yokhan.vpn.app.ui.QuickToggleShortcut
-import com.yokhan.vpn.app.ui.YokhanEditTextPreferenceDialogFragment
-import com.yokhan.vpn.app.ui.createYokhanSettingsHost
-import com.yokhan.vpn.app.widget.PasswordPreference
+import com.yokhan.gates.app.ui.QuickToggleShortcut
+import com.yokhan.gates.app.ui.YokhanEditTextPreferenceDialogFragment
+import com.yokhan.gates.app.ui.createYokhanSettingsHost
+import com.yokhan.gates.app.widget.PasswordPreference
 import io.nekohasekai.sagernet.*
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.GroupManager
@@ -56,7 +56,7 @@ import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener
 import io.nekohasekai.sagernet.fmt.AbstractBean
 import io.nekohasekai.sagernet.ktx.*
-import com.yokhan.vpn.app.ui.ThemedActivity
+import com.yokhan.gates.app.ui.ThemedActivity
 import io.nekohasekai.sagernet.widget.LinkOrContentPreference
 import io.nekohasekai.sagernet.widget.ListListener
 import kotlinx.parcelize.Parcelize

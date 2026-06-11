@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui.shell
+﻿package com.yokhan.gates.app.ui.shell
 
 import io.nekohasekai.sagernet.database.ProxyEntity
 
@@ -10,6 +10,7 @@ sealed interface YokhanShellActivityRoute {
     data class RouteEdit(val routeId: Long) : YokhanShellActivityRoute
     object RouteAssets : YokhanShellActivityRoute
     object AppManager : YokhanShellActivityRoute
+    object RuCompatibility : YokhanShellActivityRoute
     data class AddManualProfile(val protocol: YokhanManualProfileProtocol) : YokhanShellActivityRoute
     data class EditProfile(
         val profile: ProxyEntity,

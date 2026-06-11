@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui.compose
+﻿package com.yokhan.gates.app.ui.compose
 
 import android.graphics.drawable.Drawable
 import android.view.View
@@ -29,10 +29,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.yokhan.vpn.shared.ui.design.YokhanRadius
-import com.yokhan.vpn.shared.ui.design.YokhanPalette
-import com.yokhan.vpn.shared.ui.design.YokhanSpacing
-import com.yokhan.vpn.shared.ui.design.YokhanTypography
+import com.yokhan.gates.shared.ui.design.YokhanRadius
+import com.yokhan.gates.shared.ui.design.YokhanPalette
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.shared.ui.design.YokhanTypography
 import io.nekohasekai.sagernet.R
 
 @Immutable

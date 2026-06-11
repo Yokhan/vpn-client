@@ -1,4 +1,4 @@
-/*******************************************************************************
+﻿/*******************************************************************************
  *                                                                             *
  *  Copyright (C) 2017 by Max Lv <[Email0]>                          *
  *  Copyright (C) 2017 by Mygod Studio <[Email1]>  *
@@ -18,7 +18,7 @@
  *                                                                             *
  *******************************************************************************/
 
-package com.yokhan.vpn.app.ui
+package com.yokhan.gates.app.ui
 
 import android.app.Activity
 import android.content.pm.ShortcutManager

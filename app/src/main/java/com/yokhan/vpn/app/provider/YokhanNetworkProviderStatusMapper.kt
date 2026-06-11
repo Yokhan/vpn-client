@@ -1,7 +1,7 @@
-package com.yokhan.vpn.app.provider
+﻿package com.yokhan.gates.app.provider
 
-import com.yokhan.vpn.shared.domain.NetworkProviderState
-import com.yokhan.vpn.shared.domain.NetworkProviderSummary
+import com.yokhan.gates.shared.domain.NetworkProviderState
+import com.yokhan.gates.shared.domain.NetworkProviderSummary
 
 object YokhanNetworkProviderStatusMapper {
     fun toSummary(status: YokhanNetworkProviderStatus): NetworkProviderSummary {

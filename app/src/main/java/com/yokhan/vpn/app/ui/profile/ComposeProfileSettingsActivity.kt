@@ -1,16 +1,16 @@
-package com.yokhan.vpn.app.ui.profile
+﻿package com.yokhan.gates.app.ui.profile
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.yokhan.vpn.shared.ui.form.YokhanFormEvent
-import com.yokhan.vpn.shared.ui.form.YokhanFormField
-import com.yokhan.vpn.shared.ui.form.YokhanFormOption
-import com.yokhan.vpn.shared.ui.form.YokhanFormScreen
-import com.yokhan.vpn.shared.ui.form.YokhanFormState
-import com.yokhan.vpn.shared.ui.form.withFieldEvent
+import com.yokhan.gates.shared.ui.form.YokhanFormEvent
+import com.yokhan.gates.shared.ui.form.YokhanFormField
+import com.yokhan.gates.shared.ui.form.YokhanFormOption
+import com.yokhan.gates.shared.ui.form.YokhanFormScreen
+import com.yokhan.gates.shared.ui.form.YokhanFormState
+import com.yokhan.gates.shared.ui.form.withFieldEvent
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.fmt.AbstractBean
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher

@@ -1,9 +1,10 @@
-package com.yokhan.vpn.shared.domain
+﻿package com.yokhan.gates.shared.domain
 
 data class DashboardState(
     val connectionStatus: ConnectionStatus,
     val activeProfileName: String,
     val activeProfileProtocol: VpnProtocol,
+    val activeProfileProtocolLabel: String,
     val activeProfileSubtitle: String,
     val uploadRate: RateDisplay,
     val downloadRate: RateDisplay,
@@ -23,15 +24,16 @@ object DashboardStateMapper {
         val profile = snapshot.activeProfile
         return DashboardState(
             connectionStatus = snapshot.status,
-            activeProfileName = profile?.name ?: "Нет конфигурации",
+            activeProfileName = profile?.name ?: "РќРµС‚ РєРѕРЅС„РёРіСѓСЂР°С†РёРё",
             activeProfileProtocol = profile?.protocol ?: VpnProtocol.Unknown,
-            activeProfileSubtitle = profile?.subtitle() ?: "Выберите профиль",
+            activeProfileProtocolLabel = profile?.protocolLabel ?: VpnProtocol.Unknown.name.uppercase(),
+            activeProfileSubtitle = profile?.subtitle() ?: "Р’С‹Р±РµСЂРёС‚Рµ РїСЂРѕС„РёР»СЊ",
             uploadRate = RateDisplay(snapshot.traffic.uploadBytesPerSecond),
             downloadRate = RateDisplay(snapshot.traffic.downloadBytesPerSecond),
             latency = LatencyDisplay(snapshot.traffic.latencyMs),
             uploadLabel = snapshot.traffic.uploadBytesPerSecond.toRateLabel(),
             downloadLabel = snapshot.traffic.downloadBytesPerSecond.toRateLabel(),
-            latencyLabel = snapshot.traffic.latencyMs?.let { "${it} мс" } ?: "--",
+            latencyLabel = snapshot.traffic.latencyMs?.let { "${it} РјСЃ" } ?: "--",
             timerLabel = snapshot.connectedForMillis.toTimerLabel(),
             shouldAnimateSpace = snapshot.isRunning,
             canRunConnectionTest = snapshot.status == ConnectionStatus.Connected,
@@ -41,7 +43,7 @@ object DashboardStateMapper {
     }
 
     private fun ProfileSummary.subtitle(): String {
-        return subscriptionLabel?.let { "$protocolLabel · $it" } ?: protocolLabel
+        return subscriptionLabel?.let { "$protocolLabel В· $it" } ?: protocolLabel
     }
 
     private fun Long.toRateLabel(): String {

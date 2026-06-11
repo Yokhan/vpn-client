@@ -1,0 +1,18 @@
+# Broad compatibility prefixes for Russian apps that commonly break on foreign egress.
+# Exact sensitive apps still live in ru_bypass_packages.txt.
+ru.
+su.
+com.yandex.
+ru.yandex.
+com.vk.
+ru.vk.
+ru.mail.
+com.my.mail.
+com.sberbank.
+ru.sberbank.
+ru.tinkoff.
+com.tbank.
+ru.vtb.
+ru.alfabank.
+ru.gazprombank.
+ru.gosuslugi.

@@ -1,9 +1,9 @@
-package com.yokhan.vpn.app.ui.form
+﻿package com.yokhan.gates.app.ui.form
 
 import android.content.Context
-import com.yokhan.vpn.shared.ui.form.YokhanFormField
-import com.yokhan.vpn.shared.ui.form.YokhanFormOption
-import com.yokhan.vpn.shared.ui.form.YokhanFormState
+import com.yokhan.gates.shared.ui.form.YokhanFormField
+import com.yokhan.gates.shared.ui.form.YokhanFormOption
+import com.yokhan.gates.shared.ui.form.YokhanFormState
 
 internal fun Context.arrayOptions(
     entriesResId: Int,

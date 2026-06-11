@@ -1,9 +1,9 @@
-package com.yokhan.vpn.app.ui.profile
+﻿package com.yokhan.gates.app.ui.profile
 
-import com.yokhan.vpn.shared.ui.form.YokhanFormField
-import com.yokhan.vpn.shared.ui.form.YokhanFormSection
-import com.yokhan.vpn.shared.ui.form.YokhanFormState
-import com.yokhan.vpn.shared.ui.form.YokhanFormTextMode
+import com.yokhan.gates.shared.ui.form.YokhanFormField
+import com.yokhan.gates.shared.ui.form.YokhanFormSection
+import com.yokhan.gates.shared.ui.form.YokhanFormState
+import com.yokhan.gates.shared.ui.form.YokhanFormTextMode
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
@@ -145,9 +145,9 @@ class NaiveSettingsActivity : ComposeProfileSettingsActivity<NaiveBean>() {
     }
 
     override fun finish() {
-        if (DataStore.profileName == "е–µи¦Ѓж‰“ејЂйљђи—ЏеЉџиѓЅ") {
+        if (DataStore.profileName == "РµвЂ“ВµРёВ¦РѓР¶вЂ°вЂњРµСР‚Р№С™С’РёвЂ”РЏРµР‰СџРёС“Р…") {
             DataStore.isExpert = true
-        } else if (DataStore.profileName == "е–µи¦Ѓе…ій—­йљђи—ЏеЉџиѓЅ") {
+        } else if (DataStore.profileName == "РµвЂ“ВµРёВ¦РѓРµвЂ¦С–Р№вЂ”В­Р№С™С’РёвЂ”РЏРµР‰СџРёС“Р…") {
             DataStore.isExpert = false
         }
         super.finish()

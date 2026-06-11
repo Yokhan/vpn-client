@@ -1,10 +1,10 @@
-package io.nekohasekai.sagernet.widget
+﻿package io.nekohasekai.sagernet.widget
 
 import android.content.Context
 import android.util.AttributeSet
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
-import com.yokhan.vpn.app.ui.preference.SimpleMenuPreference
+import com.yokhan.gates.app.ui.preference.SimpleMenuPreference
 
 class OutboundPreference
 @JvmOverloads constructor(

@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+﻿package com.yokhan.gates.app.ui
 
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -17,8 +17,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
-import com.yokhan.vpn.shared.ui.design.YokhanPalette
-import com.yokhan.vpn.shared.ui.design.YokhanTypography
+import com.yokhan.gates.app.routing.RuCompatibilityClassifier
+import com.yokhan.gates.shared.ui.design.YokhanPalette
+import com.yokhan.gates.shared.ui.design.YokhanTypography
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -26,12 +27,12 @@ import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
-import com.yokhan.vpn.app.ui.compose.YokhanButtonGrid
-import com.yokhan.vpn.app.ui.compose.YokhanCheckboxRow
-import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
-import com.yokhan.vpn.app.ui.compose.YokhanSelectableApp
-import com.yokhan.vpn.app.ui.compose.YokhanSelectableAppsScreen
-import com.yokhan.vpn.app.ui.compose.YokhanSegmentedActions
+import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
+import com.yokhan.gates.app.ui.compose.YokhanCheckboxRow
+import com.yokhan.gates.app.ui.compose.YokhanRouteAction
+import com.yokhan.gates.app.ui.compose.YokhanSelectableApp
+import com.yokhan.gates.app.ui.compose.YokhanSelectableAppsScreen
+import com.yokhan.gates.app.ui.compose.YokhanSegmentedActions
 import io.nekohasekai.sagernet.utils.PackageCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -252,14 +253,10 @@ class AppManagerActivity : ThemedActivity() {
     }
 
     private fun bundledBypassPackages(): Set<String> {
-        val packages = mutableSetOf<String>()
-        if (DataStore.enableRuBypass) {
-            packages.addAll(loadAssetPackageList("ru_bypass_packages.txt"))
-        }
-        if (DataStore.stealthMode) {
-            packages.addAll(loadAssetPackageList("stealth_bypass_packages.txt"))
-        }
-        return packages
+        val installedPackages = apps
+            .map { it.packageName }
+            .ifEmpty { cachedApps.keys.toList() }
+        return RuCompatibilityClassifier(this).directPackages(installedPackages)
     }
 
     private fun applyBundledBypassSelections() {
@@ -349,7 +346,13 @@ class AppManagerActivity : ThemedActivity() {
     private fun applyRuBypass(enable: Boolean) {
         if (apps.isEmpty()) return
         try {
-            val ruUids = packagesToUids(loadAssetPackageList("ru_bypass_packages.txt"))
+            val ruPackages = RuCompatibilityClassifier(this).directPackages(
+                installedPackages = apps.map { it.packageName },
+                includeRuBypass = true,
+                includeStealth = false,
+                serverRules = null,
+            )
+            val ruUids = packagesToUids(ruPackages)
             selectedUids.value = if (enable) {
                 selectedUids.value + ruUids
             } else {
@@ -391,18 +394,6 @@ class AppManagerActivity : ThemedActivity() {
             }
             .setNegativeButton(R.string.no, null)
             .show()
-    }
-
-    private fun loadAssetPackageList(assetName: String): Set<String> {
-        return try {
-            NGUtil.readTextFromAssets(app, assetName)
-                .lineSequence()
-                .map { it.trim() }
-                .filter { it.isNotEmpty() && !it.startsWith("#") }
-                .toSet()
-        } catch (_: Exception) {
-            emptySet()
-        }
     }
 
     private fun getAutoProxyApps(content: String): List<String> {

@@ -1,4 +1,4 @@
-package com.yokhan.vpn.shared.domain
+﻿package com.yokhan.gates.shared.domain
 
 enum class ConnectionStatus {
     Disconnected,

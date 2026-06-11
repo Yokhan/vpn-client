@@ -1,4 +1,4 @@
-package io.nekohasekai.sagernet.bg
+﻿package io.nekohasekai.sagernet.bg
 
 import android.app.PendingIntent
 import android.app.Service
@@ -22,7 +22,7 @@ import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.ktx.app
 import io.nekohasekai.sagernet.ktx.getColorAttr
 import io.nekohasekai.sagernet.ktx.runOnMainDispatcher
-import com.yokhan.vpn.app.ui.SwitchActivity
+import com.yokhan.gates.app.ui.SwitchActivity
 import io.nekohasekai.sagernet.utils.Theme
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

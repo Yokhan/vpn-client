@@ -1,4 +1,4 @@
-package com.yokhan.vpn.shared.domain
+﻿package com.yokhan.gates.shared.domain
 
 data class RateDisplay(
     val bytesPerSecond: Long,

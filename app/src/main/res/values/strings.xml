@@ -2,9 +2,9 @@
 <resources>
     <string name="app_name" translatable="false">BUFF IT GATES</string>
     <string name="app_name_long" translatable="false">BUFF IT GATES</string>
-    <string name="app_desc">The universal proxy toolchain for Android, written in Kotlin.</string>
-    <string name="yokhan_app_desc">Private Yokhan VPN client with a shared Compose UI, Android service core, and repo-owned release pipeline.</string>
-    <string name="dashboard_home">Home</string>
+    <string name="app_desc">Частный GATES-клиент для Android.</string>
+    <string name="yokhan_app_desc">Частный GATES-клиент с Android-сервисом, общей UI-оболочкой и контролируемыми релизами.</string>
+    <string name="dashboard_home">Главная</string>
     <string name="shell_nav_home">Главная</string>
     <string name="shell_nav_configs">Конфиги</string>
     <string name="shell_nav_groups">Группы</string>
@@ -20,14 +20,14 @@
     <string name="dashboard_stopping_summary">Закрываем туннель…</string>
     <string name="dashboard_ready_without_profile">Выберите профиль для подключения</string>
     <string name="dashboard_ready_with_profile">Готов: %1$s в %2$s</string>
-    <string name="dashboard_upload">Upload</string>
-    <string name="dashboard_download">Download</string>
-    <string name="dashboard_test_connection">Test</string>
-    <string name="dashboard_active_setup">Active setup</string>
-    <string name="dashboard_service_mode">Service mode</string>
-    <string name="dashboard_active_profile">Active profile</string>
-    <string name="dashboard_active_group">Active group</string>
-    <string name="dashboard_quick_actions">Quick actions</string>
+    <string name="dashboard_upload">Отправка</string>
+    <string name="dashboard_download">Получение</string>
+    <string name="dashboard_test_connection">Проверка</string>
+    <string name="dashboard_active_setup">Текущая настройка</string>
+    <string name="dashboard_service_mode">Режим сервиса</string>
+    <string name="dashboard_active_profile">Активный профиль</string>
+    <string name="dashboard_active_group">Активная группа</string>
+    <string name="dashboard_quick_actions">Быстрые действия</string>
     <string name="dashboard_no_profile">Профиль не выбран</string>
     <string name="dashboard_speed_idle">0 В/с</string>
     <!-- Dashboard redesign strings -->
@@ -51,118 +51,129 @@
     <string name="dashboard_orb_idle">ПУСК</string>
     <string name="dashboard_status_label">СТАТУС</string>
     <string name="dashboard_system_label">СИСТЕМА · 01</string>
-    <string name="configuration_hub_title">Profiles &amp; Import</string>
-    <string name="configuration_hub_current_profile">Selected profile</string>
-    <string name="configuration_hub_current_group">Active group</string>
-    <string name="configuration_hub_profile_count">Profiles in scope</string>
-    <string name="configuration_hub_group_count_label">Available groups</string>
+    <string name="configuration_hub_title">Профили и импорт</string>
+    <string name="configuration_hub_current_profile">Выбранный профиль</string>
+    <string name="configuration_hub_current_group">Активная группа</string>
+    <string name="configuration_hub_profile_count">Профили в группе</string>
+    <string name="configuration_hub_group_count_label">Доступные группы</string>
     <plurals name="configuration_hub_group_count">
-        <item quantity="one">%d group</item>
-        <item quantity="other">%d groups</item>
+        <item quantity="one">%d группа</item>
+        <item quantity="other">%d групп</item>
     </plurals>
-    <string name="configuration_hub_group_type">Group source</string>
-    <string name="configuration_hub_group_type_local">Local group</string>
-    <string name="configuration_hub_group_type_subscription">Subscription group</string>
-    <string name="configuration_hub_profile_count_value">%1$d in current group, %2$d total</string>
-    <string name="configuration_hub_manage_title">Manage current setup</string>
-    <string name="configuration_hub_import_title">Import profiles fast</string>
-    <string name="configuration_hub_manual_title">Create manually</string>
-    <string name="configuration_hub_manage_profiles">Open profile list</string>
-    <string name="configuration_hub_manage_groups">Manage groups</string>
-    <string name="configuration_hub_manage_routes">Open routes</string>
-    <string name="configuration_hub_update_subscription">Update subscription</string>
-    <string name="configuration_hub_open_profiles">Open profiles</string>
+    <string name="configuration_hub_group_type">Источник группы</string>
+    <string name="configuration_hub_group_type_local">Локальная группа</string>
+    <string name="configuration_hub_group_type_subscription">Группа подписки</string>
+    <string name="configuration_hub_profile_count_value">%1$d в текущей группе, всего %2$d</string>
+    <string name="configuration_hub_manage_title">Управление текущей настройкой</string>
+    <string name="configuration_hub_import_title">Быстрый импорт профилей</string>
+    <string name="configuration_hub_manual_title">Создать вручную</string>
+    <string name="configuration_hub_manage_profiles">Открыть список профилей</string>
+    <string name="configuration_hub_manage_groups">Управлять группами</string>
+    <string name="configuration_hub_manage_routes">Открыть маршруты</string>
+    <string name="configuration_hub_update_subscription">Обновить подписку</string>
+    <string name="configuration_hub_open_profiles">Открыть профили</string>
     <plurals name="configuration_hub_imported_profiles">
-        <item quantity="one">Imported %d profile into the active group.</item>
-        <item quantity="other">Imported %d profiles into the active group.</item>
+        <item quantity="one">Импортирован %d профиль в активную группу.</item>
+        <item quantity="other">Импортировано %d профилей в активную группу.</item>
     </plurals>
-    <string name="configuration_hub_open_all_protocols">More profile types</string>
-    <string name="settings_advanced_title">All settings</string>
-    <string name="settings_service_mode_card_title">Service mode</string>
-    <string name="settings_quick_switches_title">Quick switches</string>
-    <string name="settings_runtime_title">Routing and runtime</string>
-    <string name="settings_advanced_title_card">Advanced entry points</string>
-    <string name="settings_provider_card_title">Network provider</string>
-    <string name="settings_provider_title_monolith">Current APK is the network provider</string>
-    <string name="settings_provider_title_ready">External provider is ready</string>
-    <string name="settings_provider_title_missing">Provider is not installed</string>
-    <string name="settings_provider_title_untrusted">Provider is not trusted</string>
-    <string name="settings_provider_title_outdated">Provider update is required</string>
+    <string name="configuration_hub_open_all_protocols">Еще типы профилей</string>
+    <string name="settings_advanced_title">Все настройки</string>
+    <string name="settings_service_mode_card_title">Режим сервиса</string>
+    <string name="settings_quick_switches_title">Быстрые переключатели</string>
+    <string name="settings_runtime_title">Маршрутизация и runtime</string>
+    <string name="settings_advanced_title_card">Расширенные разделы</string>
+    <string name="settings_provider_card_title">Сетевой провайдер</string>
+    <string name="settings_provider_title_monolith">Текущий APK управляет сетью</string>
+    <string name="settings_provider_title_ready">Внешний провайдер готов</string>
+    <string name="settings_provider_title_missing">Провайдер не установлен</string>
+    <string name="settings_provider_title_untrusted">Провайдер не доверенный</string>
+    <string name="settings_provider_title_outdated">Нужно обновить провайдер</string>
     <string name="settings_provider_state_monolith">MONOLITH</string>
     <string name="settings_provider_state_ready">READY</string>
     <string name="settings_provider_state_missing">MISSING</string>
     <string name="settings_provider_state_untrusted">BLOCKED</string>
     <string name="settings_provider_state_outdated">OLD</string>
-    <string name="settings_provider_summary_monolith">This test build still uses the built-in network runtime. The external signed provider can be enabled after device QA.</string>
-    <string name="settings_provider_summary_ready">Package %1$s is installed and signed with the trusted certificate.</string>
-    <string name="settings_provider_summary_missing">Expected provider package is not installed. Checked: %1$s.</string>
-    <string name="settings_provider_summary_untrusted">Package %1$s is installed, but its signing certificate is not accepted. Connection must stay blocked for this provider.</string>
-    <string name="settings_provider_summary_outdated">Package %1$s is installed, but its version is older than the required provider version.</string>
-    <string name="settings_provider_details_value">Package: %1$s\nVersion: %2$s\nCert: %3$s</string>
-    <string name="settings_provider_details_label">Package / version / signing certificate</string>
-    <string name="settings_provider_recheck">Recheck provider</string>
-    <string name="settings_switch_to_proxy">Switch to Proxy only</string>
-    <string name="settings_switch_to_vpn">Switch to VPN</string>
-    <string name="settings_service_mode_vpn_summary">Tunnel all configured traffic through Android VPN mode.</string>
-    <string name="settings_service_mode_proxy_summary">Expose only local proxy ports and skip VPN mode.</string>
-    <string name="settings_proxy_apps_enabled">Per-app routing rules enabled</string>
-    <string name="settings_proxy_apps_disabled">All apps follow the main routing mode</string>
-    <string name="settings_dns_summary_value">Remote: %1$s\nDirect: %2$s</string>
-    <string name="settings_network_summary_value">DNS routing %1$s | FakeDNS %2$s | LAN access %3$s</string>
-    <string name="settings_advanced_summary_value">Local inbound %1$s | Clash API %2$s</string>
-    <string name="settings_manage_apps">Manage apps</string>
-    <string name="settings_open_routes">Open routes</string>
-    <string name="settings_open_advanced">Open all settings</string>
-    <string name="settings_stealth_title">Stealth mode</string>
-    <string name="settings_stealth_summary">Turns off local proxy surfaces and sensitive side channels.</string>
-    <string name="settings_direct_speed_title">Show direct speed</string>
-    <string name="settings_direct_speed_summary">Expose direct traffic speed beside proxy traffic in notifications.</string>
-    <string name="settings_auto_connect_title">Auto connect on reboot</string>
-    <string name="settings_auto_connect_summary">Restore the previous running state after reboot or app update.</string>
-    <string name="settings_dns_title">DNS setup</string>
-    <string name="settings_apps_title">App routing</string>
-    <string name="settings_network_title">Network surfaces</string>
-    <string name="group_hub_title">Groups</string>
-    <string name="group_hub_overview_title">Group overview</string>
-    <string name="group_hub_totals_title">Inventory</string>
-    <string name="group_hub_profile_inventory">Profiles</string>
-    <string name="group_hub_actions_title">Quick actions</string>
-    <string name="group_hub_open_list">Open group list</string>
-    <string name="group_hub_update_all">Update all subscriptions</string>
-    <string name="group_hub_open_profiles">Open profiles</string>
-    <string name="group_hub_no_subscription_groups">No subscription groups available.</string>
+    <string name="settings_provider_summary_monolith">Эта тестовая сборка пока использует встроенный сетевой runtime. Внешний подписанный провайдер можно включать после QA на устройстве.</string>
+    <string name="settings_provider_summary_ready">Пакет %1$s установлен и подписан доверенным сертификатом.</string>
+    <string name="settings_provider_summary_missing">Ожидаемый пакет провайдера не установлен. Проверено: %1$s.</string>
+    <string name="settings_provider_summary_untrusted">Пакет %1$s установлен, но его сертификат не принят. Подключение через этот провайдер должно оставаться заблокированным.</string>
+    <string name="settings_provider_summary_outdated">Пакет %1$s установлен, но его версия старее требуемой.</string>
+    <string name="settings_provider_details_value">Пакет: %1$s\nВерсия: %2$s\nСертификат: %3$s</string>
+    <string name="settings_provider_details_label">Пакет / версия / сертификат подписи</string>
+    <string name="settings_provider_recheck">Проверить провайдер</string>
+    <string name="settings_switch_to_proxy">Только Proxy</string>
+    <string name="settings_switch_to_vpn">GATES-режим</string>
+    <string name="settings_service_mode_vpn_summary">Пускать настроенный трафик через GATES.</string>
+    <string name="settings_service_mode_proxy_summary">Открыть только локальные proxy-порты без GATES.</string>
+    <string name="settings_proxy_apps_enabled">Правила по приложениям включены</string>
+    <string name="settings_proxy_apps_disabled">Все приложения идут по основному режиму</string>
+    <string name="settings_dns_summary_value">Удаленный: %1$s\nПрямой: %2$s</string>
+    <string name="settings_network_summary_value">DNS-маршрутизация %1$s | FakeDNS %2$s | доступ LAN %3$s</string>
+    <string name="settings_advanced_summary_value">Локальный inbound %1$s | Clash API %2$s</string>
+    <string name="settings_manage_apps">Управлять приложениями</string>
+    <string name="settings_ru_compatibility">RU-совместимость</string>
+    <string name="settings_ru_compatibility_summary">%1$d из %2$d установленных приложений напрямую | %3$d точных правил | %4$d префиксов</string>
+    <string name="settings_open_routes">Открыть маршруты</string>
+    <string name="settings_open_advanced">Открыть все настройки</string>
+    <string name="settings_stealth_title">Скрытый режим</string>
+    <string name="settings_stealth_summary">Отключает локальные proxy-поверхности и чувствительные побочные каналы.</string>
+    <string name="settings_direct_speed_title">Показывать прямую скорость</string>
+    <string name="settings_direct_speed_summary">Показывает скорость прямого трафика рядом с proxy-трафиком в уведомлениях.</string>
+    <string name="settings_auto_connect_title">Автоподключение после перезагрузки</string>
+    <string name="settings_auto_connect_summary">Восстанавливает предыдущее рабочее состояние после перезагрузки или обновления приложения.</string>
+    <string name="settings_dns_title">Настройка DNS</string>
+    <string name="settings_apps_title">Маршрутизация приложений</string>
+    <string name="settings_network_title">Сетевые поверхности</string>
+    <string name="ru_compatibility_title">RU-совместимость</string>
+    <string name="ru_compatibility_overview">Решения маршрутизации</string>
+    <string name="ru_compatibility_overview_value">Прямые приложения: %1$d / %2$d\nТочные правила: %3$d\nПрефиксные правила: %4$d</string>
+    <string name="ru_compatibility_overview_summary">Прямой режим означает, что приложение остается вне GATES. Это уменьшает конфликты с банками, доставками, маркетплейсами и приложениями с проверкой личности. Маршрутизация сайтов в браузере остается на стороне серверного split routing.</string>
+    <string name="ru_compatibility_direct">DIRECT</string>
+    <string name="ru_compatibility_tunnel">TUNNEL</string>
+    <string name="ru_compatibility_reason_exact">Совпало точное правило пакета: %1$s</string>
+    <string name="ru_compatibility_reason_prefix">Совпало правило префикса пакета: %1$s</string>
+    <string name="ru_compatibility_reason_default">Правило совместимости не найдено. Приложение идет по обычному tunnel-режиму.</string>
+    <string name="group_hub_title">Группы</string>
+    <string name="group_hub_overview_title">Обзор группы</string>
+    <string name="group_hub_totals_title">Инвентарь</string>
+    <string name="group_hub_profile_inventory">Профили</string>
+    <string name="group_hub_actions_title">Быстрые действия</string>
+    <string name="group_hub_open_list">Открыть список групп</string>
+    <string name="group_hub_update_all">Обновить все подписки</string>
+    <string name="group_hub_open_profiles">Открыть профили</string>
+    <string name="group_hub_no_subscription_groups">Группы подписок не найдены.</string>
     <plurals name="group_hub_group_totals">
-        <item quantity="one">%1$d group: %2$d local, %3$d subscription</item>
-        <item quantity="other">%1$d groups: %2$d local, %3$d subscriptions</item>
+        <item quantity="one">%1$d группа: локальных %2$d, подписок %3$d</item>
+        <item quantity="other">%1$d групп: локальных %2$d, подписок %3$d</item>
     </plurals>
     <plurals name="group_hub_profile_totals">
-        <item quantity="one">%d profile across all groups</item>
-        <item quantity="other">%d profiles across all groups</item>
+        <item quantity="one">%d профиль во всех группах</item>
+        <item quantity="other">%d профилей во всех группах</item>
     </plurals>
-    <string name="route_hub_title">Routes</string>
-    <string name="route_hub_overview_title">Route overview</string>
-    <string name="route_hub_rule_totals_title">Rules</string>
-    <string name="route_hub_asset_totals_title">Assets</string>
-    <string name="route_hub_actions_title">Quick actions</string>
-    <string name="route_hub_open_list">Open route list</string>
+    <string name="route_hub_title">Маршруты</string>
+    <string name="route_hub_overview_title">Обзор маршрутов</string>
+    <string name="route_hub_rule_totals_title">Правила</string>
+    <string name="route_hub_asset_totals_title">Наборы правил</string>
+    <string name="route_hub_actions_title">Быстрые действия</string>
+    <string name="route_hub_open_list">Открыть список маршрутов</string>
     <plurals name="route_hub_rule_totals">
-        <item quantity="one">%1$d routing rule, %2$d enabled</item>
-        <item quantity="other">%1$d routing rules, %2$d enabled</item>
+        <item quantity="one">%1$d правило маршрутизации, включено %2$d</item>
+        <item quantity="other">%1$d правил маршрутизации, включено %2$d</item>
     </plurals>
     <plurals name="route_hub_asset_totals">
-        <item quantity="one">%d route asset available</item>
-        <item quantity="other">%d route assets available</item>
+        <item quantity="one">Доступен %d набор правил</item>
+        <item quantity="other">Доступно %d наборов правил</item>
     </plurals>
-    <string name="project">Project</string>
-    <string name="github">Source code</string>
-    <string name="telegram">Telegram update channel</string>
-    <string name="oss_licenses">Open source licenses</string>
+    <string name="project">Проект</string>
+    <string name="github">Исходный код</string>
+    <string name="telegram">Telegram-канал обновлений</string>
+    <string name="oss_licenses">Open source лицензии</string>
     <string name="app_version">Version</string>
     <string name="version_x">Version (%s)</string>
     <string name="logcat">Export debug information</string>
-    <string name="menu_configuration">Configuration</string>
-    <string name="menu_group">Group</string>
-    <string name="menu_about">About</string>
+    <string name="menu_configuration">Конфигурации</string>
+    <string name="menu_group">Группы</string>
+    <string name="menu_about">О приложении</string>
     <string name="theme">Theme</string>
     <string name="document">Document</string>
     <string name="group_default">Ungrouped</string>
@@ -203,7 +214,7 @@
     <!-- misc -->
     <string name="service_mode">Service Mode</string>
     <string name="service_mode_proxy">Proxy only</string>
-    <string name="service_mode_vpn" translatable="false">VPN</string>
+    <string name="service_mode_vpn" translatable="false">GATES</string>
     <string name="port_proxy">Proxy Port</string>
     <string name="port_http">HTTP Proxy Port</string>
     <string name="port_transproxy">Transproxy Port</string>
@@ -289,8 +300,8 @@
     <string name="prefer">Prefer</string>
     <string name="only">Only</string>
     <string name="metered">Metered Hint</string>
-    <string name="metered_summary">Hint system to treat VPN as metered</string>
-    <string name="menu_route">Route</string>
+    <string name="metered_summary">Hint system to treat GATES as metered</string>
+    <string name="menu_route">Маршруты</string>
     <string name="route_add">Create Route</string>
     <string name="delete_route_prompt">Are you sure you want to remove this route?</string>
     <string name="route_name">Route Name</string>
@@ -327,10 +338,10 @@
         productive. If the server does not support it, you will not be able to access the Internet.</string>
     <string name="mux_concurrency">Mux Concurrent Connections</string>
     <string name="tcp_keep_alive_interval">TCP keep active packet delivery interval</string>
-    <string name="proxied_apps">Apps VPN mode</string>
-    <string name="proxied_apps_summary">Configure VPN mode for selected apps</string>
+    <string name="proxied_apps">Apps GATES mode</string>
+    <string name="proxied_apps_summary">Configure GATES mode for selected apps</string>
     <string name="stealth_mode">Stealth Mode</string>
-    <string name="stealth_mode_summary">Turn off local proxy surfaces and keep bundled sensitive apps outside the VPN</string>
+    <string name="stealth_mode_summary">Turn off local proxy surfaces and keep bundled sensitive apps outside GATES</string>
     <string name="on">On</string>
     <string name="off">Off</string>
     <string name="search_apps">Search…</string>
@@ -345,7 +356,7 @@
     <string name="direct_boot_aware_summary">Your selected profile information will be less
         protected</string>
     <!-- notification category -->
-    <string name="service_vpn">VPN Service</string>
+    <string name="service_vpn">GATES Service</string>
     <string name="service_proxy">Proxy Service</string>
     <string name="forward_success">Proxy started.</string>
     <string name="invalid_server">Invalid server name</string>
@@ -353,15 +364,15 @@
     <string name="stop">Stop</string>
     <string name="stopping">Shutting down…</string>
     <string name="vpn_error">%s</string>
-    <string name="vpn_permission_denied">Permission denied to create a VPN service</string>
-    <string name="reboot_required">Failed to start VPN service. You might need to reboot your
+    <string name="vpn_permission_denied">Permission denied to create a GATES service</string>
+    <string name="reboot_required">Failed to start GATES service. You might need to reboot your
         device.</string>
     <!-- alert category -->
     <string name="profile_empty">Please select a profile</string>
     <string name="connect">Connect</string>
     <string name="clipboard_empty">Clipboard is empty</string>
     <!-- menu category -->
-    <string name="settings">Settings</string>
+    <string name="settings">Настройки</string>
     <string name="edit">Edit</string>
     <string name="share">Share</string>
     <string name="add_profile">Add Profile</string>
@@ -493,8 +504,8 @@
     <string name="connection_test_unreachable">Unreachable</string>
     <string name="connection_test_timeout">Timeout</string>
     <string name="enable_local_inbound">Enable local proxy</string>
-    <string name="enable_local_inbound_sum">Start SOCKS5/HTTP proxy on localhost (detectable by apps scanning for VPN)</string>
-    <string name="append_http_proxy">Append HTTP Proxy to VPN</string>
+    <string name="enable_local_inbound_sum">Start SOCKS5/HTTP proxy on localhost (detectable by apps scanning for GATES)</string>
+    <string name="append_http_proxy">Append HTTP Proxy to GATES</string>
     <string name="append_http_proxy_sum">HTTP proxy will be used directly from (browser/ some
         supported apps), without going through the virtual NIC device (Android 10+)</string>
     <string name="protocol_settings">Protocol Settings</string>
@@ -535,7 +546,7 @@
         cannot be found. Unsupported profiles will be ignored.</string>
     <string name="service_subscription">Subscription Update Service</string>
     <string name="subscription_update">Subscription Update</string>
-    <string name="subscription_update_message">Updating %s …</string>
+    <string name="subscription_update_message">Updating %s…</string>
     <string name="group_filter">Filter</string>
     <string name="subscription_used">%s Used</string>
     <string name="subscription_traffic">%1$s Used / %2$s Remaining</string>
@@ -591,7 +602,7 @@
     <string name="app_no_launcher">The app has no interface.</string>
     <string name="route_for">Rule for %s</string>
 
-    <string name="route_need_vpn">Routing rule %s relies on the VPN to be in effect, so it is
+    <string name="route_need_vpn">Routing rule %s relies on GATES to be in effect, so it is
         ignored.</string>
 
     <string name="profile_traffic_statistics">Profile Traffic Statistics</string>
@@ -604,9 +615,9 @@
     <string name="ssh_private_key">Private Key</string>
     <string name="ssh_private_key_passphrase">Private Key Passphrase</string>
     <string name="translate_platform">Translate Platform</string>
-    <string name="menu_tools">Tools</string>
-    <string name="menu_log">Logs</string>
-    <string name="clear_logcat">Clear Logcat</string>
+    <string name="menu_tools">Инструменты</string>
+    <string name="menu_log">Логи</string>
+    <string name="clear_logcat">Очистить логи</string>
     <string name="wireguard_local_address">Local Address</string>
     <string name="wireguard_public_key">Peer Public Key</string>
     <string name="wireguard_psk">Peer Pre-Shared Key</string>
@@ -632,27 +643,39 @@
         Using it in an insecure way defeats its purpose. \n\nIf you must use this, try N=2 first to
         see if it solves your issues. Strongly recommend against using more than 4 connections here.</string>
 
-    <string name="stun_test">NAT behaviour discovery</string>
-    <string name="stun_test_summary">Determine the client\'s NAT mapping behaviour and the NAT
-        filtering behaviour defined in RFC 3478 using STUN.</string>
-    <string name="start">Start</string>
-    <string name="stun_attest_loading">This may take a few minutes…</string>
-    <string name="nat_stun_server_hint">Stun server</string>
-    <string name="nat_result_hint">NAT check result</string>
-    <string name="tools_network">Network</string>
+    <string name="stun_test">Проверка NAT</string>
+    <string name="stun_test_summary">Определяет поведение NAT mapping и NAT filtering через STUN.</string>
+    <string name="start">Запустить</string>
+    <string name="stun_attest_loading">Это может занять несколько минут…</string>
+    <string name="nat_stun_server_hint">STUN-сервер</string>
+    <string name="nat_result_hint">Результат NAT-проверки</string>
+    <string name="tools_network">Сеть</string>
+    <string name="diagnostics_title">Диагностика</string>
+    <string name="diagnostics_summary_idle">Собирает активный профиль, порядок маршрутов, состояние подписки и сетевые пробы через текущий туннель.</string>
+    <string name="diagnostics_summary_running">Диагностика выполняется…</string>
+    <string name="diagnostics_summary_done">Последний отчет: %s</string>
+    <string name="diagnostics_run">Запустить</string>
+    <string name="diagnostics_share">Поделиться отчетом</string>
+    <string name="diagnostics_report_empty">Сначала запустите диагностику.</string>
+    <string name="diagnostics_report_ready">Диагностический отчет готов.</string>
+    <string name="bug_report_title">Сообщить об ошибке</string>
+    <string name="bug_report_hint">Что не работает?</string>
+    <string name="bug_report_send">Отправить отчет</string>
+    <string name="bug_report_default_message">Пользователь отправил отчет из приложения.</string>
+    <string name="bug_report_sent">Отчет отправлен: %1$s</string>
+    <string name="bug_report_saved">Отчет сохранен локально: %1$s</string>
     <string name="mtu" translatable="false">MTU</string>
 
-    <string name="backup">Backup</string>
-    <string name="backup_groups_and_configurations">Groups and configurations</string>
-    <string name="backup_rules">Routing rules</string>
-    <string name="backup_settings">Settings</string>
-    <string name="backup_summary">If the routing settings are not backed up with configurations,
-        then custom outbounds will be lost.</string>
-    <string name="backup_not_file">Not an backup file: excepted .json, but %s</string>
-    <string name="invalid_backup_file">Invalid backup file</string>
-    <string name="backup_import">Import</string>
-    <string name="backup_import_summary">Importing will overwrite the existing data.</string>
-    <string name="backup_importing">Importing…</string>
+    <string name="backup">Резервная копия</string>
+    <string name="backup_groups_and_configurations">Группы и конфигурации</string>
+    <string name="backup_rules">Правила маршрутизации</string>
+    <string name="backup_settings">Настройки</string>
+    <string name="backup_summary">Если настройки маршрутизации не сохранить вместе с конфигурациями, пользовательские outbound-правила будут потеряны.</string>
+    <string name="backup_not_file">Это не файл резервной копии: ожидался .json, получен %s</string>
+    <string name="invalid_backup_file">Некорректный файл резервной копии</string>
+    <string name="backup_import">Импорт</string>
+    <string name="backup_import_summary">Импорт перезапишет текущие данные.</string>
+    <string name="backup_importing">Импорт…</string>
 
     <string name="packet_encoding">Packet Encoding</string>
     <string name="acquire_wake_lock">Acquire WakeLock</string>
@@ -733,6 +756,7 @@
     <string name="check_update_release">Check for release version updates</string>
     <string name="update_dialog_title">New version available</string>
     <string name="update_dialog_message">Current version: %1$s\nAvailable version: %2$s\nDo you want to download it?</string>
+    <string name="update_unknown_sources_required">Allow installing updates from this app, then run the update check again.</string>
     <string name="check_update_no">Check successful, but no updates.</string>
     <string name="reset_settings">Restore default settings</string>
     <string name="reset_settings_message">Restore default settings, but data such as nodes and groups will be retained. To completely clear data, clear application data directly in the system settings.</string>
@@ -741,4 +765,13 @@
     <string name="open_app_settings">Open System Settings</string>
     <string name="app_list_loading">Reading installed apps…</string>
     <string name="app_list_no_matches">No applications match the current filter.</string>
+    <string name="yokhan_auth_login_action">ВОЙТИ И ПОЛУЧИТЬ КОНФИГ</string>
+    <string name="yokhan_auth_not_configured">Вход не настроен в этой сборке.</string>
+    <string name="yokhan_auth_open_failed">Не удалось открыть вход.</string>
+    <string name="yokhan_auth_cancelled">Вход отменён.</string>
+    <string name="yokhan_auth_failed">Вход не прошёл.</string>
+    <string name="yokhan_auth_missing_session">Нет активной сессии.</string>
+    <string name="yokhan_auth_import_failed">Не удалось получить конфиг: %1$s</string>
+    <string name="yokhan_auth_import_success">Импортировано профилей: %1$d</string>
+    <string name="yokhan_auth_group_name">GATES App</string>
 </resources>

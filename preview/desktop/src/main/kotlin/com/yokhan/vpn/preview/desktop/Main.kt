@@ -1,4 +1,4 @@
-package com.yokhan.vpn.preview.desktop
+package com.yokhan.gates.preview.desktop
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,20 +39,20 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import com.yokhan.vpn.shared.domain.ConnectionStatus
-import com.yokhan.vpn.shared.domain.DashboardState
-import com.yokhan.vpn.shared.domain.LatencyDisplay
-import com.yokhan.vpn.shared.domain.RateDisplay
-import com.yokhan.vpn.shared.domain.VpnProtocol
-import com.yokhan.vpn.shared.ui.dashboard.DashboardProfileUiItem
-import com.yokhan.vpn.shared.ui.dashboard.DashboardUiActions
-import com.yokhan.vpn.shared.ui.dashboard.DashboardUiLabels
-import com.yokhan.vpn.shared.ui.dashboard.DashboardUiTuning
-import com.yokhan.vpn.shared.ui.dashboard.YokhanDashboardScreen
-import com.yokhan.vpn.shared.ui.form.YokhanFormEvent
-import com.yokhan.vpn.shared.ui.form.YokhanFormScreen
-import com.yokhan.vpn.shared.ui.form.withFieldEvent
-import com.yokhan.vpn.shared.ui.form.yokhanSampleProfileFormState
+import com.yokhan.gates.shared.domain.ConnectionStatus
+import com.yokhan.gates.shared.domain.DashboardState
+import com.yokhan.gates.shared.domain.LatencyDisplay
+import com.yokhan.gates.shared.domain.RateDisplay
+import com.yokhan.gates.shared.domain.VpnProtocol
+import com.yokhan.gates.shared.ui.dashboard.DashboardProfileUiItem
+import com.yokhan.gates.shared.ui.dashboard.DashboardUiActions
+import com.yokhan.gates.shared.ui.dashboard.DashboardUiLabels
+import com.yokhan.gates.shared.ui.dashboard.DashboardUiTuning
+import com.yokhan.gates.shared.ui.dashboard.YokhanDashboardScreen
+import com.yokhan.gates.shared.ui.form.YokhanFormEvent
+import com.yokhan.gates.shared.ui.form.YokhanFormScreen
+import com.yokhan.gates.shared.ui.form.withFieldEvent
+import com.yokhan.gates.shared.ui.form.yokhanSampleProfileFormState
 import java.awt.Rectangle
 import java.awt.Robot
 import java.awt.Window as AwtWindow
@@ -79,7 +79,7 @@ fun main() = application {
     val windowState = rememberWindowState(size = DpSize(960.dp, 1040.dp))
     Window(
         onCloseRequest = ::exitApplication,
-        title = "YokhanVPN Shared UI Preview",
+        title = "GATES Shared UI Preview",
         state = windowState,
     ) {
         MaterialTheme {
@@ -253,7 +253,7 @@ private fun FakeIPhoneStatusBar() {
         )
         Spacer(Modifier.weight(1f))
         Text(
-            text = "173 K/c   4G LTE   ║⋮",
+            text = "173 K/c   4G LTE   в•‘в‹®",
             color = Color(0xFF9A9AAE),
             fontFamily = FontFamily.Monospace,
             fontSize = 11.sp,
@@ -505,6 +505,7 @@ private fun previewDashboardState(
         connectionStatus = status,
         activeProfileName = "Bridge-igor",
         activeProfileProtocol = VpnProtocol.Vless,
+        activeProfileProtocolLabel = "VLESS",
         activeProfileSubtitle = "VLESS \u00B7 Subscription #1776115554141",
         uploadRate = RateDisplay(if (connected) 12_400L else 0L),
         downloadRate = RateDisplay(if (connected) 48_700L else 0L),

@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+package com.yokhan.gates.app.ui
 
 import android.Manifest.permission.POST_NOTIFICATIONS
 import android.annotation.SuppressLint
@@ -12,6 +12,7 @@ import android.view.KeyEvent
 import android.view.View
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -48,30 +49,34 @@ import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.parseProxies
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
-import com.yokhan.vpn.app.ui.compose.YokhanServiceStateConsumer
-import com.yokhan.vpn.app.ui.profile.AnyTLSSettingsActivity
-import com.yokhan.vpn.app.ui.profile.ChainSettingsActivity
-import com.yokhan.vpn.app.ui.profile.ConfigSettingActivity
-import com.yokhan.vpn.app.ui.profile.HttpSettingsActivity
-import com.yokhan.vpn.app.ui.profile.HysteriaSettingsActivity
-import com.yokhan.vpn.app.ui.profile.MieruSettingsActivity
-import com.yokhan.vpn.app.ui.profile.NaiveSettingsActivity
-import com.yokhan.vpn.app.ui.profile.SSHSettingsActivity
-import com.yokhan.vpn.app.ui.profile.ShadowTLSSettingsActivity
-import com.yokhan.vpn.app.ui.profile.ShadowsocksSettingsActivity
-import com.yokhan.vpn.app.ui.profile.SocksSettingsActivity
-import com.yokhan.vpn.app.ui.profile.TrojanGoSettingsActivity
-import com.yokhan.vpn.app.ui.profile.TrojanSettingsActivity
-import com.yokhan.vpn.app.ui.profile.TuicSettingsActivity
-import com.yokhan.vpn.app.ui.profile.VMessSettingsActivity
-import com.yokhan.vpn.app.ui.profile.WireGuardSettingsActivity
-import com.yokhan.vpn.app.ui.shell.YokhanManualProfileProtocol
-import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
-import com.yokhan.vpn.app.ui.shell.YokhanMainShell
-import com.yokhan.vpn.app.ui.shell.YokhanShellDrawerCommand
-import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
-import com.yokhan.vpn.app.ui.shell.YokhanShellSubRoute
+import com.yokhan.gates.app.auth.YokhanKeycloakAuth
+import com.yokhan.gates.app.manifest.YokhanRouteManifestManager
+import com.yokhan.gates.app.ui.compose.YokhanServiceStateConsumer
+import com.yokhan.gates.app.update.YokhanAppUpdater
+import com.yokhan.gates.app.ui.profile.AnyTLSSettingsActivity
+import com.yokhan.gates.app.ui.profile.ChainSettingsActivity
+import com.yokhan.gates.app.ui.profile.ConfigSettingActivity
+import com.yokhan.gates.app.ui.profile.HttpSettingsActivity
+import com.yokhan.gates.app.ui.profile.HysteriaSettingsActivity
+import com.yokhan.gates.app.ui.profile.MieruSettingsActivity
+import com.yokhan.gates.app.ui.profile.NaiveSettingsActivity
+import com.yokhan.gates.app.ui.profile.SSHSettingsActivity
+import com.yokhan.gates.app.ui.profile.ShadowTLSSettingsActivity
+import com.yokhan.gates.app.ui.profile.ShadowsocksSettingsActivity
+import com.yokhan.gates.app.ui.profile.SocksSettingsActivity
+import com.yokhan.gates.app.ui.profile.TrojanGoSettingsActivity
+import com.yokhan.gates.app.ui.profile.TrojanSettingsActivity
+import com.yokhan.gates.app.ui.profile.TuicSettingsActivity
+import com.yokhan.gates.app.ui.profile.VMessSettingsActivity
+import com.yokhan.gates.app.ui.profile.WireGuardSettingsActivity
+import com.yokhan.gates.app.ui.shell.YokhanManualProfileProtocol
+import com.yokhan.gates.app.ui.shell.YokhanShellActivityRoute
+import com.yokhan.gates.app.ui.shell.YokhanMainShell
+import com.yokhan.gates.app.ui.shell.YokhanShellDrawerCommand
+import com.yokhan.gates.app.ui.shell.YokhanShellRoute
+import com.yokhan.gates.app.ui.shell.YokhanShellSubRoute
 import moe.matsuri.nb4a.utils.Util
+import net.openid.appauth.AuthorizationService
 
 class MainActivity : ThemedActivity(),
     SagerConnection.Callback,
@@ -86,6 +91,15 @@ class MainActivity : ThemedActivity(),
     private var fragmentHostReady = false
     private var pendingInitialFragment = true
     private val dashboardController by lazy { DashboardController(this) }
+    private val yokhanAuthService by lazy { AuthorizationService(this) }
+    private val yokhanAuthLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            YokhanKeycloakAuth.handleAuthorizationResponse(
+                this,
+                yokhanAuthService,
+                result.data,
+            )
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,7 +115,7 @@ class MainActivity : ThemedActivity(),
                     fragmentHostView = host
                     onFragmentHostReady(host, savedInstanceState)
                 },
-                dashboardContent = { dashboardController.Content() },
+                content = { dashboardController.Content() },
             )
         }
         onBackPressedDispatcher.addCallback {
@@ -134,7 +148,7 @@ class MainActivity : ThemedActivity(),
             val checkPermission =
                 ContextCompat.checkSelfPermission(this@MainActivity, POST_NOTIFICATIONS)
             if (checkPermission != PackageManager.PERMISSION_GRANTED) {
-                //动态申请
+                //еЉЁжЂЃз”іиЇ·
                 ActivityCompat.requestPermissions(
                     this@MainActivity, arrayOf(POST_NOTIFICATIONS), 0
                 )
@@ -148,6 +162,9 @@ class MainActivity : ThemedActivity(),
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
         }
+
+        YokhanAppUpdater.checkOnLaunch(this)
+        YokhanRouteManifestManager.refreshOnLaunch(this)
     }
 
     private fun onFragmentHostReady(host: FragmentContainerView, savedInstanceState: Bundle?) {
@@ -307,7 +324,7 @@ class MainActivity : ThemedActivity(),
             }
             .setNeutralButton(android.R.string.cancel, null)
             .setNeutralButton(R.string.action_learn_more) { _, _ ->
-                launchCustomTab("https://github.com/Yokhan/YokhanVPN")
+                launchCustomTab("https://yokhanfitness.ru/hub/gates")
             }
             .show()
     }
@@ -385,6 +402,7 @@ class MainActivity : ThemedActivity(),
             }
             YokhanShellActivityRoute.RouteAssets -> Intent(this, AssetsActivity::class.java)
             YokhanShellActivityRoute.AppManager -> Intent(this, AppManagerActivity::class.java)
+            YokhanShellActivityRoute.RuCompatibility -> Intent(this, RuCompatibilityActivity::class.java)
             is YokhanShellActivityRoute.AddManualProfile -> {
                 when (route.protocol) {
                     YokhanManualProfileProtocol.Socks -> Intent(this, SocksSettingsActivity::class.java)
@@ -440,15 +458,18 @@ class MainActivity : ThemedActivity(),
             YokhanShellRoute.Settings -> displayFragment(SettingsFragment())
             YokhanShellRoute.Traffic -> displayFragment(WebviewFragment())
             YokhanShellRoute.Tools -> displayFragment(ToolsFragment())
-            YokhanShellRoute.Logcat -> displayFragment(LogcatFragment())
+            YokhanShellRoute.Logcat -> {
+                if (!BuildConfig.DEBUG) return false
+                displayFragment(LogcatFragment())
+            }
             YokhanShellRoute.Faq -> {
-                launchCustomTab("https://github.com/Yokhan/YokhanVPN")
+                launchCustomTab("https://yokhanfitness.ru/hub/gates")
                 return false
             }
 
             YokhanShellRoute.About -> displayFragment(AboutFragment())
             YokhanShellRoute.Promotion -> {
-                launchCustomTab("https://neko-box.pages.dev/喵")
+                launchCustomTab("https://neko-box.pages.dev/е–µ")
                 return false
             }
 
@@ -559,6 +580,7 @@ class MainActivity : ThemedActivity(),
     override fun onDestroy() {
         super.onDestroy()
         dashboardController.dispose()
+        yokhanAuthService.dispose()
         GroupManager.userInterface = null
         DataStore.configurationStore.unregisterChangeListener(this)
         connection.disconnect(this)
@@ -616,6 +638,16 @@ class MainActivity : ThemedActivity(),
 
     fun runConnectionTest() {
         dashboardController.runConnectionTest()
+    }
+
+    fun startYokhanLogin() {
+        YokhanKeycloakAuth.startLogin(this, yokhanAuthService, yokhanAuthLauncher)
+    }
+
+    fun onYokhanAuthImportComplete(profileCount: Int) {
+        dashboardController.refreshDashboard()
+        displayRoute(YokhanShellRoute.Home)
+        showDashboardMessage(getString(R.string.yokhan_auth_import_success, profileCount))
     }
 
     override fun runDashboardConnectionTest() {

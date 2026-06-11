@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui.preference
+﻿package com.yokhan.gates.app.ui.preference
 
 import android.content.Context
 import android.content.Intent
@@ -9,7 +9,7 @@ import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
-import com.yokhan.vpn.app.ui.profile.ConfigEditActivity
+import com.yokhan.gates.app.ui.profile.ConfigEditActivity
 
 class EditConfigPreference : Preference {
 

@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+package com.yokhan.gates.app.ui
 
 import android.app.Activity
 import android.content.Context
@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.View
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -20,32 +19,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.yokhan.vpn.shared.ui.design.YokhanSpacing
-import io.nekohasekai.sagernet.BuildConfig
+import com.yokhan.gates.app.update.YokhanAppUpdater
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
-import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.ktx.Logs
-import io.nekohasekai.sagernet.ktx.isPreview
 import io.nekohasekai.sagernet.ktx.launchCustomTab
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
-import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
-import io.nekohasekai.sagernet.ktx.runOnIoDispatcher
-import io.nekohasekai.sagernet.ktx.runOnMainDispatcher
-import com.yokhan.vpn.app.ui.compose.YokhanBody
-import com.yokhan.vpn.app.ui.compose.YokhanButtonGrid
-import com.yokhan.vpn.app.ui.compose.YokhanCaption
-import com.yokhan.vpn.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.vpn.app.ui.compose.YokhanHeadline
-import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
-import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
-import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
-import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
+import com.yokhan.gates.app.ui.compose.YokhanBody
+import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
+import com.yokhan.gates.app.ui.compose.YokhanCaption
+import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
+import com.yokhan.gates.app.ui.compose.YokhanHeadline
+import com.yokhan.gates.app.ui.compose.YokhanMonoValue
+import com.yokhan.gates.app.ui.compose.YokhanRouteAction
+import com.yokhan.gates.app.ui.compose.YokhanRouteCard
+import com.yokhan.gates.app.ui.compose.YokhanRouteFrame
 import libcore.Libcore
-import moe.matsuri.nb4a.utils.Util
-import org.json.JSONObject
 
 class AboutFragment : YokhanComposeRouteFragment() {
 
@@ -117,11 +107,15 @@ class AboutFragment : YokhanComposeRouteFragment() {
                     actions = listOf(
                         YokhanRouteAction(
                             title = stringResource(R.string.check_update_release),
-                            onClick = { checkUpdate(checkPreview = false) },
+                            onClick = {
+                                YokhanAppUpdater.checkManually(requireContext(), checkPreview = false)
+                            },
                         ),
                         YokhanRouteAction(
                             title = stringResource(R.string.check_update_preview),
-                            onClick = { checkUpdate(checkPreview = true) },
+                            onClick = {
+                                YokhanAppUpdater.checkManually(requireContext(), checkPreview = true)
+                            },
                         ),
                     ),
                     colors = colors,
@@ -141,7 +135,7 @@ class AboutFragment : YokhanComposeRouteFragment() {
                     typography = typography,
                 )
                 YokhanBody(
-                    text = "github.com/Yokhan/YokhanVPN",
+                    text = "yokhanfitness.ru/hub/gates",
                     colors = colors,
                     typography = typography,
                     modifier = Modifier.padding(top = 5.dp),
@@ -204,6 +198,7 @@ class AboutFragment : YokhanComposeRouteFragment() {
     }
 
     private fun requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
         requestIgnoreBatteryOptimizations.launch(
             Intent(
                 Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
@@ -231,61 +226,6 @@ class AboutFragment : YokhanComposeRouteFragment() {
         }
     }
 
-    private fun checkUpdate(checkPreview: Boolean) {
-        runOnIoDispatcher {
-            try {
-                val client = Libcore.newHttpClient().apply {
-                    modernTLS()
-                    trySocks5(DataStore.mixedPort)
-                }
-                val response = client.newRequest().apply {
-                    setURL(
-                        if (checkPreview) YOKHAN_PREVIEW_RELEASE_API_URL else YOKHAN_LATEST_RELEASE_API_URL
-                    )
-                }.execute()
-                val release = JSONObject(Util.getStringBox(response.contentString))
-                val releaseName = release.getString("name")
-                val releaseUrl = release.getString("html_url")
-                var haveUpdate = releaseName.isNotBlank()
-                haveUpdate = if (isPreview) {
-                    if (checkPreview) {
-                        haveUpdate && releaseName != BuildConfig.PRE_VERSION_NAME
-                    } else {
-                        haveUpdate && releaseName != BuildConfig.VERSION_NAME
-                    }
-                } else {
-                    haveUpdate && !releaseName.contains(BuildConfig.VERSION_NAME)
-                }
-                runOnMainDispatcher {
-                    if (haveUpdate) {
-                        val context = requireContext()
-                        MaterialAlertDialogBuilder(context)
-                            .setTitle(R.string.update_dialog_title)
-                            .setMessage(
-                                context.getString(
-                                    R.string.update_dialog_message,
-                                    SagerNet.appVersionNameForDisplay,
-                                    releaseName,
-                                )
-                            )
-                            .setPositiveButton(R.string.yes) { _, _ ->
-                                context.startActivity(Intent(Intent.ACTION_VIEW, releaseUrl.toUri()))
-                            }
-                            .setNegativeButton(R.string.no, null)
-                            .show()
-                    } else {
-                        Toast.makeText(requireContext(), R.string.check_update_no, Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                Logs.w(e)
-                runOnMainDispatcher {
-                    Toast.makeText(requireContext(), e.readableMessage, Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
     private data class AboutUiState(
         val appVersion: String,
         val singBoxVersion: String,
@@ -294,8 +234,6 @@ class AboutFragment : YokhanComposeRouteFragment() {
     )
 
     private companion object {
-        const val YOKHAN_REPO_URL = "https://github.com/Yokhan/YokhanVPN"
-        const val YOKHAN_LATEST_RELEASE_API_URL = "https://api.github.com/repos/Yokhan/YokhanVPN/releases/latest"
-        const val YOKHAN_PREVIEW_RELEASE_API_URL = "https://api.github.com/repos/Yokhan/YokhanVPN/releases/tags/preview"
+        const val YOKHAN_REPO_URL = "https://yokhanfitness.ru/hub/gates"
     }
 }

@@ -1,20 +1,20 @@
-package com.yokhan.vpn.app.ui.dashboard
+﻿package com.yokhan.gates.app.ui.dashboard
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
-import com.yokhan.vpn.shared.domain.ConnectionStatus
-import com.yokhan.vpn.shared.domain.DashboardState
-import com.yokhan.vpn.shared.domain.LatencyDisplay
-import com.yokhan.vpn.shared.domain.RateDisplay
-import com.yokhan.vpn.shared.domain.VpnProtocol
-import com.yokhan.vpn.shared.ui.dashboard.DashboardUiActions
-import com.yokhan.vpn.shared.ui.dashboard.DashboardUiLabels
-import com.yokhan.vpn.shared.ui.dashboard.YokhanDashboardScreen
+import com.yokhan.gates.shared.domain.ConnectionStatus
+import com.yokhan.gates.shared.domain.DashboardState
+import com.yokhan.gates.shared.domain.LatencyDisplay
+import com.yokhan.gates.shared.domain.RateDisplay
+import com.yokhan.gates.shared.domain.VpnProtocol
+import com.yokhan.gates.shared.ui.dashboard.DashboardUiActions
+import com.yokhan.gates.shared.ui.dashboard.DashboardUiLabels
+import com.yokhan.gates.shared.ui.dashboard.YokhanDashboardScreen
 import io.nekohasekai.sagernet.R
 
-typealias DashboardProfileUiItem = com.yokhan.vpn.shared.ui.dashboard.DashboardProfileUiItem
+typealias DashboardProfileUiItem = com.yokhan.gates.shared.ui.dashboard.DashboardProfileUiItem
 typealias DashboardComposeActions = DashboardUiActions
 
 @Composable
@@ -32,6 +32,7 @@ fun DashboardComposeScreen(
         actions = actions,
         modifier = modifier,
         scrollToTopSignal = scrollToTopSignal,
+        drawBackgroundEffects = false,
     )
 }
 
@@ -95,7 +96,8 @@ private fun previewState(status: ConnectionStatus): DashboardState {
         connectionStatus = status,
         activeProfileName = "Bridge-igor",
         activeProfileProtocol = VpnProtocol.Vless,
-        activeProfileSubtitle = "VLESS · Subscription #1776115554141",
+        activeProfileProtocolLabel = "VLESS",
+        activeProfileSubtitle = "VLESS В· Subscription #1776115554141",
         uploadRate = RateDisplay(if (connected) 12_400L else 0L),
         downloadRate = RateDisplay(if (connected) 48_700L else 0L),
         latency = LatencyDisplay(if (connected) 103L else null),

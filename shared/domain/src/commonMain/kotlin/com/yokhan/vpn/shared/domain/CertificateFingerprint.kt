@@ -1,4 +1,4 @@
-package com.yokhan.vpn.shared.domain
+﻿package com.yokhan.gates.shared.domain
 
 object CertificateFingerprint {
     fun normalizeSha256(value: String): String? {

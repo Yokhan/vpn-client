@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.*
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import io.nekohasekai.sagernet.Action
 import io.nekohasekai.sagernet.BootReceiver
 import io.nekohasekai.sagernet.R
@@ -143,13 +144,50 @@ class BaseService {
             if (data?.proxy?.box == null) {
                 error("core not started")
             }
-            try {
-                return Libcore.urlTest(
-                    data!!.proxy!!.box, DataStore.connectionTestURL, 3000
-                )
-            } catch (e: Exception) {
-                error(Protocols.genFriendlyMsg(e.readableMessage))
+
+            val box = data!!.proxy!!.box
+            fun testAny(name: String, urls: List<String>): Int {
+                var lastError: String? = null
+                for (url in urls.map { it.trim() }.filter { it.isNotEmpty() }.distinct()) {
+                    try {
+                        val elapsed = Libcore.urlTest(box, url, 5000)
+                        if (elapsed > 0) return elapsed
+                        lastError = "$url returned $elapsed"
+                    } catch (e: Exception) {
+                        lastError = "$url: ${e.readableMessage}"
+                    }
+                }
+                error("$name: ${lastError ?: "connection test failed"}")
             }
+
+            val serviceChecks = listOf(
+                "YouTube" to listOf(
+                    "https://www.youtube.com/generate_204",
+                    "https://www.youtube.com/robots.txt",
+                ),
+                "Instagram" to listOf(
+                    "https://www.instagram.com/robots.txt",
+                    "https://www.instagram.com/",
+                ),
+                "Telegram" to listOf(
+                    "https://telegram.org/",
+                    "https://t.me/",
+                ),
+            )
+
+            val latencies = mutableListOf<Int>()
+            val failures = mutableListOf<String>()
+            for ((name, urls) in serviceChecks) {
+                try {
+                    latencies += testAny(name, urls)
+                } catch (e: Exception) {
+                    failures += e.readableMessage
+                }
+            }
+
+            if (failures.isEmpty()) return latencies.maxOrNull() ?: 0
+            error(Protocols.genFriendlyMsg(failures.joinToString("; ")))
+
         }
 
         fun stateChanged(s: State, msg: String?) = launch {
@@ -332,22 +370,14 @@ class BaseService {
                     }
                     addAction(Action.RESET_UPSTREAM_CONNECTIONS)
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    registerReceiver(
-                        data.receiver,
-                        filter,
-                        "$packageName.SERVICE",
-                        null,
-                        Context.RECEIVER_EXPORTED
-                    )
-                } else {
-                    registerReceiver(
-                        data.receiver,
-                        filter,
-                        "$packageName.SERVICE",
-                        null
-                    )
-                }
+                ContextCompat.registerReceiver(
+                    this,
+                    data.receiver,
+                    filter,
+                    "$packageName.SERVICE",
+                    null,
+                    ContextCompat.RECEIVER_NOT_EXPORTED,
+                )
                 data.closeReceiverRegistered = true
             }
 

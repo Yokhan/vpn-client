@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+﻿package com.yokhan.gates.app.ui
 
 import android.app.Activity
 import android.content.DialogInterface
@@ -17,18 +17,18 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.github.shadowsocks.plugin.Empty
 import com.github.shadowsocks.plugin.fragment.AlertDialogFragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.yokhan.vpn.app.ui.form.arrayOptions
-import com.yokhan.vpn.app.ui.form.selectValue
-import com.yokhan.vpn.app.ui.form.textValue
-import com.yokhan.vpn.app.ui.profile.ConfigEditActivity
-import com.yokhan.vpn.shared.ui.form.YokhanFormEvent
-import com.yokhan.vpn.shared.ui.form.YokhanFormField
-import com.yokhan.vpn.shared.ui.form.YokhanFormOption
-import com.yokhan.vpn.shared.ui.form.YokhanFormScreen
-import com.yokhan.vpn.shared.ui.form.YokhanFormSection
-import com.yokhan.vpn.shared.ui.form.YokhanFormState
-import com.yokhan.vpn.shared.ui.form.YokhanFormTextMode
-import com.yokhan.vpn.shared.ui.form.withFieldEvent
+import com.yokhan.gates.app.ui.form.arrayOptions
+import com.yokhan.gates.app.ui.form.selectValue
+import com.yokhan.gates.app.ui.form.textValue
+import com.yokhan.gates.app.ui.profile.ConfigEditActivity
+import com.yokhan.gates.shared.ui.form.YokhanFormEvent
+import com.yokhan.gates.shared.ui.form.YokhanFormField
+import com.yokhan.gates.shared.ui.form.YokhanFormOption
+import com.yokhan.gates.shared.ui.form.YokhanFormScreen
+import com.yokhan.gates.shared.ui.form.YokhanFormSection
+import com.yokhan.gates.shared.ui.form.YokhanFormState
+import com.yokhan.gates.shared.ui.form.YokhanFormTextMode
+import com.yokhan.gates.shared.ui.form.withFieldEvent
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore

@@ -1,4 +1,4 @@
-package com.yokhan.vpn.shared.domain
+﻿package com.yokhan.gates.shared.domain
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,7 +16,7 @@ class DashboardStateMapperTest {
                     id = 42,
                     name = "Bridge-igor",
                     protocol = VpnProtocol.Vless,
-                    subscriptionLabel = "Подписка #1776115554141",
+                    subscriptionLabel = "РџРѕРґРїРёСЃРєР° #1776115554141",
                 ),
                 traffic = TrafficSnapshot(
                     uploadBytesPerSecond = 12_492,
@@ -30,13 +30,14 @@ class DashboardStateMapperTest {
 
         assertEquals(ConnectionStatus.Connected, state.connectionStatus)
         assertEquals("Bridge-igor", state.activeProfileName)
-        assertEquals("VLESS · Подписка #1776115554141", state.activeProfileSubtitle)
+        assertEquals("VLESS", state.activeProfileProtocolLabel)
+        assertEquals("VLESS В· РџРѕРґРїРёСЃРєР° #1776115554141", state.activeProfileSubtitle)
         assertEquals(RateDisplay(12_492), state.uploadRate)
         assertEquals(RateDisplay(49_869), state.downloadRate)
         assertEquals(LatencyDisplay(103), state.latency)
         assertEquals("12.2 KB/s", state.uploadLabel)
         assertEquals("48.7 KB/s", state.downloadLabel)
-        assertEquals("103 мс", state.latencyLabel)
+        assertEquals("103 РјСЃ", state.latencyLabel)
         assertEquals("00:01:24", state.timerLabel)
         assertTrue(state.shouldAnimateSpace)
         assertTrue(state.canRunConnectionTest)
@@ -57,8 +58,8 @@ class DashboardStateMapperTest {
             ),
         )
 
-        assertEquals("Нет конфигурации", state.activeProfileName)
-        assertEquals("Выберите профиль", state.activeProfileSubtitle)
+        assertEquals("РќРµС‚ РєРѕРЅС„РёРіСѓСЂР°С†РёРё", state.activeProfileName)
+        assertEquals("Р’С‹Р±РµСЂРёС‚Рµ РїСЂРѕС„РёР»СЊ", state.activeProfileSubtitle)
         assertEquals(RateDisplay(0), state.uploadRate)
         assertEquals(RateDisplay(0), state.downloadRate)
         assertEquals(LatencyDisplay(null), state.latency)
@@ -110,7 +111,8 @@ class DashboardStateMapperTest {
             ),
         )
 
-        assertEquals("TUIC · Manual", state.activeProfileSubtitle)
+        assertEquals("TUIC", state.activeProfileProtocolLabel)
+        assertEquals("TUIC В· Manual", state.activeProfileSubtitle)
     }
 
     @Test

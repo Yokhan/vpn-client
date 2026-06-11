@@ -1,4 +1,4 @@
-package io.nekohasekai.sagernet
+﻿package io.nekohasekai.sagernet
 
 import android.annotation.SuppressLint
 import android.app.*
@@ -23,7 +23,7 @@ import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.isOss
 import io.nekohasekai.sagernet.ktx.isPreview
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
-import com.yokhan.vpn.app.ui.MainActivity
+import com.yokhan.gates.app.ui.MainActivity
 import io.nekohasekai.sagernet.utils.*
 import kotlinx.coroutines.DEBUG_PROPERTY_NAME
 import kotlinx.coroutines.DEBUG_PROPERTY_VALUE_ON

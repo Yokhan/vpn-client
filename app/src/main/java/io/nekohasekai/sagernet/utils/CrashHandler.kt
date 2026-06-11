@@ -1,4 +1,4 @@
-package io.nekohasekai.sagernet.utils
+﻿package io.nekohasekai.sagernet.utils
 
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -10,7 +10,7 @@ import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
-import com.yokhan.vpn.app.ui.BlankActivity
+import com.yokhan.gates.app.ui.BlankActivity
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader

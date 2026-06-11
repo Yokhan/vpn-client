@@ -12,6 +12,43 @@ setupApp()
 
 val composeDashboardEnabled = true
 
+fun projectPropertyOrEnv(name: String): String {
+    return providers.gradleProperty(name)
+        .orElse(providers.environmentVariable(name))
+        .orElse("")
+        .get()
+        .trim()
+}
+
+fun booleanProjectPropertyOrEnv(name: String): Boolean {
+    return projectPropertyOrEnv(name).lowercase() in setOf("1", "true", "yes", "on")
+}
+
+fun intProjectPropertyOrEnv(name: String, defaultValue: Int): Int {
+    return projectPropertyOrEnv(name).toIntOrNull() ?: defaultValue
+}
+
+fun quotedBuildConfigString(value: String): String {
+    val escaped = value
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+    return "\"$escaped\""
+}
+
+val yokhanRouteManifestEnabled = booleanProjectPropertyOrEnv("YOKHAN_ROUTE_MANIFEST_ENABLED")
+val yokhanRouteManifestPublicKeys = projectPropertyOrEnv("YOKHAN_ROUTE_MANIFEST_PUBLIC_KEYS")
+val yokhanRouteManifestVersion = intProjectPropertyOrEnv("YOKHAN_ROUTE_MANIFEST_VERSION", 1)
+val yokhanKeycloakIssuer = projectPropertyOrEnv("YOKHAN_KEYCLOAK_ISSUER")
+    .ifBlank { "https://auth.yokhanfitness.ru/realms/yokhan" }
+val yokhanKeycloakClientId = projectPropertyOrEnv("YOKHAN_KEYCLOAK_CLIENT_ID")
+    .ifBlank { "gates-android" }
+val yokhanKeycloakRedirectScheme =
+    projectPropertyOrEnv("YOKHAN_KEYCLOAK_REDIRECT_SCHEME").ifBlank { "gates" }
+val yokhanKeycloakRedirectUri = projectPropertyOrEnv("YOKHAN_KEYCLOAK_REDIRECT_URI")
+    .ifBlank { "$yokhanKeycloakRedirectScheme://auth/callback" }
+val yokhanAppApiBaseUrl = projectPropertyOrEnv("YOKHAN_APP_API_BASE_URL")
+    .ifBlank { "https://cloak.yokhanfitness.ru" }
+
 android {
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -21,9 +58,17 @@ android {
         arg("room.schemaLocation", "$projectDir/schemas")
     }
     defaultConfig {
+        manifestPlaceholders["appAuthRedirectScheme"] = yokhanKeycloakRedirectScheme
         buildConfigField("boolean", "ENABLE_COMPOSE_DASHBOARD", composeDashboardEnabled.toString())
-        buildConfigField("String", "YOKHAN_PROVIDER_PACKAGE", "\"com.yokhan.vpn.provider\"")
+        buildConfigField("String", "YOKHAN_PROVIDER_PACKAGE", "\"com.yokhan.gates.provider\"")
         buildConfigField("String", "YOKHAN_PROVIDER_CERT_SHA256", "\"\"")
+        buildConfigField("boolean", "YOKHAN_ROUTE_MANIFEST_ENABLED", yokhanRouteManifestEnabled.toString())
+        buildConfigField("String", "YOKHAN_ROUTE_MANIFEST_PUBLIC_KEYS", quotedBuildConfigString(yokhanRouteManifestPublicKeys))
+        buildConfigField("int", "YOKHAN_ROUTE_MANIFEST_VERSION", yokhanRouteManifestVersion.toString())
+        buildConfigField("String", "YOKHAN_KEYCLOAK_ISSUER", quotedBuildConfigString(yokhanKeycloakIssuer))
+        buildConfigField("String", "YOKHAN_KEYCLOAK_CLIENT_ID", quotedBuildConfigString(yokhanKeycloakClientId))
+        buildConfigField("String", "YOKHAN_KEYCLOAK_REDIRECT_URI", quotedBuildConfigString(yokhanKeycloakRedirectUri))
+        buildConfigField("String", "YOKHAN_APP_API_BASE_URL", quotedBuildConfigString(yokhanAppApiBaseUrl))
     }
     bundle {
         language {
@@ -79,6 +124,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("com.google.code.gson:gson:2.9.0")
+    implementation("net.i2p.crypto:eddsa:0.3.0")
+    implementation("net.openid:appauth:0.11.1")
 
     implementation("com.github.jenly1314:zxing-lite:2.1.1")
     implementation("com.blacksquircle.ui:editorkit:2.6.0")

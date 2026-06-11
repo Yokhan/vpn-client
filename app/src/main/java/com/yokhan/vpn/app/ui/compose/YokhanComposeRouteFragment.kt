@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui.compose
+﻿package com.yokhan.gates.app.ui.compose
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -10,7 +10,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
-import com.yokhan.vpn.app.ui.ToolbarFragment
+import com.yokhan.gates.app.ui.ToolbarFragment
 
 interface YokhanServiceStateConsumer {
     fun onShellServiceStateChanged(state: BaseService.State)

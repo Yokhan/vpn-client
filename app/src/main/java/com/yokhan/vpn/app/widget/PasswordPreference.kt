@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.widget
+﻿package com.yokhan.gates.app.widget
 
 import android.content.Context
 import android.text.InputType

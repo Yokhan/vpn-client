@@ -1,4 +1,4 @@
-package com.yokhan.vpn.shared.ui.form
+﻿package com.yokhan.gates.shared.ui.form
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -39,17 +39,17 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.yokhan.vpn.shared.ui.design.YokhanAccent
-import com.yokhan.vpn.shared.ui.design.YokhanGreen
-import com.yokhan.vpn.shared.ui.design.YokhanMotion
-import com.yokhan.vpn.shared.ui.design.YokhanPalette
-import com.yokhan.vpn.shared.ui.design.YokhanRadius
-import com.yokhan.vpn.shared.ui.design.YokhanRed
-import com.yokhan.vpn.shared.ui.design.YokhanSpacing
-import com.yokhan.vpn.shared.ui.design.YokhanStroke
-import com.yokhan.vpn.shared.ui.design.YokhanTypography
-import com.yokhan.vpn.shared.ui.design.yokhanPalette
-import com.yokhan.vpn.shared.ui.design.yokhanTypography
+import com.yokhan.gates.shared.ui.design.YokhanAccent
+import com.yokhan.gates.shared.ui.design.YokhanGreen
+import com.yokhan.gates.shared.ui.design.YokhanMotion
+import com.yokhan.gates.shared.ui.design.YokhanPalette
+import com.yokhan.gates.shared.ui.design.YokhanRadius
+import com.yokhan.gates.shared.ui.design.YokhanRed
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.shared.ui.design.YokhanStroke
+import com.yokhan.gates.shared.ui.design.YokhanTypography
+import com.yokhan.gates.shared.ui.design.yokhanPalette
+import com.yokhan.gates.shared.ui.design.yokhanTypography
 
 @Composable
 fun YokhanFormScreen(

@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui.profile
+﻿package com.yokhan.gates.app.ui.profile
 
 import android.annotation.SuppressLint
 import android.app.Activity
@@ -33,19 +33,19 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.yokhan.vpn.shared.ui.design.yokhanPalette
-import com.yokhan.vpn.shared.ui.design.yokhanTypography
-import com.yokhan.vpn.shared.ui.form.YokhanFormEvent
-import com.yokhan.vpn.shared.ui.form.YokhanFormField
-import com.yokhan.vpn.shared.ui.form.YokhanFormSection
-import com.yokhan.vpn.shared.ui.form.YokhanFormSectionCard
+import com.yokhan.gates.shared.ui.design.yokhanPalette
+import com.yokhan.gates.shared.ui.design.yokhanTypography
+import com.yokhan.gates.shared.ui.form.YokhanFormEvent
+import com.yokhan.gates.shared.ui.form.YokhanFormField
+import com.yokhan.gates.shared.ui.form.YokhanFormSection
+import com.yokhan.gates.shared.ui.form.YokhanFormSectionCard
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.fmt.internal.ChainBean
 import io.nekohasekai.sagernet.ktx.*
-import com.yokhan.vpn.app.ui.ProfileSelectActivity
+import com.yokhan.gates.app.ui.ProfileSelectActivity
 import moe.matsuri.nb4a.Protocols.getProtocolColor
 
 class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(includeConfigurationList = true) {

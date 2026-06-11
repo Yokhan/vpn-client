@@ -1,4 +1,4 @@
-package com.yokhan.vpn.shared.ui.design
+﻿package com.yokhan.gates.shared.ui.design
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.runtime.Composable

@@ -1,8 +1,8 @@
-package io.nekohasekai.sagernet.widget
+﻿package io.nekohasekai.sagernet.widget
 
 import com.google.android.material.snackbar.Snackbar
 import io.nekohasekai.sagernet.R
-import com.yokhan.vpn.app.ui.ThemedActivity
+import com.yokhan.gates.app.ui.ThemedActivity
 
 /**
  * @param activity ThemedActivity.

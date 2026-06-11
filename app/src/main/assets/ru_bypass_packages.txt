@@ -5,6 +5,8 @@ com.idamob.tinkoff.android
 ru.tinkoff.investing
 ru.tinkoff.insurance
 ru.yandex.taxi
+ru.foodfox.client
+com.yandex.lavka
 ru.yandex.market
 ru.yandex.mobile.music
 ru.yandex.searchplugin
@@ -32,6 +34,8 @@ ru.tele2.mytele2
 ru.vtb24.mobilebanking.android
 ru.rosbank.android
 ru.raiffeisennews
+ru.otpbank.mobile
+ru.gazprompay.android
 com.avito.android
 ru.auto.ara
 ru.domclick.android

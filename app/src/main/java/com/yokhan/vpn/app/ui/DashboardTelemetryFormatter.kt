@@ -1,9 +1,9 @@
-package com.yokhan.vpn.app.ui
+﻿package com.yokhan.gates.app.ui
 
 import android.content.Context
 import android.text.format.Formatter
-import com.yokhan.vpn.shared.domain.LatencyDisplay
-import com.yokhan.vpn.shared.domain.RateDisplay
+import com.yokhan.gates.shared.domain.LatencyDisplay
+import com.yokhan.gates.shared.domain.RateDisplay
 import io.nekohasekai.sagernet.R
 
 internal object DashboardTelemetryFormatter {

@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui.profile
+﻿package com.yokhan.gates.app.ui.profile
 
 import io.nekohasekai.sagernet.fmt.trojan.TrojanBean
 

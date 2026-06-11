@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui.shell
+﻿package com.yokhan.gates.app.ui.shell
 
 enum class YokhanShellRoute {
     Home,

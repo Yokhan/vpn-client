@@ -1,7 +1,6 @@
-package com.yokhan.vpn.shared.ui.dashboard
+﻿package com.yokhan.gates.shared.ui.dashboard
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloat
@@ -50,7 +49,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -66,16 +64,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import com.yokhan.vpn.shared.domain.ConnectionStatus
-import com.yokhan.vpn.shared.domain.DashboardState
-import com.yokhan.vpn.shared.ui.design.YokhanAccent
-import com.yokhan.vpn.shared.ui.design.YokhanGreen
-import com.yokhan.vpn.shared.ui.design.YokhanMotion
-import com.yokhan.vpn.shared.ui.design.YokhanPalette
-import com.yokhan.vpn.shared.ui.design.YokhanRed
-import com.yokhan.vpn.shared.ui.design.YokhanTypography
-import com.yokhan.vpn.shared.ui.design.yokhanPalette
-import com.yokhan.vpn.shared.ui.design.yokhanTypography
+import com.yokhan.gates.shared.domain.ConnectionStatus
+import com.yokhan.gates.shared.domain.DashboardState
+import com.yokhan.gates.shared.ui.design.YokhanAccent
+import com.yokhan.gates.shared.ui.design.YokhanGreen
+import com.yokhan.gates.shared.ui.design.YokhanMotion
+import com.yokhan.gates.shared.ui.design.YokhanPalette
+import com.yokhan.gates.shared.ui.design.YokhanRed
+import com.yokhan.gates.shared.ui.design.YokhanTypography
+import com.yokhan.gates.shared.ui.design.YokhanStarfield
+import com.yokhan.gates.shared.ui.design.yokhanPalette
+import com.yokhan.gates.shared.ui.design.yokhanTypography
 import nb4a.shared_ui.generated.resources.Res
 import nb4a.shared_ui.generated.resources.ic_dashboard_spaceship
 import nb4a.shared_ui.generated.resources.ic_dashboard_spaceship_flame
@@ -118,6 +117,14 @@ data class DashboardUiTuning(
     val rocketDebugOverlay: Boolean = false,
 )
 
+@Immutable
+data class DashboardUiVisibility(
+    val showMenu: Boolean = true,
+    val showConnectionTest: Boolean = true,
+    val showAddProfile: Boolean = true,
+    val showProfileActions: Boolean = true,
+)
+
 object DashboardRocketTokens {
     const val RocketWidth = 132
     const val RocketHeight = 228
@@ -126,7 +133,7 @@ object DashboardRocketTokens {
     const val FlameMaxScale = 1.15f
     const val LeftFlameX = -10
     const val RightFlameX = 8
-    const val RocketY = -28
+    const val RocketY = -40
     const val FlameY = 177
     const val RocketHorizontalBleed = 12
     const val RocketVerticalBleed = 28
@@ -148,7 +155,7 @@ data class DashboardUiLabels(
     val disconnecting: String,
     val tapConnect: String,
     val checkConnection: String,
-    val checkingConnection: String = "ПРОВЕРКА...",
+    val checkingConnection: String = "РџР РћР’Р•Р РљРђ...",
     val configurations: String,
     val add: String,
     val firstRunTitle: String,
@@ -160,27 +167,27 @@ data class DashboardUiLabels(
 ) {
     companion object {
         val Russian = DashboardUiLabels(
-            title = "Панель управления",
-            system = "СИСТЕМА · 01",
-            currentConfig = "ТЕКУЩАЯ КОНФИГУРАЦИЯ",
-            upload = "ОТПРАВКА",
-            download = "ПОЛУЧЕНИЕ",
-            orbIdle = "ПУСК",
-            connectAction = "ПОДКЛЮЧИТЬСЯ",
-            connected = "ПОДКЛЮЧЕНО",
-            disconnected = "ОТКЛЮЧЕНО",
-            connecting = "ПОДКЛЮЧЕНИЕ",
-            disconnecting = "ОСТАНОВКА",
-            tapConnect = "Нажмите для подключения",
-            checkConnection = "ПРОВЕРИТЬ СОЕДИНЕНИЕ",
-            configurations = "КОНФИГУРАЦИИ",
-            add = "+ ДОБАВИТЬ",
-            firstRunTitle = "НЕТ КОНФИГУРАЦИЙ",
-            firstRunBody = "Импортируйте подписку, добавьте профиль вручную или откройте список конфигураций.",
-            firstRunAction = "ОТКРЫТЬ НАСТРОЙКУ",
-            latency = "ЗАДЕРЖКА",
-            status = "СТАТУС",
-            protocol = "ПРОТОКОЛ",
+            title = "РџР°РЅРµР»СЊ СѓРїСЂР°РІР»РµРЅРёСЏ",
+            system = "РЎРРЎРўР•РњРђ В· 01",
+            currentConfig = "РўР•РљРЈР©РђРЇ РљРћРќР¤РР“РЈР РђР¦РРЇ",
+            upload = "РћРўРџР РђР’РљРђ",
+            download = "РџРћР›РЈР§Р•РќРР•",
+            orbIdle = "РџРЈРЎРљ",
+            connectAction = "РџРћР”РљР›Р®Р§РРўР¬РЎРЇ",
+            connected = "РџРћР”РљР›Р®Р§Р•РќРћ",
+            disconnected = "РћРўРљР›Р®Р§Р•РќРћ",
+            connecting = "РџРћР”РљР›Р®Р§Р•РќРР•",
+            disconnecting = "РћРЎРўРђРќРћР’РљРђ",
+            tapConnect = "РќР°Р¶РјРёС‚Рµ РґР»СЏ РїРѕРґРєР»СЋС‡РµРЅРёСЏ",
+            checkConnection = "РџР РћР’Р•Р РРўР¬ РЎРћР•Р”РРќР•РќРР•",
+            configurations = "РљРћРќР¤РР“РЈР РђР¦РР",
+            add = "+ Р”РћР‘РђР’РРўР¬",
+            firstRunTitle = "РќР•Рў РљРћРќР¤РР“РЈР РђР¦РР™",
+            firstRunBody = "РРјРїРѕСЂС‚РёСЂСѓР№С‚Рµ РїРѕРґРїРёСЃРєСѓ, РґРѕР±Р°РІСЊС‚Рµ РїСЂРѕС„РёР»СЊ РІСЂСѓС‡РЅСѓСЋ РёР»Рё РѕС‚РєСЂРѕР№С‚Рµ СЃРїРёСЃРѕРє РєРѕРЅС„РёРіСѓСЂР°С†РёР№.",
+            firstRunAction = "РћРўРљР Р«РўР¬ РќРђРЎРўР РћР™РљРЈ",
+            latency = "Р—РђР”Р•Р Р–РљРђ",
+            status = "РЎРўРђРўРЈРЎ",
+            protocol = "РџР РћРўРћРљРћР›",
         )
     }
 }
@@ -196,7 +203,9 @@ fun YokhanDashboardScreen(
     actions: DashboardUiActions,
     modifier: Modifier = Modifier,
     tuning: DashboardUiTuning = DashboardUiTuning(),
+    visibility: DashboardUiVisibility = DashboardUiVisibility(),
     scrollToTopSignal: Int = 0,
+    drawBackgroundEffects: Boolean = true,
 ) {
     val connected = state.connectionStatus == ConnectionStatus.Connected
     val scrollState = rememberScrollState()
@@ -274,10 +283,10 @@ fun YokhanDashboardScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.background)
+            .background(if (drawBackgroundEffects) colors.background else Color.Transparent)
     ) {
-        if (starfieldMounted) {
-            Starfield(modifier = Modifier.fillMaxSize().alpha(spaceLayerAlpha))
+        if (drawBackgroundEffects && starfieldMounted) {
+            YokhanStarfield(modifier = Modifier.fillMaxSize().alpha(spaceLayerAlpha))
         }
 
         Column(
@@ -286,7 +295,7 @@ fun YokhanDashboardScreen(
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)),
         ) {
             Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp)) {
-                DashboardToolbar(colors, labels, typography, actions)
+                DashboardToolbar(colors, labels, typography, actions, visibility)
                 DashboardTelemetryStrip(
                     state = state,
                     connected = connected,
@@ -305,8 +314,10 @@ fun YokhanDashboardScreen(
                 CurrentConfigCard(state, colors, labels, typography)
                 LaunchPanel(state, connected, visualSpaceActive, colors, labels, typography, actions, tuning)
                 ConnectionStatusRow(state, connected, colors, labels, typography)
-                ConnectionTestButton(state, colors, labels, typography, actions, tuning)
-                ProfilesCard(profiles, colors, labels, typography, actions)
+                if (visibility.showConnectionTest) {
+                    ConnectionTestButton(state, colors, labels, typography, actions, tuning)
+                }
+                ProfilesCard(profiles, colors, labels, typography, actions, visibility)
                 Spacer(Modifier.height(40.dp))
             }
         }
@@ -324,6 +335,7 @@ private fun DashboardToolbar(
     labels: DashboardUiLabels,
     typography: DashboardTypography,
     actions: DashboardUiActions,
+    visibility: DashboardUiVisibility,
 ) {
     Row(
         modifier = Modifier
@@ -331,21 +343,25 @@ private fun DashboardToolbar(
             .padding(top = 8.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier
-                .width(40.dp)
-                .clickable(onClick = actions.onMenuClick),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            repeat(3) {
-                Box(
-                    Modifier
-                        .width(22.dp)
-                        .height(2.dp)
-                        .clip(RoundedCornerShape(1.dp))
-                        .background(colors.primary.copy(alpha = 0.58f))
-                )
+        if (visibility.showMenu) {
+            Column(
+                modifier = Modifier
+                    .width(40.dp)
+                    .clickable(onClick = actions.onMenuClick),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                repeat(3) {
+                    Box(
+                        Modifier
+                            .width(22.dp)
+                            .height(2.dp)
+                            .clip(RoundedCornerShape(1.dp))
+                            .background(colors.primary.copy(alpha = 0.58f))
+                    )
+                }
             }
+        } else {
+            Spacer(Modifier.width(40.dp))
         }
         Text(
             text = labels.title,
@@ -443,9 +459,9 @@ private fun LaunchPanel(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        SpeedPanel(labels.upload, state.uploadLabel, "↑", colors, typography, false)
+        SpeedPanel(labels.upload, state.uploadLabel, "в†‘", colors, typography, false)
         OrbScene(state.connectionStatus, connected, running, colors, labels, typography, actions.onToggleConnection, tuning)
-        SpeedPanel(labels.download, state.downloadLabel, "↓", colors, typography, true)
+        SpeedPanel(labels.download, state.downloadLabel, "в†“", colors, typography, true)
     }
 }
 
@@ -722,6 +738,7 @@ private fun ProfilesCard(
     labels: DashboardUiLabels,
     typography: DashboardTypography,
     actions: DashboardUiActions,
+    visibility: DashboardUiVisibility,
 ) {
     Column(
         modifier = Modifier
@@ -738,21 +755,23 @@ private fun ProfilesCard(
                 fontSize = 12,
                 modifier = Modifier.weight(1f),
             )
-            Text(
-                text = labels.add,
-                color = DashboardAccent,
-                fontFamily = typography.mono,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable(onClick = actions.onAddProfile),
-            )
+            if (visibility.showAddProfile) {
+                Text(
+                    text = labels.add,
+                    color = DashboardAccent,
+                    fontFamily = typography.mono,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable(onClick = actions.onAddProfile),
+                )
+            }
         }
         if (profiles.isEmpty()) {
-            FirstRunCard(labels, colors, typography, actions)
+            FirstRunCard(labels, colors, typography, actions, visibility)
             return@Column
         }
         profiles.forEachIndexed { index, item ->
-            ProfileRow(item, index != 0, colors, typography, actions)
+            ProfileRow(item, index != 0, colors, typography, actions, visibility)
         }
     }
 }
@@ -763,13 +782,14 @@ private fun FirstRunCard(
     colors: DashboardColors,
     typography: DashboardTypography,
     actions: DashboardUiActions,
+    visibility: DashboardUiVisibility,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 14.dp)
             .border(1.dp, colors.border, RoundedCornerShape(12.dp))
-            .clickable(onClick = actions.onAddProfile)
+            .clickable(enabled = visibility.showAddProfile, onClick = actions.onAddProfile)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -805,6 +825,7 @@ private fun ProfileRow(
     colors: DashboardColors,
     typography: DashboardTypography,
     actions: DashboardUiActions,
+    visibility: DashboardUiVisibility,
 ) {
     Column {
         if (showDivider) {
@@ -852,19 +873,19 @@ private fun ProfileRow(
                 )
             }
             Text(
-                text = "✎",
-                color = colors.secondary,
-                fontSize = 22.sp,
+                text = "вњЋ",
+                color = colors.secondary.copy(alpha = if (visibility.showProfileActions) 1f else 0f),
+                fontSize = if (visibility.showProfileActions) 22.sp else 0.sp,
                 modifier = Modifier
-                    .padding(horizontal = 10.dp)
+                    .padding(horizontal = if (visibility.showProfileActions) 10.dp else 0.dp)
                     .clickable { actions.onEditProfile(item.id) },
             )
             Text(
-                text = "⋮",
-                color = colors.secondary,
-                fontSize = 24.sp,
+                text = "в‹®",
+                color = colors.secondary.copy(alpha = if (visibility.showProfileActions) 1f else 0f),
+                fontSize = if (visibility.showProfileActions) 24.sp else 0.sp,
                 modifier = Modifier
-                    .padding(start = 6.dp)
+                    .padding(start = if (visibility.showProfileActions) 6.dp else 0.dp)
                     .clickable { actions.onOpenProfileMenu(item.id) },
             )
         }
@@ -902,10 +923,10 @@ private fun DashboardTelemetryStrip(
                 .padding(start = 4.dp, end = 4.dp, top = 9.dp, bottom = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            StatsSegment("◷", if (state.isConnectionTestRunning) "..." else state.latencyLabel, labels.latency, colors, typography)
+            StatsSegment("в—·", if (state.isConnectionTestRunning) "..." else state.latencyLabel, labels.latency, colors, typography)
             StatsDivider(colors)
             StatsSegment(
-                "●",
+                "в—Џ",
                 if (connected) labels.connected else labels.disconnected,
                 labels.status,
                 colors.copy(primary = if (connected) DashboardGreen else DashboardRed),
@@ -913,7 +934,7 @@ private fun DashboardTelemetryStrip(
                 iconColor = if (connected) DashboardGreen else DashboardRed,
             )
             StatsDivider(colors)
-            StatsSegment("◇", state.activeProfileProtocol.name.uppercase(), labels.protocol, colors, typography)
+            StatsSegment("в—‡", state.activeProfileProtocolLabel, labels.protocol, colors, typography)
         }
     }
 }
@@ -1068,48 +1089,6 @@ private fun OrbMarks(connected: Boolean, colors: DashboardColors, modifier: Modi
                     center.y + kotlin.math.sin(angle).toFloat() * radius,
                 )
             )
-        }
-    }
-}
-
-@Composable
-private fun Starfield(modifier: Modifier = Modifier) {
-    val infinite = rememberInfiniteTransition(label = "starfield")
-    val phase by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(16000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "stars",
-    )
-    Canvas(modifier) {
-        staticStars.forEach { star ->
-            drawCircle(
-                color = Color.White.copy(alpha = star.alpha),
-                radius = star.radius.dp.toPx(),
-                center = Offset(size.width * star.x, size.height * star.y),
-            )
-        }
-        val elapsed = phase * 16f
-        movingStars.forEach { star ->
-            val progress = ((elapsed + star.initialOffsetSeconds) / star.durationSeconds) % 1f
-            val y = size.height * progress * 1.2f
-            if (star.streak) {
-                drawRoundRect(
-                    color = Color.White.copy(alpha = star.alpha),
-                    topLeft = Offset(size.width * star.x, y),
-                    size = Size(star.width.dp.toPx(), star.height.dp.toPx()),
-                    cornerRadius = CornerRadius(1.dp.toPx()),
-                )
-            } else {
-                drawCircle(
-                    color = Color.White.copy(alpha = star.alpha),
-                    radius = (star.width / 2f).dp.toPx(),
-                    center = Offset(size.width * star.x, y),
-                )
-            }
         }
     }
 }
@@ -1279,91 +1258,6 @@ private fun DashboardRocket(
         }
     }
 }
-
-@Immutable
-private data class StaticStar(
-    val x: Float,
-    val y: Float,
-    val radius: Float,
-    val alpha: Float,
-)
-
-@Immutable
-private data class MovingStar(
-    val x: Float,
-    val width: Float,
-    val height: Float,
-    val alpha: Float,
-    val durationSeconds: Float,
-    val initialOffsetSeconds: Float,
-    val streak: Boolean,
-)
-
-private val staticStars = listOf(
-    StaticStar(0.03f, 0.08f, 1f, 0.5f),
-    StaticStar(0.07f, 0.42f, 1f, 0.4f),
-    StaticStar(0.12f, 0.18f, 1.5f, 0.7f),
-    StaticStar(0.15f, 0.65f, 1f, 0.3f),
-    StaticStar(0.18f, 0.88f, 1f, 0.5f),
-    StaticStar(0.22f, 0.05f, 1f, 0.4f),
-    StaticStar(0.25f, 0.35f, 1.5f, 0.6f),
-    StaticStar(0.28f, 0.72f, 1f, 0.3f),
-    StaticStar(0.33f, 0.15f, 1f, 0.5f),
-    StaticStar(0.36f, 0.55f, 1f, 0.4f),
-    StaticStar(0.40f, 0.82f, 1.5f, 0.6f),
-    StaticStar(0.44f, 0.28f, 1f, 0.3f),
-    StaticStar(0.48f, 0.48f, 1f, 0.5f),
-    StaticStar(0.52f, 0.12f, 1f, 0.4f),
-    StaticStar(0.55f, 0.62f, 1.5f, 0.7f),
-    StaticStar(0.58f, 0.90f, 1f, 0.3f),
-    StaticStar(0.62f, 0.22f, 1f, 0.5f),
-    StaticStar(0.65f, 0.50f, 1f, 0.4f),
-    StaticStar(0.68f, 0.78f, 1.5f, 0.6f),
-    StaticStar(0.72f, 0.06f, 1f, 0.3f),
-    StaticStar(0.75f, 0.38f, 1f, 0.5f),
-    StaticStar(0.78f, 0.68f, 1f, 0.4f),
-    StaticStar(0.82f, 0.92f, 1.5f, 0.7f),
-    StaticStar(0.85f, 0.25f, 1f, 0.3f),
-    StaticStar(0.88f, 0.52f, 1f, 0.5f),
-    StaticStar(0.91f, 0.75f, 1f, 0.4f),
-    StaticStar(0.94f, 0.10f, 1.5f, 0.6f),
-    StaticStar(0.97f, 0.45f, 1f, 0.3f),
-    StaticStar(0.05f, 0.95f, 1f, 0.5f),
-    StaticStar(0.45f, 0.03f, 1f, 0.4f),
-    StaticStar(0.60f, 0.40f, 1f, 0.3f),
-    StaticStar(0.35f, 0.95f, 1.5f, 0.6f),
-    StaticStar(0.80f, 0.15f, 1f, 0.5f),
-    StaticStar(0.50f, 0.75f, 1f, 0.4f),
-    StaticStar(0.10f, 0.30f, 1f, 0.3f),
-)
-
-private val movingStars = listOf(
-    MovingStar(0.02f, 2f, 2f, 0.5f, 9f, 3f, false),
-    MovingStar(0.07f, 1f, 1f, 0.4f, 14f, 11f, false),
-    MovingStar(0.12f, 3f, 3f, 0.7f, 8f, 1f, false),
-    MovingStar(0.17f, 1f, 1f, 0.3f, 16f, 7f, false),
-    MovingStar(0.22f, 2f, 2f, 0.6f, 11f, 9f, false),
-    MovingStar(0.28f, 1f, 1f, 0.5f, 13f, 4f, false),
-    MovingStar(0.33f, 2f, 2f, 0.4f, 10f, 6f, false),
-    MovingStar(0.39f, 1f, 1f, 0.6f, 15f, 12f, false),
-    MovingStar(0.45f, 3f, 3f, 0.7f, 9.5f, 2f, false),
-    MovingStar(0.51f, 1f, 1f, 0.35f, 12f, 8f, false),
-    MovingStar(0.57f, 2f, 2f, 0.5f, 14.5f, 10f, false),
-    MovingStar(0.63f, 1f, 1f, 0.4f, 10.5f, 5f, false),
-    MovingStar(0.69f, 2f, 2f, 0.6f, 8.5f, 7f, false),
-    MovingStar(0.75f, 1f, 1f, 0.3f, 16f, 13f, false),
-    MovingStar(0.81f, 3f, 3f, 0.65f, 11.5f, 3f, false),
-    MovingStar(0.87f, 1f, 1f, 0.45f, 13.5f, 9f, false),
-    MovingStar(0.93f, 2f, 2f, 0.5f, 9f, 6f, false),
-    MovingStar(0.11f, 1f, 12f, 0.4f, 2.8f, 1.2f, true),
-    MovingStar(0.23f, 2f, 18f, 0.35f, 2.2f, 0.5f, true),
-    MovingStar(0.41f, 1f, 10f, 0.5f, 3f, 2.1f, true),
-    MovingStar(0.55f, 1f, 15f, 0.3f, 2.5f, 1.8f, true),
-    MovingStar(0.68f, 2f, 20f, 0.4f, 2f, 0.3f, true),
-    MovingStar(0.82f, 1f, 8f, 0.45f, 3.2f, 2.5f, true),
-    MovingStar(0.47f, 1f, 14f, 0.35f, 2.6f, 1.4f, true),
-    MovingStar(0.88f, 1f, 10f, 0.3f, 2.4f, 0.8f, true),
-)
 
 private val DashboardAccent = YokhanAccent
 private val DashboardGreen = YokhanGreen

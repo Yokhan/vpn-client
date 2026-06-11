@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+﻿package com.yokhan.gates.app.ui
 
 import android.os.SystemClock
 import android.view.MenuItem
@@ -6,13 +6,14 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
-import com.yokhan.vpn.app.ui.dashboard.DashboardComposeActions
-import com.yokhan.vpn.app.ui.dashboard.DashboardComposeScreen
-import com.yokhan.vpn.app.ui.dashboard.DashboardProfileUiItem
-import com.yokhan.vpn.app.ui.shell.YokhanShellActivityRoute
-import com.yokhan.vpn.app.ui.shell.YokhanShellRoute
-import com.yokhan.vpn.shared.domain.ConnectionStatus
-import com.yokhan.vpn.shared.domain.DashboardState
+import com.yokhan.gates.app.ui.dashboard.DashboardComposeActions
+import com.yokhan.gates.app.ui.dashboard.DashboardComposeScreen
+import com.yokhan.gates.app.ui.dashboard.DashboardProfileUiItem
+import com.yokhan.gates.app.auth.YokhanKeycloakAuth
+import com.yokhan.gates.app.ui.shell.YokhanShellActivityRoute
+import com.yokhan.gates.app.ui.shell.YokhanShellRoute
+import com.yokhan.gates.shared.domain.ConnectionStatus
+import com.yokhan.gates.shared.domain.DashboardState
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -66,7 +67,13 @@ class DashboardController(
                     onMenuClick = activity::openNavigationMenu,
                     onToggleConnection = activity::toggleConnection,
                     onRunConnectionTest = ::runConnectionTest,
-                    onAddProfile = { activity.displayRoute(YokhanShellRoute.Configuration) },
+                    onAddProfile = {
+                        if (YokhanKeycloakAuth.isConfigured()) {
+                            activity.startYokhanLogin()
+                        } else {
+                            activity.displayRoute(YokhanShellRoute.Configuration)
+                        }
+                    },
                     onSelectProfile = ::selectProfileById,
                     onEditProfile = ::editProfileById,
                     onOpenProfileMenu = ::showProfileMenuById,

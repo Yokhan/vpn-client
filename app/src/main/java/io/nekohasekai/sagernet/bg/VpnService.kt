@@ -9,13 +9,13 @@ import android.net.ProxyInfo
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
+import com.yokhan.gates.app.routing.RuCompatibilityClassifier
 import io.nekohasekai.sagernet.*
 import io.nekohasekai.sagernet.database.DataStore
-import moe.matsuri.nb4a.utils.NGUtil
 import io.nekohasekai.sagernet.fmt.LOCALHOST
 import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
 import io.nekohasekai.sagernet.ktx.*
-import com.yokhan.vpn.app.ui.VpnRequestActivity
+import com.yokhan.gates.app.ui.VpnRequestActivity
 import io.nekohasekai.sagernet.utils.Subnet
 import android.net.VpnService as BaseVpnService
 
@@ -35,19 +35,6 @@ class VpnService : BaseVpnService(),
     var conn: ParcelFileDescriptor? = null
 
     private var metered = false
-
-    private fun loadPackageList(assetName: String): Set<String> {
-        return try {
-            NGUtil.readTextFromAssets(this, assetName)
-                .lineSequence()
-                .map { it.trim() }
-                .filter { it.isNotEmpty() && !it.startsWith("#") }
-                .toSet()
-        } catch (e: Exception) {
-            Logs.w(e)
-            emptySet()
-        }
-    }
 
     override var upstreamInterfaceName: String? = null
 
@@ -146,14 +133,14 @@ class VpnService : BaseVpnService(),
         var bypass = DataStore.bypass
         val hasRuBypass = DataStore.enableRuBypass
         val stealthMode = DataStore.stealthMode
-        val serverExclude = DataStore.serverExcludePackages
-        val hasServerExclude = !serverExclude.isNullOrBlank()
+        val serverRules = DataStore.serverExcludePackages
+        val hasServerRules = !serverRules.isNullOrBlank()
         val workaroundSYSTEM = false /* DataStore.tunImplementation == TunImplementation.SYSTEM */
         val needBypassRootUid = workaroundSYSTEM || data.proxy!!.config.trafficMap.values.any {
             it[0].hysteriaBean?.protocol == HysteriaBean.PROTOCOL_FAKETCP
         }
 
-        if (proxyApps || hasRuBypass || hasServerExclude || stealthMode || needBypassRootUid) {
+        if (proxyApps || hasRuBypass || hasServerRules || stealthMode || needBypassRootUid) {
             val individual = mutableSetOf<String>()
             val allApps by lazy {
                 packageManager.getInstalledPackages(PackageManager.GET_PERMISSIONS).filter {
@@ -180,17 +167,12 @@ class VpnService : BaseVpnService(),
                 bypass = false
             }
 
-            // Collect auto-bypass packages (RU list + server-pushed)
-            val autoBypassPackages = mutableSetOf<String>()
-            if (hasServerExclude) {
-                autoBypassPackages.addAll(serverExclude!!.split('\n').filter { it.isNotBlank() })
-            }
-            if (hasRuBypass) {
-                autoBypassPackages.addAll(loadPackageList("ru_bypass_packages.txt"))
-            }
-            if (stealthMode) {
-                autoBypassPackages.addAll(loadPackageList("stealth_bypass_packages.txt"))
-            }
+            val autoBypassPackages = RuCompatibilityClassifier(this).directPackages(
+                installedPackages = allApps,
+                includeRuBypass = hasRuBypass,
+                includeStealth = stealthMode,
+                serverRules = serverRules,
+            )
 
             if (autoBypassPackages.isNotEmpty()) {
                 if (bypass) {
@@ -210,7 +192,7 @@ class VpnService : BaseVpnService(),
             val added = mutableListOf<String>()
 
             individual.apply {
-                // Allow YokhanVPN itself using VPN.
+                // Allow GATES itself using VPN.
                 remove(packageName)
                 if (!bypass) add(packageName)
             }.forEach {

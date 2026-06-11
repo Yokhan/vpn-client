@@ -20,14 +20,14 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "com.yokhan.vpn.preview.desktop.MainKt"
+        mainClass = "com.yokhan.gates.preview.desktop.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Exe, TargetFormat.Msi)
-            packageName = "YokhanVPNDashboardPreview"
+            packageName = "GATESDashboardPreview"
             packageVersion = "0.1.0"
             vendor = "Yokhan"
-            description = "Desktop dashboard UI preview for YokhanVPN"
+            description = "Desktop dashboard UI preview for GATES"
         }
     }
 }

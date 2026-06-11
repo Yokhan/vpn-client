@@ -1,4 +1,4 @@
-package com.yokhan.vpn.app.ui
+package com.yokhan.gates.app.ui
 
 import android.content.Intent
 import android.net.Uri
@@ -7,6 +7,7 @@ import android.os.Parcel
 import android.os.Parcelable
 import android.provider.OpenableColumns
 import android.view.View
+import android.widget.EditText
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,12 +25,14 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import com.yokhan.gates.app.diagnostics.YokhanDiagnosticsCollector
+import com.yokhan.gates.app.diagnostics.YokhanBugReporter
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.yokhan.vpn.shared.ui.design.YokhanPalette
-import com.yokhan.vpn.shared.ui.design.YokhanSpacing
-import com.yokhan.vpn.shared.ui.design.YokhanTypography
-import com.yokhan.vpn.shared.ui.design.yokhanPalette
-import com.yokhan.vpn.shared.ui.design.yokhanTypography
+import com.yokhan.gates.shared.ui.design.YokhanPalette
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.shared.ui.design.YokhanTypography
+import com.yokhan.gates.shared.ui.design.yokhanPalette
+import com.yokhan.gates.shared.ui.design.yokhanTypography
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -51,16 +54,16 @@ import io.nekohasekai.sagernet.ktx.startFilesForResult
 import io.nekohasekai.sagernet.ktx.toStringPretty
 import io.nekohasekai.sagernet.ktx.triggerFullRestart
 import io.nekohasekai.sagernet.ktx.tryToShow
-import com.yokhan.vpn.app.ui.compose.YokhanBody
-import com.yokhan.vpn.app.ui.compose.YokhanButtonGrid
-import com.yokhan.vpn.app.ui.compose.YokhanCheckboxRow
-import com.yokhan.vpn.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.vpn.app.ui.compose.YokhanDivider
-import com.yokhan.vpn.app.ui.compose.YokhanHeadline
-import com.yokhan.vpn.app.ui.compose.YokhanMonoValue
-import com.yokhan.vpn.app.ui.compose.YokhanRouteAction
-import com.yokhan.vpn.app.ui.compose.YokhanRouteCard
-import com.yokhan.vpn.app.ui.compose.YokhanRouteFrame
+import com.yokhan.gates.app.ui.compose.YokhanBody
+import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
+import com.yokhan.gates.app.ui.compose.YokhanCheckboxRow
+import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
+import com.yokhan.gates.app.ui.compose.YokhanDivider
+import com.yokhan.gates.app.ui.compose.YokhanHeadline
+import com.yokhan.gates.app.ui.compose.YokhanMonoValue
+import com.yokhan.gates.app.ui.compose.YokhanRouteAction
+import com.yokhan.gates.app.ui.compose.YokhanRouteCard
+import com.yokhan.gates.app.ui.compose.YokhanRouteFrame
 import kotlinx.coroutines.delay
 import moe.matsuri.nb4a.utils.Util
 import org.json.JSONArray
@@ -73,6 +76,8 @@ import java.util.Locale
 class ToolsFragment : YokhanComposeRouteFragment() {
 
     private var content = ""
+    private var diagnosticsContent = ""
+    private val diagnosticsState = mutableStateOf(DiagnosticsUiState())
     private val backupSelection = mutableStateOf(BackupSelection())
 
     private val exportSettings =
@@ -149,6 +154,58 @@ class ToolsFragment : YokhanComposeRouteFragment() {
                 )
             }
 
+            val diagnostics = diagnosticsState.value
+            YokhanRouteCard(
+                title = stringResource(R.string.diagnostics_title),
+                colors = colors,
+                typography = typography,
+            ) {
+                YokhanHeadline(
+                    text = if (diagnostics.running) {
+                        stringResource(R.string.diagnostics_summary_running)
+                    } else if (diagnostics.summary.isNotBlank()) {
+                        stringResource(R.string.diagnostics_summary_done, diagnostics.summary)
+                    } else {
+                        stringResource(R.string.diagnostics_title)
+                    },
+                    colors = colors,
+                    typography = typography,
+                )
+                YokhanBody(
+                    text = if (diagnostics.summary.isBlank()) {
+                        stringResource(R.string.diagnostics_summary_idle)
+                    } else {
+                        diagnostics.details
+                    },
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 8.dp),
+                    maxLines = 6,
+                )
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.diagnostics_run),
+                            primary = true,
+                            enabled = !diagnostics.running,
+                            onClick = { runDiagnostics() },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.diagnostics_share),
+                            enabled = !diagnostics.running && diagnostics.hasReport,
+                            onClick = ::shareDiagnostics,
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.bug_report_send),
+                            enabled = !diagnostics.running,
+                            onClick = ::showBugReportDialog,
+                        ),
+                    ),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
+                )
+            }
             YokhanRouteCard(
                 title = stringResource(R.string.backup),
                 colors = colors,
@@ -210,6 +267,146 @@ class ToolsFragment : YokhanComposeRouteFragment() {
         }
     }
 
+
+    private fun runDiagnostics(
+        shareWhenReady: Boolean = false,
+        bugReportMessage: String? = null,
+    ) {
+        if (diagnosticsState.value.running) return
+        val appContext = requireContext().applicationContext
+        diagnosticsState.value = DiagnosticsUiState(running = true)
+        runOnDefaultDispatcher {
+            runCatching {
+                YokhanDiagnosticsCollector.collect(appContext)
+            }.onSuccess { report ->
+                val json = report.toJsonString()
+                val failedProbes = report.probes.count { !it.ok }
+                val unstableTargets = report.stability.count { it.failures > 0 }
+                val slowestP95 = report.stability.maxOfOrNull { it.p95Ms } ?: 0L
+                val sustainedFailures = report.sustained.count { it.failures > 0 }
+                val sustainedMinKbps = report.sustained
+                    .filter { it.successes > 0 }
+                    .minOfOrNull { it.p50Kbps } ?: 0L
+                val udpFailures = report.udpConnectivity.count { !it.ok }
+                val uptimeHours = report.runtime.bootElapsedRealtimeMs / 3_600_000L
+                val details = listOf(
+                    "active_route=${report.routes.activeRouteFamily.ifBlank { report.routes.activeProtocol }}",
+                    "network=${report.runtime.network.transports.joinToString("+").ifBlank { "unknown" }}",
+                    "carrier=${report.runtime.network.carrierName.ifBlank { "unknown" }}",
+                    "uptime_h=$uptimeHours",
+                    "always_on=${report.runtime.alwaysOnVpnPackage.ifBlank { "none" }}",
+                    "always_on_prod=${report.runtime.alwaysOnVpnMatchesProductionPackage}",
+                    "lockdown=${report.runtime.alwaysOnVpnLockdown}",
+                    "prod_battery_ignored=${report.runtime.productionBatteryOptimizationIgnored}",
+                    "order=${report.routes.detectedRouteOrder.joinToString(">")}",
+                    "failed_probes=$failedProbes",
+                    "unstable_targets=$unstableTargets",
+                    "stability_p95_max_ms=$slowestP95",
+                    "sustained_failures=$sustainedFailures",
+                    "sustained_min_p50_kbps=$sustainedMinKbps",
+                    "udp_failures=$udpFailures",
+                    "manifest=${report.manifest.cachedVersion}/${report.manifest.cachedChannel.ifBlank { "none" }}",
+                ).joinToString(", ")
+                if (bugReportMessage != null) {
+                    val bugResult = YokhanBugReporter.send(appContext, bugReportMessage, json)
+                    onMainDispatcher {
+                        if (!isAdded) return@onMainDispatcher
+                        diagnosticsContent = json
+                        diagnosticsState.value = DiagnosticsUiState(
+                            running = false,
+                            summary = report.summaryText(),
+                            details = details,
+                            hasReport = true,
+                        )
+                        val message = if (bugResult.uploaded) {
+                            getString(R.string.bug_report_sent, bugResult.reportId.ifBlank { "ok" })
+                        } else {
+                            getString(R.string.bug_report_saved, bugResult.localFile.name)
+                        }
+                        snackbar(message).show()
+                    }
+                } else {
+                    onMainDispatcher {
+                        if (!isAdded) return@onMainDispatcher
+                        diagnosticsContent = json
+                        diagnosticsState.value = DiagnosticsUiState(
+                            running = false,
+                            summary = report.summaryText(),
+                            details = details,
+                            hasReport = true,
+                        )
+                        snackbar(getString(R.string.diagnostics_report_ready)).show()
+                        if (shareWhenReady) shareDiagnosticsContent()
+                    }
+                }
+            }.onFailure { error ->
+                onMainDispatcher {
+                    if (!isAdded) return@onMainDispatcher
+                    diagnosticsState.value = DiagnosticsUiState(
+                        running = false,
+                        summary = error.readableMessage,
+                        details = error.readableMessage,
+                        hasReport = diagnosticsContent.isNotBlank(),
+                    )
+                    snackbar(error.readableMessage).show()
+                }
+            }
+        }
+    }
+
+    private fun showBugReportDialog() {
+        val input = EditText(requireContext()).apply {
+            hint = getString(R.string.bug_report_hint)
+            minLines = 3
+            maxLines = 5
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.bug_report_title)
+            .setView(input)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.bug_report_send) { _, _ ->
+                val message = input.text?.toString().orEmpty()
+                    .ifBlank { getString(R.string.bug_report_default_message) }
+                runDiagnostics(bugReportMessage = message)
+            }
+            .show()
+    }
+
+    private fun shareDiagnostics() {
+        if (diagnosticsContent.isBlank()) {
+            snackbar(getString(R.string.diagnostics_report_empty)).show()
+            return
+        }
+        shareDiagnosticsContent()
+    }
+
+    private fun shareDiagnosticsContent() {
+        val cacheFile = File(
+            requireContext().cacheDir.apply { mkdirs() },
+            diagnosticsFileName(),
+        )
+        cacheFile.writeText(diagnosticsContent)
+        startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_SEND).setType("application/json")
+                    .setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    .putExtra(
+                        Intent.EXTRA_STREAM,
+                        FileProvider.getUriForFile(
+                            requireContext(),
+                            BuildConfig.APPLICATION_ID + ".cache",
+                            cacheFile,
+                        ),
+                    ),
+                getString(R.string.abc_shareactionprovider_share_with),
+            ),
+        )
+    }
+
+    private fun diagnosticsFileName(): String {
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        return "gates_diagnostics_$stamp.json"
+    }
     private fun confirmResetSettings() {
         MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.confirm)
             .setMessage(R.string.reset_settings_message)
@@ -275,7 +472,7 @@ class ToolsFragment : YokhanComposeRouteFragment() {
 
     private fun backupFileName(): String {
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        return "yokhanvpn_backup_$stamp.json"
+        return "gates_backup_$stamp.json"
     }
 
     private fun doBackup(profile: Boolean, rule: Boolean, setting: Boolean): String {
@@ -539,6 +736,13 @@ class ToolsFragment : YokhanComposeRouteFragment() {
             PublicDatabase.kvPairDao.insert(settings)
         }
     }
+
+    private data class DiagnosticsUiState(
+        val running: Boolean = false,
+        val summary: String = "",
+        val details: String = "",
+        val hasReport: Boolean = false,
+    )
 
     private data class BackupSelection(
         val profile: Boolean = true,
