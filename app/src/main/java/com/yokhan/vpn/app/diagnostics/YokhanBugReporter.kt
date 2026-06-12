@@ -300,7 +300,26 @@ object YokhanBugReporter {
 
     private fun postJson(context: Context, url: String, body: String): HttpResult {
         val bytes = body.toByteArray(StandardCharsets.UTF_8)
-        val connection = openReportConnection(context, url)
+        val failures = mutableListOf<String>()
+        for (connectionFactory in reportConnectionFactories(context, url)) {
+            val connection = try {
+                connectionFactory()
+            } catch (error: Exception) {
+                failures += error.message ?: error.javaClass.simpleName
+                continue
+            }
+            try {
+                return executePost(connection, bytes)
+            } catch (error: Exception) {
+                failures += error.message ?: error.javaClass.simpleName
+            } finally {
+                connection.disconnect()
+            }
+        }
+        throw IllegalStateException(failures.joinToString("; ").ifBlank { "report upload failed" })
+    }
+
+    private fun executePost(connection: HttpURLConnection, bytes: ByteArray): HttpResult {
         try {
             connection.requestMethod = "POST"
             connection.connectTimeout = CONNECT_TIMEOUT_MS
@@ -320,15 +339,15 @@ object YokhanBugReporter {
         }
     }
 
-    private fun openReportConnection(context: Context, url: String): HttpURLConnection {
+    private fun reportConnectionFactories(
+        context: Context,
+        url: String,
+    ): List<() -> HttpURLConnection> {
         val target = URL(url)
-        physicalNetworks(context).forEach { network ->
-            val connection = runCatching {
-                network.openConnection(target) as HttpURLConnection
-            }.getOrNull()
-            if (connection != null) return connection
+        val physicalFactories = physicalNetworks(context).map { network ->
+            { network.openConnection(target) as HttpURLConnection }
         }
-        return target.openConnection() as HttpURLConnection
+        return physicalFactories + listOf({ target.openConnection() as HttpURLConnection })
     }
 
     private fun physicalNetworks(context: Context): List<Network> {
