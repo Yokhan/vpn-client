@@ -18,6 +18,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -68,14 +69,36 @@ fun main(args: Array<String>) {
 
     application {
         val windowState = rememberWindowState(size = DpSize(AppWidth, AppHeight))
-        Window(
-            onCloseRequest = ::exitApplication,
-            title = "GATES",
-            state = windowState,
-        ) {
-            MaterialTheme {
-                Surface(Modifier.fillMaxSize()) {
-                    WindowsApp()
+        val traySupported = remember { NativeTray.isSupported() }
+        var windowVisible by remember { mutableStateOf(true) }
+        DisposableEffect(traySupported) {
+            val tray = if (traySupported) {
+                NativeTray(
+                    onOpen = { windowVisible = true },
+                    onQuit = { exitApplication() },
+                ).also { it.install() }
+            } else {
+                null
+            }
+            onDispose { tray?.uninstall() }
+        }
+
+        if (windowVisible) {
+            Window(
+                onCloseRequest = {
+                    if (traySupported) {
+                        windowVisible = false
+                    } else {
+                        exitApplication()
+                    }
+                },
+                title = "GATES",
+                state = windowState,
+            ) {
+                MaterialTheme {
+                    Surface(Modifier.fillMaxSize()) {
+                        WindowsApp()
+                    }
                 }
             }
         }
@@ -110,12 +133,16 @@ private fun runCli(args: List<String>): Int = runBlocking {
               GATES --cli update
               GATES --cli report-bug <message>
               GATES --cli set-route <auto|bridge|relay|naive|hy2>
+              GATES --cli enable-system-proxy
+              GATES --cli disable-system-proxy
+              GATES --cli enable-autostart
+              GATES --cli disable-autostart
               GATES --cli logs
               GATES --cli stop
 
             Safety:
-              CLI controls only safe local proxy mode. It does not change TUN,
-              Windows default route, system proxy, DNS, NekoBox, phone, or server.
+              CLI controls only local Windows runtime state. It does not change
+              TUN, Windows default route, DNS, NekoBox, phone, or server.
             """.trimIndent(),
         )
         return@runBlocking 0

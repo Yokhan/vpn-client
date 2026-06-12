@@ -54,6 +54,9 @@ data class WindowsAppConfig(
         "https://cloak.yokhanfitness.ru/api/app/bug-report",
         "https://yokhanfitness.ru/api/app/bug-report",
     ),
+    val systemProxyEnabled: Boolean = true,
+    val restoreSystemProxyOnStop: Boolean = true,
+    val autoStartOnLogin: Boolean = false,
     val listenHost: String = "127.0.0.1",
     val socksPort: Int = 2088,
     val httpPort: Int = 2089,
@@ -91,6 +94,21 @@ private data class WindowsAuthState(
     val accessToken: String = "",
     val refreshToken: String = "",
     val expiresAtEpochSecond: Long = 0,
+)
+
+private data class SystemProxySnapshot(
+    val proxyEnablePresent: Boolean = true,
+    val proxyEnable: Int = 0,
+    val proxyServerPresent: Boolean = false,
+    val proxyServer: String = "",
+    val proxyOverridePresent: Boolean = false,
+    val proxyOverride: String = "",
+    val capturedAt: String = "",
+)
+
+private data class RegistryValue(
+    val present: Boolean,
+    val value: String,
 )
 
 private data class PkcePair(
@@ -324,7 +342,7 @@ private class RoomNetRelay(
     }
 }
 
-private const val WINDOWS_APP_VERSION = "1.6.40"
+private const val WINDOWS_APP_VERSION = "1.6.41"
 private const val WINDOWS_PLATFORM = "windows"
 
 class WindowsRuntimeController {
@@ -343,11 +361,14 @@ class WindowsRuntimeController {
     private val generatedConfigFile = File(runtimeDir, "config.json")
     private val pidFile = File(runtimeDir, "sing-box.pid")
     private val processStateFile = File(runtimeDir, "process-state.json")
+    private val systemProxyStateFile = File(runtimeDir, "system-proxy-before.json")
     private val roomNetPidFile = File(runtimeDir, "roomnet.pid")
     private val roomNetStateFile = File(runtimeDir, "roomnet-state.json")
     private val supportDir = File(appDir, "support")
     private val updatesDir = File(appDir, "updates")
     private val reportsDir = File(appDir, "reports")
+    private val internetSettingsRegKey = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"
+    private val runRegKey = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
 
     val summary: String
         get() = "AppData: ${appDir.absolutePath}"
@@ -358,7 +379,20 @@ class WindowsRuntimeController {
             writeConfig(WindowsAppConfig())
         }
         val json = appConfigFile.readText(StandardCharsets.UTF_8)
-        return normalizeConfig(gson.fromJson(json, WindowsAppConfig::class.java))
+        val source = runCatching { JsonParser.parseString(json).asJsonObject }.getOrNull()
+        val normalized = normalizeConfig(gson.fromJson(json, WindowsAppConfig::class.java))
+        return normalized.copy(
+            systemProxyEnabled = if (source?.has("systemProxyEnabled") == true) {
+                normalized.systemProxyEnabled
+            } else {
+                WindowsAppConfig().systemProxyEnabled
+            },
+            restoreSystemProxyOnStop = if (source?.has("restoreSystemProxyOnStop") == true) {
+                normalized.restoreSystemProxyOnStop
+            } else {
+                WindowsAppConfig().restoreSystemProxyOnStop
+            },
+        )
     }
 
     fun writeConfig(config: WindowsAppConfig) {
@@ -427,6 +461,10 @@ class WindowsRuntimeController {
                 ?: defaults.downloadPageUrl,
             autoCheckUpdates = runCatching { config.autoCheckUpdates }.getOrDefault(defaults.autoCheckUpdates),
             reportUrls = reportUrls,
+            systemProxyEnabled = runCatching { config.systemProxyEnabled }.getOrDefault(defaults.systemProxyEnabled),
+            restoreSystemProxyOnStop = runCatching { config.restoreSystemProxyOnStop }
+                .getOrDefault(defaults.restoreSystemProxyOnStop),
+            autoStartOnLogin = runCatching { config.autoStartOnLogin }.getOrDefault(defaults.autoStartOnLogin),
             listenHost = runCatching { config.listenHost }.getOrNull()
                 ?.takeIf { it.isNotBlank() }
                 ?: defaults.listenHost,
@@ -482,6 +520,10 @@ class WindowsRuntimeController {
                 "update" -> checkUpdate(download = true)
                 "report-bug" -> reportBug(route.orEmpty())
                 "set-route" -> setRoute(route ?: "auto")
+                "enable-system-proxy" -> enableSystemProxy(readConfig())
+                "disable-system-proxy" -> disableSystemProxy()
+                "enable-autostart" -> setAutoStart(enabled = true)
+                "disable-autostart" -> setAutoStart(enabled = false)
                 "roomnet-info" -> roomNetInfo()
                 "roomnet-start" -> startRoomNet()
                 "roomnet-stop" -> stopRoomNet()
@@ -713,6 +755,7 @@ class WindowsRuntimeController {
     private fun connect(): RuntimeCommandResult {
         ensureDirs()
         extractRuntime()
+        val config = readConfig()
         val steps = mutableListOf<String>()
         if (authStateFile.isFile) {
             val imported = importAuthenticatedAppConfig()
@@ -735,13 +778,28 @@ class WindowsRuntimeController {
         }
         val started = startProxy()
         steps += "start-proxy exit=${started.exitCode}"
+        val systemProxy = if (started.exitCode == 0 && config.systemProxyEnabled) {
+            enableSystemProxy(config).also {
+                steps += "system-proxy exit=${it.exitCode}"
+            }
+        } else {
+            RuntimeCommandResult(0, "")
+        }
         val roomNet = startRoomNet()
         steps += "roomnet-start exit=${roomNet.exitCode}"
         return RuntimeCommandResult(
-            if (started.exitCode != 0) started.exitCode else 0,
+            when {
+                started.exitCode != 0 -> started.exitCode
+                systemProxy.exitCode != 0 -> systemProxy.exitCode
+                else -> 0
+            },
             buildString {
                 appendLine(steps.joinToString("\n"))
                 append(started.output)
+                if (systemProxy.output.isNotBlank()) {
+                    appendLine()
+                    append(systemProxy.output)
+                }
                 if (roomNet.output.isNotBlank()) {
                     appendLine()
                     append(roomNet.output)
@@ -795,11 +853,20 @@ class WindowsRuntimeController {
     }
 
     private fun stop(): RuntimeCommandResult {
+        val config = readConfig()
         val roomNetStop = stopRoomNet()
         val process = managedProcess()
         if (process == null || !process.isAlive) {
             pidFile.delete()
-            return RuntimeCommandResult(0, "Runtime is not running\n${roomNetStop.output}".trim())
+            val proxyRestore = if (config.restoreSystemProxyOnStop) disableSystemProxy() else RuntimeCommandResult(0, "")
+            return RuntimeCommandResult(
+                if (proxyRestore.exitCode != 0) proxyRestore.exitCode else 0,
+                buildString {
+                    appendLine("Runtime is not running")
+                    appendLine(roomNetStop.output)
+                    if (proxyRestore.output.isNotBlank()) append(proxyRestore.output)
+                }.trim(),
+            )
         }
         process.destroy()
         runCatching { process.onExit().get(5, TimeUnit.SECONDS) }
@@ -807,7 +874,15 @@ class WindowsRuntimeController {
             process.destroyForcibly()
         }
         pidFile.delete()
-        return RuntimeCommandResult(0, "Stopped runtime. PID ${process.pid()}\n${roomNetStop.output}".trim())
+        val proxyRestore = if (config.restoreSystemProxyOnStop) disableSystemProxy() else RuntimeCommandResult(0, "")
+        return RuntimeCommandResult(
+            if (proxyRestore.exitCode != 0) proxyRestore.exitCode else 0,
+            buildString {
+                appendLine("Stopped runtime. PID ${process.pid()}")
+                appendLine(roomNetStop.output)
+                if (proxyRestore.output.isNotBlank()) append(proxyRestore.output)
+            }.trim(),
+        )
     }
 
     private fun status(): RuntimeCommandResult {
@@ -824,9 +899,10 @@ class WindowsRuntimeController {
             0,
             buildString {
                 appendLine("Process: ${if (process?.isAlive == true) "running PID ${process.pid()}" else "stopped"}")
-                appendLine("Mode: safe proxy only")
+                appendLine("Mode: local proxy with optional Windows system proxy")
                 appendLine("SOCKS: ${config.listenHost}:${config.socksPort}")
                 appendLine("HTTP: ${config.listenHost}:${config.httpPort}")
+                appendLine("System proxy: ${systemProxySummary()}")
                 appendLine("Active route: ${config.activeRoute}")
                 appendLine("Auth: ${authSummary()}")
                 appendLine("RoomNet: ${roomNetSummary(config)}")
@@ -1586,6 +1662,169 @@ class WindowsRuntimeController {
             .filter { it.value.isNotBlank() }
             .joinToString("&") { (key, value) -> "${urlEncode(key)}=${urlEncode(value)}" }
         return if (encoded.isBlank()) "$base$path" else "$base$path?$encoded"
+    }
+
+    private fun enableSystemProxy(config: WindowsAppConfig): RuntimeCommandResult {
+        ensureDirs()
+        if (!systemProxyStateFile.isFile) {
+            val before = currentSystemProxySnapshot()
+            systemProxyStateFile.writeText(
+                gson.toJson(before.copy(capturedAt = Instant.now().toString())),
+                StandardCharsets.UTF_8,
+            )
+        }
+
+        val proxyServer = buildString {
+            append("http=${config.listenHost}:${config.httpPort};")
+            append("https=${config.listenHost}:${config.httpPort};")
+            append("socks=${config.listenHost}:${config.socksPort}")
+        }
+        val results = listOf(
+            regAdd(internetSettingsRegKey, "ProxyEnable", "REG_DWORD", "1"),
+            regAdd(internetSettingsRegKey, "ProxyServer", "REG_SZ", proxyServer),
+            regAdd(internetSettingsRegKey, "ProxyOverride", "REG_SZ", "<local>"),
+        )
+        notifySystemProxyChanged()
+        val failed = results.firstOrNull { it.exitCode != 0 }
+        if (failed != null) {
+            return RuntimeCommandResult(failed.exitCode, "Failed to enable Windows system proxy: ${failed.output}")
+        }
+        return RuntimeCommandResult(
+            0,
+            "Windows system proxy enabled: $proxyServer",
+        )
+    }
+
+    private fun disableSystemProxy(): RuntimeCommandResult {
+        ensureDirs()
+        if (!systemProxyStateFile.isFile) {
+            return RuntimeCommandResult(0, "Windows system proxy unchanged: no GATES snapshot.")
+        }
+        val snapshot = runCatching {
+            gson.fromJson(systemProxyStateFile.readText(StandardCharsets.UTF_8), SystemProxySnapshot::class.java)
+        }.getOrElse { error ->
+            return RuntimeCommandResult(1, "Failed to read system proxy snapshot: ${error.message}")
+        }
+
+        val results = mutableListOf<RuntimeCommandResult>()
+        if (snapshot.proxyEnablePresent) {
+            results += regAdd(internetSettingsRegKey, "ProxyEnable", "REG_DWORD", snapshot.proxyEnable.toString())
+        } else {
+            results += regDelete(internetSettingsRegKey, "ProxyEnable")
+        }
+        if (snapshot.proxyServerPresent) {
+            results += regAdd(internetSettingsRegKey, "ProxyServer", "REG_SZ", snapshot.proxyServer)
+        } else {
+            regDelete(internetSettingsRegKey, "ProxyServer")
+        }
+        if (snapshot.proxyOverridePresent) {
+            results += regAdd(internetSettingsRegKey, "ProxyOverride", "REG_SZ", snapshot.proxyOverride)
+        } else {
+            regDelete(internetSettingsRegKey, "ProxyOverride")
+        }
+        notifySystemProxyChanged()
+        val failed = results.firstOrNull { it.exitCode != 0 }
+        if (failed != null) {
+            return RuntimeCommandResult(failed.exitCode, "Failed to restore Windows system proxy: ${failed.output}")
+        }
+        systemProxyStateFile.delete()
+        return RuntimeCommandResult(0, "Windows system proxy restored.")
+    }
+
+    private fun systemProxySummary(): String {
+        val snapshot = runCatching { currentSystemProxySnapshot() }.getOrNull()
+            ?: return "unknown; gates_snapshot=${systemProxyStateFile.isFile}"
+        val enabled = snapshot.proxyEnable != 0
+        val server = snapshot.proxyServer.takeIf { it.isNotBlank() } ?: "-"
+        return "enabled=$enabled; server=$server; gates_snapshot=${systemProxyStateFile.isFile}"
+    }
+
+    private fun setAutoStart(enabled: Boolean): RuntimeCommandResult {
+        ensureDirs()
+        val result = if (enabled) {
+            val launcher = selfLauncher()
+                ?: return RuntimeCommandResult(1, "Packaged GATES launcher was not found.")
+            val launcherName = File(launcher).name.lowercase()
+            if (launcherName == "java.exe" || launcherName == "javaw.exe") {
+                return RuntimeCommandResult(1, "Autostart requires the packaged GATES.exe launcher.")
+            }
+            regAdd(runRegKey, "GATES", "REG_SZ", "\"$launcher\"")
+        } else {
+            regDelete(runRegKey, "GATES").let {
+                if (it.exitCode == 0) it else RuntimeCommandResult(0, "GATES autostart was already disabled.")
+            }
+        }
+        if (result.exitCode == 0) {
+            writeConfig(readConfig().copy(autoStartOnLogin = enabled))
+        }
+        return RuntimeCommandResult(
+            result.exitCode,
+            if (enabled) "GATES autostart enabled." else "GATES autostart disabled.",
+        )
+    }
+
+    private fun currentSystemProxySnapshot(): SystemProxySnapshot {
+        val proxyEnable = regQuery(internetSettingsRegKey, "ProxyEnable")
+        val proxyServer = regQuery(internetSettingsRegKey, "ProxyServer")
+        val proxyOverride = regQuery(internetSettingsRegKey, "ProxyOverride")
+        return SystemProxySnapshot(
+            proxyEnablePresent = proxyEnable.present,
+            proxyEnable = parseDword(proxyEnable.value),
+            proxyServerPresent = proxyServer.present,
+            proxyServer = proxyServer.value,
+            proxyOverridePresent = proxyOverride.present,
+            proxyOverride = proxyOverride.value,
+        )
+    }
+
+    private fun regQuery(key: String, name: String): RegistryValue {
+        val result = runProcess(listOf("reg.exe", "query", key, "/v", name), appDir, timeoutSeconds = 10)
+        if (result.exitCode != 0) return RegistryValue(false, "")
+        val line = result.output
+            .lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.startsWith(name, ignoreCase = true) }
+            ?: return RegistryValue(false, "")
+        val parts = line.split(Regex("\\s{2,}"))
+        return RegistryValue(true, parts.lastOrNull().orEmpty())
+    }
+
+    private fun regAdd(key: String, name: String, type: String, value: String): RuntimeCommandResult =
+        runProcess(listOf("reg.exe", "add", key, "/v", name, "/t", type, "/d", value, "/f"), appDir, timeoutSeconds = 10)
+
+    private fun regDelete(key: String, name: String): RuntimeCommandResult =
+        runProcess(listOf("reg.exe", "delete", key, "/v", name, "/f"), appDir, timeoutSeconds = 10)
+
+    private fun notifySystemProxyChanged() {
+        val memberDefinition = "[DllImport(\"wininet.dll\", SetLastError=true)] " +
+            "public static extern bool InternetSetOption(System.IntPtr hInternet, int dwOption, " +
+            "System.IntPtr lpBuffer, int dwBufferLength);"
+        powershell(
+            "Add-Type -Namespace Gates -Name WinInetNotify -MemberDefinition ${psSingleQuoted(memberDefinition)} " +
+                "-ErrorAction SilentlyContinue; " +
+                "[Gates.WinInetNotify]::InternetSetOption([IntPtr]::Zero, 39, [IntPtr]::Zero, 0) | Out-Null; " +
+                "[Gates.WinInetNotify]::InternetSetOption([IntPtr]::Zero, 37, [IntPtr]::Zero, 0) | Out-Null",
+            timeoutSeconds = 10,
+        )
+    }
+
+    private fun powershell(script: String, timeoutSeconds: Int): RuntimeCommandResult =
+        runProcess(
+            listOf("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script),
+            appDir,
+            timeoutSeconds = timeoutSeconds,
+        )
+
+    private fun psSingleQuoted(value: String): String =
+        "'${value.replace("'", "''")}'"
+
+    private fun parseDword(value: String): Int {
+        val trimmed = value.trim()
+        return if (trimmed.startsWith("0x", ignoreCase = true)) {
+            trimmed.removePrefix("0x").removePrefix("0X").toIntOrNull(16) ?: 0
+        } else {
+            trimmed.toIntOrNull() ?: 0
+        }
     }
 
     private fun newPkcePair(): PkcePair {
