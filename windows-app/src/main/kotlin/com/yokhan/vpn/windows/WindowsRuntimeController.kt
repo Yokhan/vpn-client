@@ -41,6 +41,20 @@ data class RuntimeCommandResult(
     val output: String,
 )
 
+data class AppRoutingState(
+    val routeAll: Boolean,
+    val proxyProcessNames: List<String>,
+    val proxyProcessPaths: List<String>,
+    val directProcessNames: List<String>,
+    val directProcessPaths: List<String>,
+)
+
+data class WindowsProcessCandidate(
+    val pid: Long,
+    val name: String,
+    val path: String,
+)
+
 data class WindowsAppConfig(
     val subscriptionUrl: String = "https://cloak.yokhanfitness.ru/api/sub/REPLACE_WITH_PERSONAL_TOKEN",
     val appApiBaseUrl: String = "https://cloak.yokhanfitness.ru",
@@ -362,7 +376,7 @@ private class RoomNetRelay(
     }
 }
 
-private const val WINDOWS_APP_VERSION = "1.6.43"
+private const val WINDOWS_APP_VERSION = "1.6.44"
 private const val WINDOWS_PLATFORM = "windows"
 
 class WindowsRuntimeController {
@@ -441,6 +455,74 @@ class WindowsRuntimeController {
         ensureDirs()
         appConfigFile.writeText(gson.toJson(config), StandardCharsets.UTF_8)
     }
+
+    fun appRoutingState(): AppRoutingState {
+        val config = readConfig()
+        return AppRoutingState(
+            routeAll = config.tunRouteAll,
+            proxyProcessNames = config.appProxyProcessNames,
+            proxyProcessPaths = config.appProxyProcessPaths,
+            directProcessNames = config.appDirectProcessNames,
+            directProcessPaths = config.appDirectProcessPaths,
+        )
+    }
+
+    fun listRunningApps(): List<WindowsProcessCandidate> {
+        val javaProcesses = listRunningAppsFromJava()
+        if (javaProcesses.isNotEmpty()) return javaProcesses
+
+        val script = """
+            Get-CimInstance Win32_Process |
+              Where-Object { ${'$'}_.ExecutablePath -and ${'$'}_.ExecutablePath.ToLowerInvariant().EndsWith('.exe') } |
+              ForEach-Object {
+                [pscustomobject]@{
+                  pid = [int64]${'$'}_.ProcessId
+                  name = [System.IO.Path]::GetFileName(${'$'}_.ExecutablePath)
+                  path = ${'$'}_.ExecutablePath
+                }
+              } |
+              Sort-Object name,path -Unique |
+              Select-Object -First 80 |
+              ConvertTo-Json -Compress
+        """.trimIndent()
+        val result = powershell(script, timeoutSeconds = 20)
+        if (result.exitCode != 0 || result.output.isBlank()) return emptyList()
+        return runCatching {
+            val json = JsonParser.parseString(result.output)
+            val items = if (json.isJsonArray) json.asJsonArray.toList() else listOf(json)
+            items.mapNotNull { item ->
+                val obj = item.asJsonObject
+                val path = obj.get("path")?.asString.orEmpty()
+                val name = obj.get("name")?.asString.orEmpty()
+                if (path.isBlank() || name.isBlank()) return@mapNotNull null
+                WindowsProcessCandidate(
+                    pid = obj.get("pid")?.asLong ?: 0L,
+                    name = name,
+                    path = path,
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun listRunningAppsFromJava(): List<WindowsProcessCandidate> =
+        ProcessHandle.allProcesses()
+            .iterator()
+            .asSequence()
+            .mapNotNull { process ->
+                val command = process.info().command().orElse("")
+                if (!command.endsWith(".exe", ignoreCase = true)) return@mapNotNull null
+                val file = File(command)
+                val name = file.name.takeIf { it.endsWith(".exe", ignoreCase = true) } ?: return@mapNotNull null
+                WindowsProcessCandidate(
+                    pid = process.pid(),
+                    name = name,
+                    path = file.absolutePath,
+                )
+            }
+            .distinctBy { it.path.lowercase() }
+            .sortedWith(compareBy<WindowsProcessCandidate> { it.name.lowercase() }.thenBy { it.path.lowercase() })
+            .take(80)
+            .toList()
 
     fun writeCliTranscript(command: String, args: List<String>, result: RuntimeCommandResult): File {
         ensureDirs()
@@ -600,6 +682,12 @@ class WindowsRuntimeController {
                 "set-route" -> setRoute(route ?: "auto")
                 "set-runtime" -> setRuntimeMode(route ?: "tun")
                 "set-tun-routing" -> setTunRouting(route ?: "all")
+                "apps" -> appRoutingSummary()
+                "running-apps" -> runningAppsSummary()
+                "add-app-proxy" -> addAppRouting(route.orEmpty(), proxy = true)
+                "add-app-direct" -> addAppRouting(route.orEmpty(), proxy = false)
+                "remove-app-proxy" -> removeAppRouting(route.orEmpty(), proxy = true)
+                "remove-app-direct" -> removeAppRouting(route.orEmpty(), proxy = false)
                 "enable-system-proxy" -> enableSystemProxy(readConfig())
                 "disable-system-proxy" -> disableSystemProxy()
                 "enable-autostart" -> setAutoStart(enabled = true)
@@ -1099,6 +1187,117 @@ class WindowsRuntimeController {
         writeConfig(config.copy(tunRouteAll = normalized == "all"))
         val generated = if (rawConfigFile.isFile) generateConfig() else RuntimeCommandResult(0, "Config will be generated after import")
         return RuntimeCommandResult(generated.exitCode, "TUN routing set to $normalized\n${generated.output}".trim())
+    }
+
+    fun addAppRouting(target: String, proxy: Boolean): RuntimeCommandResult {
+        val app = parseAppRoutingTarget(target)
+            ?: return RuntimeCommandResult(1, "Expected .exe path or process name.")
+        val config = readConfig()
+        val updated = if (proxy) {
+            config.copy(
+                appProxyProcessNames = addUnique(config.appProxyProcessNames, app.processName),
+                appProxyProcessPaths = addUnique(config.appProxyProcessPaths, app.processPath),
+                appDirectProcessNames = removeValue(config.appDirectProcessNames, app.processName),
+                appDirectProcessPaths = removeValue(config.appDirectProcessPaths, app.processPath),
+            )
+        } else {
+            config.copy(
+                appDirectProcessNames = addUnique(config.appDirectProcessNames, app.processName),
+                appDirectProcessPaths = addUnique(config.appDirectProcessPaths, app.processPath),
+                appProxyProcessNames = removeValue(config.appProxyProcessNames, app.processName),
+                appProxyProcessPaths = removeValue(config.appProxyProcessPaths, app.processPath),
+            )
+        }
+        writeConfig(updated)
+        val generated = if (rawConfigFile.isFile) generateConfig() else RuntimeCommandResult(0, "Config will be generated after import")
+        val mode = if (proxy) "GATES" else "direct"
+        return RuntimeCommandResult(
+            generated.exitCode,
+            "App route set to $mode: ${app.label}\n${generated.output}".trim(),
+        )
+    }
+
+    fun removeAppRouting(target: String, proxy: Boolean): RuntimeCommandResult {
+        val normalized = target.trim().trim('"')
+        if (normalized.isBlank()) return RuntimeCommandResult(1, "Expected .exe path or process name.")
+        val fileName = File(normalized).name.takeIf { it.isNotBlank() } ?: normalized
+        val parsed = parseAppRoutingTarget(normalized)
+        val nameTargets = listOfNotNull(normalized, fileName, parsed?.processName).toTypedArray()
+        val pathTargets = listOfNotNull(normalized, parsed?.processPath).toTypedArray()
+        val config = readConfig()
+        val updated = if (proxy) {
+            config.copy(
+                appProxyProcessNames = removeValue(config.appProxyProcessNames, *nameTargets),
+                appProxyProcessPaths = removeValue(config.appProxyProcessPaths, *pathTargets),
+            )
+        } else {
+            config.copy(
+                appDirectProcessNames = removeValue(config.appDirectProcessNames, *nameTargets),
+                appDirectProcessPaths = removeValue(config.appDirectProcessPaths, *pathTargets),
+            )
+        }
+        writeConfig(updated)
+        val generated = if (rawConfigFile.isFile) generateConfig() else RuntimeCommandResult(0, "Config will be generated after import")
+        return RuntimeCommandResult(generated.exitCode, "App route removed: $normalized\n${generated.output}".trim())
+    }
+
+    private fun appRoutingSummary(): RuntimeCommandResult {
+        val state = appRoutingState()
+        return RuntimeCommandResult(
+            0,
+            buildString {
+                appendLine("Mode: ${if (state.routeAll) "all" else "selected"}")
+                appendLine("Through GATES:")
+                state.proxyProcessNames.forEach { appendLine("- name: $it") }
+                state.proxyProcessPaths.forEach { appendLine("- path: $it") }
+                appendLine("Direct:")
+                state.directProcessNames.forEach { appendLine("- name: $it") }
+                state.directProcessPaths.forEach { appendLine("- path: $it") }
+            }.trim(),
+        )
+    }
+
+    private fun runningAppsSummary(): RuntimeCommandResult {
+        val apps = listRunningApps()
+        return RuntimeCommandResult(
+            0,
+            apps.joinToString("\n") { "${it.name} pid=${it.pid} path=${it.path}" },
+        )
+    }
+
+    private data class AppRoutingTarget(
+        val processName: String,
+        val processPath: String,
+        val label: String,
+    )
+
+    private fun parseAppRoutingTarget(raw: String): AppRoutingTarget? {
+        val value = raw.trim().trim('"')
+        if (value.isBlank()) return null
+        val file = File(value)
+        val isPath = file.isAbsolute || value.contains("\\") || value.contains("/")
+        val name = if (isPath) file.name else value
+        if (!name.endsWith(".exe", ignoreCase = true)) return null
+        val path = if (isPath) file.absolutePath else ""
+        return AppRoutingTarget(
+            processName = name,
+            processPath = path,
+            label = path.ifBlank { name },
+        )
+    }
+
+    private fun addUnique(values: List<String>, value: String): List<String> {
+        if (value.isBlank()) return values
+        if (values.any { it.equals(value, ignoreCase = true) }) return values
+        return values + value
+    }
+
+    private fun removeValue(values: List<String>, vararg targets: String): List<String> {
+        val normalized = targets
+            .filter { it.isNotBlank() }
+            .map { it.trim() }
+        if (normalized.isEmpty()) return values
+        return values.filter { value -> normalized.none { value.equals(it, ignoreCase = true) } }
     }
 
     private fun probeRoutes(): RuntimeCommandResult {
@@ -1639,17 +1838,22 @@ class WindowsRuntimeController {
         val names = processNames.filter { it.isNotBlank() }
         val paths = processPaths.filter { it.isNotBlank() }
         if (names.isEmpty() && paths.isEmpty()) return
-        rules.add(
-            JsonObject().apply {
-                if (names.isNotEmpty()) {
+        if (names.isNotEmpty()) {
+            rules.add(
+                JsonObject().apply {
                     add("process_name", JsonArray().also { array -> names.forEach { array.add(it) } })
-                }
-                if (paths.isNotEmpty()) {
+                    addProperty("outbound", outbound)
+                },
+            )
+        }
+        if (paths.isNotEmpty()) {
+            rules.add(
+                JsonObject().apply {
                     add("process_path", JsonArray().also { array -> paths.forEach { array.add(it) } })
-                }
-                addProperty("outbound", outbound)
-            },
-        )
+                    addProperty("outbound", outbound)
+                },
+            )
+        }
     }
 
     private fun disableBridgeMultiplex(outbounds: JsonArray) {

@@ -1,6 +1,8 @@
 package com.yokhan.gates.windows
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,10 +11,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,6 +52,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import java.awt.FileDialog
+import java.awt.Window as AwtWindow
+import java.io.File
 import kotlin.system.exitProcess
 
 private val AppWidth = 430.dp
@@ -97,7 +104,7 @@ fun main(args: Array<String>) {
             ) {
                 MaterialTheme {
                     Surface(Modifier.fillMaxSize()) {
-                        WindowsApp()
+                        WindowsApp(window)
                     }
                 }
             }
@@ -135,6 +142,12 @@ private fun runCli(args: List<String>): Int = runBlocking {
               GATES --cli set-route <auto|bridge|relay|naive|hy2>
               GATES --cli set-runtime <tun|system-proxy|proxy>
               GATES --cli set-tun-routing <all|selected>
+              GATES --cli apps
+              GATES --cli running-apps
+              GATES --cli add-app-proxy <exe-path-or-name>
+              GATES --cli add-app-direct <exe-path-or-name>
+              GATES --cli remove-app-proxy <exe-path-or-name>
+              GATES --cli remove-app-direct <exe-path-or-name>
               GATES --cli enable-system-proxy
               GATES --cli disable-system-proxy
               GATES --cli enable-autostart
@@ -153,6 +166,7 @@ private fun runCli(args: List<String>): Int = runBlocking {
     val controller = WindowsRuntimeController()
     val argument = when (command) {
         "set-route", "set-runtime", "set-tun-routing", "adopt-state" -> args.getOrNull(1)
+        "add-app-proxy", "add-app-direct", "remove-app-proxy", "remove-app-direct" -> args.drop(1).joinToString(" ")
         "report-bug" -> args.drop(1).joinToString(" ")
         else -> null
     }
@@ -166,7 +180,7 @@ private fun runCli(args: List<String>): Int = runBlocking {
 }
 
 @Composable
-private fun WindowsApp() {
+private fun WindowsApp(ownerWindow: AwtWindow? = null) {
     val scope = rememberCoroutineScope()
     val controller = remember { WindowsRuntimeController() }
     val initialConfig = remember { controller.readConfig() }
@@ -176,7 +190,10 @@ private fun WindowsApp() {
     var lastMessage by remember { mutableStateOf("") }
     var roomNetMessage by remember { mutableStateOf("") }
     var showBugDialog by remember { mutableStateOf(false) }
+    var showAppsDialog by remember { mutableStateOf(false) }
     var bugMessage by remember { mutableStateOf("") }
+    var appRoutingState by remember { mutableStateOf(controller.appRoutingState()) }
+    var runningApps by remember { mutableStateOf(emptyList<WindowsProcessCandidate>()) }
     val state = remember(connectionStatus, activeRoute, busy) {
         dashboardState(connectionStatus, activeRoute, busy)
     }
@@ -251,6 +268,37 @@ private fun WindowsApp() {
         }
     }
 
+    fun launchAppRouting(label: String, command: String, argument: String = "") {
+        scope.launch {
+            busy = true
+            val result = withContext(Dispatchers.IO) {
+                controller.run(command, argument)
+            }
+            appRoutingState = controller.appRoutingState()
+            lastMessage = resultMessage(label, result)
+            busy = false
+        }
+    }
+
+    fun refreshRunningApps() {
+        scope.launch {
+            runningApps = withContext(Dispatchers.IO) {
+                controller.listRunningApps()
+            }
+        }
+    }
+
+    DisposableEffect(ownerWindow) {
+        val dropTarget = ownerWindow?.let { window ->
+            NativeFileDropTarget(window) { files ->
+                files.firstOrNull()?.let { file ->
+                    launchAppRouting("Приложение", "add-app-proxy", file.absolutePath)
+                }
+            }.also { it.install() }
+        }
+        onDispose { dropTarget?.uninstall() }
+    }
+
     if (showBugDialog) {
         BugReportDialog(
             message = bugMessage,
@@ -262,6 +310,27 @@ private fun WindowsApp() {
                 showBugDialog = false
                 launchRuntime("Отчёт", "report-bug", argument = text)
             },
+        )
+    }
+
+    if (showAppsDialog) {
+        AppRoutingDialog(
+            state = appRoutingState,
+            runningApps = runningApps,
+            busy = busy,
+            onDismiss = { showAppsDialog = false },
+            onRefreshProcesses = { refreshRunningApps() },
+            onPickExe = {
+                chooseExeFile(ownerWindow)?.let { path ->
+                    launchAppRouting("Приложение", "add-app-proxy", path)
+                }
+            },
+            onRouteAll = { launchAppRouting("Режим", "set-tun-routing", "all") },
+            onRouteSelected = { launchAppRouting("Режим", "set-tun-routing", "selected") },
+            onAddProxy = { path -> launchAppRouting("Приложение", "add-app-proxy", path) },
+            onAddDirect = { path -> launchAppRouting("Исключение", "add-app-direct", path) },
+            onRemoveProxy = { value -> launchAppRouting("Приложение", "remove-app-proxy", value) },
+            onRemoveDirect = { value -> launchAppRouting("Исключение", "remove-app-direct", value) },
         )
     }
 
@@ -311,6 +380,11 @@ private fun WindowsApp() {
             message = lastMessage,
             onLogin = { launchRuntime("Вход", "login") },
             onUpdate = { launchRuntime("Обновление", "update") },
+            onApps = {
+                appRoutingState = controller.appRoutingState()
+                showAppsDialog = true
+                refreshRunningApps()
+            },
             onBugReport = { showBugDialog = true },
         )
     }
@@ -347,6 +421,7 @@ private fun WindowsActionBar(
     message: String,
     onLogin: () -> Unit,
     onUpdate: () -> Unit,
+    onApps: () -> Unit,
     onBugReport: () -> Unit,
 ) {
     Column(
@@ -373,6 +448,20 @@ private fun WindowsActionBar(
                 modifier = Modifier.weight(1f),
             ) {
                 Text("Обновить")
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(
+                onClick = onApps,
+                enabled = !busy,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Приложения")
             }
             Button(
                 onClick = onBugReport,
@@ -426,6 +515,247 @@ private fun BugReportDialog(
             }
         },
     )
+}
+
+@Composable
+private fun AppRoutingDialog(
+    state: AppRoutingState,
+    runningApps: List<WindowsProcessCandidate>,
+    busy: Boolean,
+    onDismiss: () -> Unit,
+    onRefreshProcesses: () -> Unit,
+    onPickExe: () -> Unit,
+    onRouteAll: () -> Unit,
+    onRouteSelected: () -> Unit,
+    onAddProxy: (String) -> Unit,
+    onAddDirect: (String) -> Unit,
+    onRemoveProxy: (String) -> Unit,
+    onRemoveDirect: (String) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Приложения") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 540.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = "Перетащи .exe в окно GATES или выбери приложение ниже.",
+                    color = Color(0xFFE6E8FF),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = "Режим",
+                    color = Color(0xFFAEB8FF),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (state.routeAll) {
+                        Button(
+                            onClick = onRouteAll,
+                            enabled = !busy,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Все")
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onRouteAll,
+                            enabled = !busy,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Все")
+                        }
+                    }
+                    if (!state.routeAll) {
+                        Button(
+                            onClick = onRouteSelected,
+                            enabled = !busy,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Выбранные")
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onRouteSelected,
+                            enabled = !busy,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text("Выбранные")
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onPickExe,
+                        enabled = !busy,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Выбрать .exe")
+                    }
+                    OutlinedButton(
+                        onClick = onRefreshProcesses,
+                        enabled = !busy,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Процессы")
+                    }
+                }
+                AppRouteSection(
+                    title = "Через GATES",
+                    names = state.proxyProcessNames,
+                    paths = state.proxyProcessPaths,
+                    onRemove = onRemoveProxy,
+                )
+                AppRouteSection(
+                    title = "Напрямую",
+                    names = state.directProcessNames,
+                    paths = state.directProcessPaths,
+                    onRemove = onRemoveDirect,
+                )
+                Spacer(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color(0xFF27304E)),
+                )
+                Text(
+                    text = "Запущенные",
+                    color = Color(0xFFAEB8FF),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                runningApps.take(24).forEach { app ->
+                    RunningAppRow(
+                        app = app,
+                        busy = busy,
+                        onAddProxy = { onAddProxy(app.path) },
+                        onAddDirect = { onAddDirect(app.path) },
+                    )
+                }
+                if (runningApps.isEmpty()) {
+                    Text(
+                        text = "Нажми «Процессы».",
+                        color = Color(0xFFABB2D9),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Готово")
+            }
+        },
+    )
+}
+
+@Composable
+private fun AppRouteSection(
+    title: String,
+    names: List<String>,
+    paths: List<String>,
+    onRemove: (String) -> Unit,
+) {
+    Text(
+        text = title,
+        color = Color(0xFFAEB8FF),
+        style = MaterialTheme.typography.labelMedium,
+    )
+    val entries = paths.map { "path" to it } + names.map { "name" to it }
+    if (entries.isEmpty()) {
+        Text(
+            text = "Пусто",
+            color = Color(0xFFABB2D9),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        return
+    }
+    entries.forEach { (_, value) ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = value,
+                color = Color(0xFFF1F3FF),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { onRemove(value) }) {
+                Text("Убрать")
+            }
+        }
+    }
+}
+
+@Composable
+private fun RunningAppRow(
+    app: WindowsProcessCandidate,
+    busy: Boolean,
+    onAddProxy: () -> Unit,
+    onAddDirect: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF111628))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = app.name,
+            color = Color(0xFFF1F3FF),
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = app.path,
+            color = Color(0xFFABB2D9),
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onAddProxy,
+                enabled = !busy,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("GATES")
+            }
+            OutlinedButton(
+                onClick = onAddDirect,
+                enabled = !busy,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Мимо")
+            }
+        }
+    }
+}
+
+private fun chooseExeFile(owner: AwtWindow?): String? {
+    val dialog = when (owner) {
+        is java.awt.Frame -> FileDialog(owner, "Выбрать приложение", FileDialog.LOAD)
+        is java.awt.Dialog -> FileDialog(owner, "Выбрать приложение", FileDialog.LOAD)
+        else -> FileDialog(null as java.awt.Frame?, "Выбрать приложение", FileDialog.LOAD)
+    }.apply {
+        filenameFilter = java.io.FilenameFilter { _, name ->
+            name.endsWith(".exe", ignoreCase = true)
+        }
+        isVisible = true
+    }
+    val directory = dialog.directory ?: return null
+    val file = dialog.file ?: return null
+    return File(directory, file).absolutePath
 }
 
 private fun resultMessage(label: String, result: RuntimeCommandResult): String {
