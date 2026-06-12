@@ -97,7 +97,7 @@ private fun previewState(status: ConnectionStatus): DashboardState {
         activeProfileName = "Bridge-igor",
         activeProfileProtocol = VpnProtocol.Vless,
         activeProfileProtocolLabel = "VLESS",
-        activeProfileSubtitle = "VLESS В· Subscription #1776115554141",
+        activeProfileSubtitle = "VLESS · Subscription #1776115554141",
         uploadRate = RateDisplay(if (connected) 12_400L else 0L),
         downloadRate = RateDisplay(if (connected) 48_700L else 0L),
         latency = LatencyDisplay(if (connected) 103L else null),

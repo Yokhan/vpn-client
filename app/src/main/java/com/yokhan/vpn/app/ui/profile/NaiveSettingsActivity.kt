@@ -145,9 +145,9 @@ class NaiveSettingsActivity : ComposeProfileSettingsActivity<NaiveBean>() {
     }
 
     override fun finish() {
-        if (DataStore.profileName == "РµвЂ“ВµРёВ¦РѓР¶вЂ°вЂњРµСР‚Р№С™С’РёвЂ”РЏРµР‰СџРёС“Р…") {
+        if (DataStore.profileName == "喵要打开隐藏功能") {
             DataStore.isExpert = true
-        } else if (DataStore.profileName == "РµвЂ“ВµРёВ¦РѓРµвЂ¦С–Р№вЂ”В­Р№С™С’РёвЂ”РЏРµР‰СџРёС“Р…") {
+        } else if (DataStore.profileName == "喵要关闭隐藏功能") {
             DataStore.isExpert = false
         }
         super.finish()

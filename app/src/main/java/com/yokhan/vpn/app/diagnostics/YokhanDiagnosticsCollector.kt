@@ -814,31 +814,31 @@ data class YokhanDiagnosticsReport(
         val activeRoute = routes.activeRouteFamily.ifBlank { routes.activeProtocol.ifBlank { "unknown" } }
         val network = runtime.network.transports.joinToString("+").ifBlank { "unknown" }
         val routeStatus = if (routes.routeOrderOk && routes.missingRouteFamilies.isEmpty()) {
-            "РјР°СЂС€СЂСѓС‚С‹ РІ РїРѕСЂСЏРґРєРµ"
+            "маршруты в порядке"
         } else {
-            "РµСЃС‚СЊ РїСЂРѕР±Р»РµРјР° СЃ РјР°СЂС€СЂСѓС‚Р°РјРё"
+            "есть проблема с маршрутами"
         }
         val probeStatus = if (failedProbes == 0) {
-            "РїСЂРѕР±С‹ СѓСЃРїРµС€РЅС‹"
+            "пробы успешны"
         } else {
-            "РѕС€РёР±РѕРє РїСЂРѕР±: $failedProbes"
+            "ошибок проб: $failedProbes"
         }
         val stabilityStatus = if (failedStability == 0) {
-            "СЃС‚Р°Р±РёР»СЊРЅРѕСЃС‚СЊ Р±РµР· РѕС€РёР±РѕРє"
+            "стабильность без ошибок"
         } else {
-            "РЅРµСЃС‚Р°Р±РёР»СЊРЅС‹С… С†РµР»РµР№: $failedStability"
+            "нестабильных целей: $failedStability"
         }
         val sustainedStatus = if (failedSustained == 0) {
-            "Р·Р°РіСЂСѓР·РєРё Р±РµР· РѕС€РёР±РѕРє"
+            "загрузки без ошибок"
         } else {
-            "РѕС€РёР±РѕРє Р·Р°РіСЂСѓР·РєРё: $failedSustained"
+            "ошибок загрузки: $failedSustained"
         }
         val udpStatus = if (failedUdp == 0) {
-            "udp РѕС‚РїСЂР°РІРєР° РѕРє"
+            "udp отправка ок"
         } else {
-            "udp РѕС€РёР±РѕРє: $failedUdp"
+            "udp ошибок: $failedUdp"
         }
-        return "${routes.activeProfile.ifBlank { "РїСЂРѕС„РёР»СЊ РЅРµ РІС‹Р±СЂР°РЅ" }} В· route=$activeRoute В· net=$network В· $routeStatus В· $probeStatus В· $stabilityStatus В· $sustainedStatus В· $udpStatus"
+        return "${routes.activeProfile.ifBlank { "профиль не выбран" }} · route=$activeRoute · net=$network · $routeStatus · $probeStatus · $stabilityStatus · $sustainedStatus · $udpStatus"
     }
 
     fun toJsonString(): String {

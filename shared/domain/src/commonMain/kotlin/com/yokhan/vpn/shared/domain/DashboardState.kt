@@ -24,16 +24,16 @@ object DashboardStateMapper {
         val profile = snapshot.activeProfile
         return DashboardState(
             connectionStatus = snapshot.status,
-            activeProfileName = profile?.name ?: "РќРµС‚ РєРѕРЅС„РёРіСѓСЂР°С†РёРё",
+            activeProfileName = profile?.name ?: "Нет конфигурации",
             activeProfileProtocol = profile?.protocol ?: VpnProtocol.Unknown,
             activeProfileProtocolLabel = profile?.protocolLabel ?: VpnProtocol.Unknown.name.uppercase(),
-            activeProfileSubtitle = profile?.subtitle() ?: "Р’С‹Р±РµСЂРёС‚Рµ РїСЂРѕС„РёР»СЊ",
+            activeProfileSubtitle = profile?.subtitle() ?: "Выберите профиль",
             uploadRate = RateDisplay(snapshot.traffic.uploadBytesPerSecond),
             downloadRate = RateDisplay(snapshot.traffic.downloadBytesPerSecond),
             latency = LatencyDisplay(snapshot.traffic.latencyMs),
             uploadLabel = snapshot.traffic.uploadBytesPerSecond.toRateLabel(),
             downloadLabel = snapshot.traffic.downloadBytesPerSecond.toRateLabel(),
-            latencyLabel = snapshot.traffic.latencyMs?.let { "${it} РјСЃ" } ?: "--",
+            latencyLabel = snapshot.traffic.latencyMs?.let { "${it} мс" } ?: "--",
             timerLabel = snapshot.connectedForMillis.toTimerLabel(),
             shouldAnimateSpace = snapshot.isRunning,
             canRunConnectionTest = snapshot.status == ConnectionStatus.Connected,
@@ -43,7 +43,7 @@ object DashboardStateMapper {
     }
 
     private fun ProfileSummary.subtitle(): String {
-        return subscriptionLabel?.let { "$protocolLabel В· $it" } ?: protocolLabel
+        return subscriptionLabel?.let { "$protocolLabel · $it" } ?: protocolLabel
     }
 
     private fun Long.toRateLabel(): String {
