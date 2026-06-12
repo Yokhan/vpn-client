@@ -2,6 +2,7 @@
 
 import android.os.Bundle
 import android.view.View
+import android.widget.EditText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,9 +14,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.preference.PreferenceDataStore
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.yokhan.gates.app.diagnostics.YokhanBugReporter
+import com.yokhan.gates.app.diagnostics.YokhanDiagnosticsCollector
 import com.yokhan.gates.app.provider.YokhanNetworkProviderDetector
 import com.yokhan.gates.app.provider.YokhanNetworkProviderStatusMapper
 import com.yokhan.gates.app.routing.RuCompatibilityClassifier
+import com.yokhan.gates.app.update.YokhanAppUpdater
 import com.yokhan.gates.app.ui.compose.YokhanBody
 import com.yokhan.gates.shared.ui.design.YokhanSpacing
 import io.nekohasekai.sagernet.Key
@@ -42,6 +47,11 @@ import com.yokhan.gates.app.ui.shell.YokhanShellRoute
 import com.yokhan.gates.app.ui.shell.YokhanShellSubRoute
 import com.yokhan.gates.shared.domain.NetworkProviderState
 import com.yokhan.gates.shared.domain.NetworkProviderSummary
+import io.nekohasekai.sagernet.BuildConfig
+import io.nekohasekai.sagernet.ktx.onMainDispatcher
+import io.nekohasekai.sagernet.ktx.readableMessage
+import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
+import io.nekohasekai.sagernet.ktx.snackbar
 
 class SettingsFragment : YokhanComposeRouteFragment(),
     OnPreferenceDataStoreChangeListener {
@@ -123,63 +133,102 @@ class SettingsFragment : YokhanComposeRouteFragment(),
             }
 
             YokhanRouteCard(
-                title = stringResource(R.string.settings_provider_card_title),
+                title = stringResource(R.string.app_name_long),
                 colors = colors,
                 typography = typography,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    YokhanMonoValue(
-                        text = state?.providerTitle ?: "--",
-                        colors = colors,
-                        typography = typography,
-                        modifier = Modifier.weight(1f),
-                        sizeSp = 13,
-                        maxLines = 2,
-                    )
-                    YokhanStatusPill(
-                        text = state?.providerStateLabel ?: "--",
-                        active = state?.providerCanUse == true,
-                        colors = colors,
-                        typography = typography,
-                        modifier = Modifier.padding(start = 10.dp),
-                    )
-                }
-                YokhanBody(
-                    text = state?.providerSummary ?: "",
-                    colors = colors,
-                    typography = typography,
-                    modifier = Modifier.padding(top = 8.dp),
-                    maxLines = 4,
-                )
                 YokhanMonoValue(
-                    text = state?.providerDetails ?: "--",
+                    text = SagerNet.appVersionNameForDisplay,
                     colors = colors,
                     typography = typography,
-                    modifier = Modifier.padding(top = 13.dp),
-                    sizeSp = 11,
-                    maxLines = 3,
+                    sizeSp = 13,
                 )
                 YokhanCaption(
-                    text = stringResource(R.string.settings_provider_details_label),
+                    text = stringResource(R.string.app_version),
                     colors = colors,
                     typography = typography,
                     modifier = Modifier.padding(top = 4.dp),
                 )
-                YokhanRouteButton(
-                    text = stringResource(R.string.settings_provider_recheck),
-                    primary = false,
-                    enabled = true,
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.check_update_release),
+                            onClick = {
+                                YokhanAppUpdater.checkManually(requireContext(), checkPreview = false)
+                            },
+                        ),
+                        YokhanRouteAction(
+                            title = stringResource(R.string.bug_report_title),
+                            primary = true,
+                            onClick = ::showBugReportDialog,
+                        ),
+                    ),
                     colors = colors,
                     typography = typography,
-                    onClick = ::refreshUi,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 14.dp),
+                    modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
                 )
+            }
+
+            if (BuildConfig.DEBUG) {
+                YokhanRouteCard(
+                    title = stringResource(R.string.settings_provider_card_title),
+                    colors = colors,
+                    typography = typography,
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        YokhanMonoValue(
+                            text = state?.providerTitle ?: "--",
+                            colors = colors,
+                            typography = typography,
+                            modifier = Modifier.weight(1f),
+                            sizeSp = 13,
+                            maxLines = 2,
+                        )
+                        YokhanStatusPill(
+                            text = state?.providerStateLabel ?: "--",
+                            active = state?.providerCanUse == true,
+                            colors = colors,
+                            typography = typography,
+                            modifier = Modifier.padding(start = 10.dp),
+                        )
+                    }
+                    YokhanBody(
+                        text = state?.providerSummary ?: "",
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 8.dp),
+                        maxLines = 4,
+                    )
+                    YokhanMonoValue(
+                        text = state?.providerDetails ?: "--",
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 13.dp),
+                        sizeSp = 11,
+                        maxLines = 3,
+                    )
+                    YokhanCaption(
+                        text = stringResource(R.string.settings_provider_details_label),
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    YokhanRouteButton(
+                        text = stringResource(R.string.settings_provider_recheck),
+                        primary = false,
+                        enabled = true,
+                        colors = colors,
+                        typography = typography,
+                        onClick = ::refreshUi,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 14.dp),
+                    )
+                }
             }
 
             YokhanRouteCard(
@@ -187,32 +236,34 @@ class SettingsFragment : YokhanComposeRouteFragment(),
                 colors = colors,
                 typography = typography,
             ) {
-                YokhanToggleRow(
-                    title = stringResource(R.string.settings_stealth_title),
-                    summary = stringResource(R.string.settings_stealth_summary),
-                    checked = state?.stealthMode == true,
-                    colors = colors,
-                    typography = typography,
-                    onCheckedChange = {
-                        applyStealthMode(it)
-                        needReload()
-                        refreshUi()
-                    },
-                )
-                YokhanDivider(colors, Modifier.padding(vertical = 10.dp))
-                YokhanToggleRow(
-                    title = stringResource(R.string.settings_direct_speed_title),
-                    summary = stringResource(R.string.settings_direct_speed_summary),
-                    checked = state?.directSpeed == true,
-                    colors = colors,
-                    typography = typography,
-                    onCheckedChange = {
-                        DataStore.showDirectSpeed = it
-                        needReload()
-                        refreshUi()
-                    },
-                )
-                YokhanDivider(colors, Modifier.padding(vertical = 10.dp))
+                if (BuildConfig.DEBUG) {
+                    YokhanToggleRow(
+                        title = stringResource(R.string.settings_stealth_title),
+                        summary = stringResource(R.string.settings_stealth_summary),
+                        checked = state?.stealthMode == true,
+                        colors = colors,
+                        typography = typography,
+                        onCheckedChange = {
+                            applyStealthMode(it)
+                            needReload()
+                            refreshUi()
+                        },
+                    )
+                    YokhanDivider(colors, Modifier.padding(vertical = 10.dp))
+                    YokhanToggleRow(
+                        title = stringResource(R.string.settings_direct_speed_title),
+                        summary = stringResource(R.string.settings_direct_speed_summary),
+                        checked = state?.directSpeed == true,
+                        colors = colors,
+                        typography = typography,
+                        onCheckedChange = {
+                            DataStore.showDirectSpeed = it
+                            needReload()
+                            refreshUi()
+                        },
+                    )
+                    YokhanDivider(colors, Modifier.padding(vertical = 10.dp))
+                }
                 YokhanToggleRow(
                     title = stringResource(R.string.settings_auto_connect_title),
                     summary = stringResource(R.string.settings_auto_connect_summary),
@@ -226,116 +277,118 @@ class SettingsFragment : YokhanComposeRouteFragment(),
                 )
             }
 
-            YokhanRouteCard(
-                title = stringResource(R.string.settings_runtime_title),
-                colors = colors,
-                typography = typography,
-            ) {
-                YokhanMonoValue(state?.appRoutingValue ?: "--", colors, typography, sizeSp = 13)
-                YokhanCaption(
-                    text = stringResource(R.string.settings_apps_title),
+            if (BuildConfig.DEBUG) {
+                YokhanRouteCard(
+                    title = stringResource(R.string.settings_runtime_title),
                     colors = colors,
                     typography = typography,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                YokhanMonoValue(
-                    text = state?.ruCompatibilityValue ?: "--",
-                    colors = colors,
-                    typography = typography,
-                    modifier = Modifier.padding(top = 13.dp),
-                    sizeSp = 12,
-                    maxLines = 2,
-                )
-                YokhanCaption(
-                    text = stringResource(R.string.settings_ru_compatibility),
-                    colors = colors,
-                    typography = typography,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                YokhanMonoValue(
-                    text = state?.dnsSummaryValue ?: "--",
-                    colors = colors,
-                    typography = typography,
-                    modifier = Modifier.padding(top = 13.dp),
-                    sizeSp = 12,
-                    maxLines = 3,
-                )
-                YokhanCaption(
-                    text = stringResource(R.string.settings_dns_title),
-                    colors = colors,
-                    typography = typography,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                YokhanMonoValue(
-                    text = state?.networkSummaryValue ?: "--",
-                    colors = colors,
-                    typography = typography,
-                    modifier = Modifier.padding(top = 13.dp),
-                    sizeSp = 12,
-                    maxLines = 2,
-                )
-                YokhanCaption(
-                    text = stringResource(R.string.settings_network_title),
-                    colors = colors,
-                    typography = typography,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
+                ) {
+                    YokhanMonoValue(state?.appRoutingValue ?: "--", colors, typography, sizeSp = 13)
+                    YokhanCaption(
+                        text = stringResource(R.string.settings_apps_title),
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    YokhanMonoValue(
+                        text = state?.ruCompatibilityValue ?: "--",
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 13.dp),
+                        sizeSp = 12,
+                        maxLines = 2,
+                    )
+                    YokhanCaption(
+                        text = stringResource(R.string.settings_ru_compatibility),
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    YokhanMonoValue(
+                        text = state?.dnsSummaryValue ?: "--",
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 13.dp),
+                        sizeSp = 12,
+                        maxLines = 3,
+                    )
+                    YokhanCaption(
+                        text = stringResource(R.string.settings_dns_title),
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    YokhanMonoValue(
+                        text = state?.networkSummaryValue ?: "--",
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 13.dp),
+                        sizeSp = 12,
+                        maxLines = 2,
+                    )
+                    YokhanCaption(
+                        text = stringResource(R.string.settings_network_title),
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
 
-            YokhanRouteCard(
-                title = stringResource(R.string.settings_advanced_title_card),
-                colors = colors,
-                typography = typography,
-            ) {
-                YokhanMonoValue(
-                    text = state?.advancedSummaryValue ?: "--",
+                YokhanRouteCard(
+                    title = stringResource(R.string.settings_advanced_title_card),
                     colors = colors,
                     typography = typography,
-                    sizeSp = 12,
-                    maxLines = 2,
-                )
-                YokhanCaption(
-                    text = stringResource(R.string.settings_advanced_title),
-                    colors = colors,
-                    typography = typography,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-                YokhanButtonGrid(
-                    actions = listOf(
-                        YokhanRouteAction(
-                            title = stringResource(R.string.settings_manage_apps),
-                            onClick = {
-                                (activity as? MainActivity)?.openActivityRoute(
-                                    YokhanShellActivityRoute.AppManager,
-                                )
-                            },
+                ) {
+                    YokhanMonoValue(
+                        text = state?.advancedSummaryValue ?: "--",
+                        colors = colors,
+                        typography = typography,
+                        sizeSp = 12,
+                        maxLines = 2,
+                    )
+                    YokhanCaption(
+                        text = stringResource(R.string.settings_advanced_title),
+                        colors = colors,
+                        typography = typography,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    YokhanButtonGrid(
+                        actions = listOf(
+                            YokhanRouteAction(
+                                title = stringResource(R.string.settings_manage_apps),
+                                onClick = {
+                                    (activity as? MainActivity)?.openActivityRoute(
+                                        YokhanShellActivityRoute.AppManager,
+                                    )
+                                },
+                            ),
+                            YokhanRouteAction(
+                                title = stringResource(R.string.settings_ru_compatibility),
+                                onClick = {
+                                    (activity as? MainActivity)?.openActivityRoute(
+                                        YokhanShellActivityRoute.RuCompatibility,
+                                    )
+                                },
+                            ),
+                            YokhanRouteAction(
+                                title = stringResource(R.string.settings_open_routes),
+                                onClick = { (activity as? MainActivity)?.displayRoute(YokhanShellRoute.Route) },
+                            ),
+                            YokhanRouteAction(
+                                title = stringResource(R.string.settings_open_advanced),
+                                primary = true,
+                                onClick = {
+                                    (activity as? MainActivity)?.openSubRoute(
+                                        YokhanShellSubRoute.AdvancedSettings,
+                                    )
+                                },
+                            ),
                         ),
-                        YokhanRouteAction(
-                            title = stringResource(R.string.settings_ru_compatibility),
-                            onClick = {
-                                (activity as? MainActivity)?.openActivityRoute(
-                                    YokhanShellActivityRoute.RuCompatibility,
-                                )
-                            },
-                        ),
-                        YokhanRouteAction(
-                            title = stringResource(R.string.settings_open_routes),
-                            onClick = { (activity as? MainActivity)?.displayRoute(YokhanShellRoute.Route) },
-                        ),
-                        YokhanRouteAction(
-                            title = stringResource(R.string.settings_open_advanced),
-                            primary = true,
-                            onClick = {
-                                (activity as? MainActivity)?.openSubRoute(
-                                    YokhanShellSubRoute.AdvancedSettings,
-                                )
-                            },
-                        ),
-                    ),
-                    colors = colors,
-                    typography = typography,
+                        colors = colors,
+                        typography = typography,
                         modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
-                )
+                    )
+                }
             }
         }
     }
@@ -428,6 +481,49 @@ class SettingsFragment : YokhanComposeRouteFragment(),
             }
         }
         (activity as? MainActivity)?.refreshNavMenu(DataStore.enableClashAPI && !enabled)
+    }
+
+    private fun showBugReportDialog() {
+        val input = EditText(requireContext()).apply {
+            hint = getString(R.string.bug_report_hint)
+            minLines = 3
+            maxLines = 5
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.bug_report_title)
+            .setView(input)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.bug_report_send) { _, _ ->
+                val message = input.text?.toString().orEmpty()
+                    .ifBlank { getString(R.string.bug_report_default_message) }
+                sendBugReport(message)
+            }
+            .show()
+    }
+
+    private fun sendBugReport(message: String) {
+        val appContext = requireContext().applicationContext
+        runOnDefaultDispatcher {
+            runCatching {
+                val report = YokhanDiagnosticsCollector.collect(appContext)
+                YokhanBugReporter.send(appContext, message, report.toJsonString())
+            }.onSuccess { bugResult ->
+                onMainDispatcher {
+                    if (!isAdded) return@onMainDispatcher
+                    val snackbarText = if (bugResult.uploaded) {
+                        getString(R.string.bug_report_sent, bugResult.reportId.ifBlank { "ok" })
+                    } else {
+                        getString(R.string.bug_report_saved, bugResult.localFile.name)
+                    }
+                    snackbar(snackbarText).show()
+                }
+            }.onFailure { error ->
+                onMainDispatcher {
+                    if (!isAdded) return@onMainDispatcher
+                    snackbar(error.readableMessage).show()
+                }
+            }
+        }
     }
 
     private fun compatibilitySummary(context: android.content.Context): String {
