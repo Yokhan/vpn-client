@@ -661,6 +661,7 @@
     <string name="bug_report_title">Сообщить об ошибке</string>
     <string name="bug_report_hint">Что не работает?</string>
     <string name="bug_report_send">Отправить отчет</string>
+    <string name="bug_report_sending">&#1054;&#1090;&#1087;&#1088;&#1072;&#1074;&#1083;&#1103;&#1102; &#1086;&#1090;&#1095;&#1077;&#1090;...</string>
     <string name="bug_report_default_message">Пользователь отправил отчет из приложения.</string>
     <string name="bug_report_sent">Отчет отправлен: %1$s</string>
     <string name="bug_report_saved">Отчет сохранен локально: %1$s</string>

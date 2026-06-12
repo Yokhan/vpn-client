@@ -1,6 +1,8 @@
 ﻿package com.yokhan.gates.app.ui
 
 import android.os.Bundle
+import android.os.SystemClock
+import android.util.Log
 import android.view.View
 import android.widget.EditText
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import androidx.preference.PreferenceDataStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.yokhan.gates.app.diagnostics.YokhanBugReporter
-import com.yokhan.gates.app.diagnostics.YokhanDiagnosticsCollector
 import com.yokhan.gates.app.provider.YokhanNetworkProviderDetector
 import com.yokhan.gates.app.provider.YokhanNetworkProviderStatusMapper
 import com.yokhan.gates.app.routing.RuCompatibilityClassifier
@@ -52,11 +53,16 @@ import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.snackbar
+import org.json.JSONObject
 
 class SettingsFragment : YokhanComposeRouteFragment(),
     OnPreferenceDataStoreChangeListener {
 
     private val settingsState = mutableStateOf<SettingsUiState?>(null)
+
+    private companion object {
+        const val TAG = "GatesBugReport"
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -503,11 +509,18 @@ class SettingsFragment : YokhanComposeRouteFragment(),
 
     private fun sendBugReport(message: String) {
         val appContext = requireContext().applicationContext
+        snackbar(getString(R.string.bug_report_sending)).show()
+        Log.i(TAG, "bug_report_send_start version=${BuildConfig.VERSION_NAME}")
         runOnDefaultDispatcher {
             runCatching {
-                val report = YokhanDiagnosticsCollector.collect(appContext)
-                YokhanBugReporter.send(appContext, message, report.toJsonString())
+                val diagnosticsJson = buildQuickBugDiagnostics()
+                YokhanBugReporter.send(appContext, message, diagnosticsJson)
             }.onSuccess { bugResult ->
+                if (bugResult.uploaded) {
+                    Log.i(TAG, "bug_report_uploaded id=${bugResult.reportId.ifBlank { "ok" }}")
+                } else {
+                    Log.w(TAG, "bug_report_saved file=${bugResult.localFile.name} details=${bugResult.details.take(300)}")
+                }
                 onMainDispatcher {
                     if (!isAdded) return@onMainDispatcher
                     val snackbarText = if (bugResult.uploaded) {
@@ -518,12 +531,40 @@ class SettingsFragment : YokhanComposeRouteFragment(),
                     snackbar(snackbarText).show()
                 }
             }.onFailure { error ->
+                Log.e(TAG, "bug_report_failed", error)
                 onMainDispatcher {
                     if (!isAdded) return@onMainDispatcher
                     snackbar(error.readableMessage).show()
                 }
             }
         }
+    }
+
+    private fun buildQuickBugDiagnostics(): String {
+        return JSONObject()
+            .put("captured_at_millis", System.currentTimeMillis())
+            .put("source", "settings")
+            .put(
+                "app",
+                JSONObject()
+                    .put("package", BuildConfig.APPLICATION_ID)
+                    .put("version_name", BuildConfig.VERSION_NAME)
+                    .put("version_code", BuildConfig.VERSION_CODE)
+                    .put("sdk", android.os.Build.VERSION.SDK_INT),
+            )
+            .put(
+                "runtime",
+                JSONObject()
+                    .put("service_state", DataStore.serviceState.name)
+                    .put("service_mode", DataStore.serviceMode)
+                    .put("selected_proxy_id", DataStore.selectedProxy)
+                    .put("selected_group_id", DataStore.selectedGroup)
+                    .put("mixed_port", DataStore.mixedPort)
+                    .put("stealth_mode", DataStore.stealthMode)
+                    .put("ru_bypass_enabled", DataStore.enableRuBypass)
+                    .put("boot_elapsed_realtime_ms", SystemClock.elapsedRealtime()),
+            )
+            .toString(2)
     }
 
     private fun compatibilitySummary(context: android.content.Context): String {
