@@ -133,6 +133,8 @@ private fun runCli(args: List<String>): Int = runBlocking {
               GATES --cli update
               GATES --cli report-bug <message>
               GATES --cli set-route <auto|bridge|relay|naive|hy2>
+              GATES --cli set-runtime <tun|system-proxy|proxy>
+              GATES --cli set-tun-routing <all|selected>
               GATES --cli enable-system-proxy
               GATES --cli disable-system-proxy
               GATES --cli enable-autostart
@@ -150,7 +152,7 @@ private fun runCli(args: List<String>): Int = runBlocking {
 
     val controller = WindowsRuntimeController()
     val argument = when (command) {
-        "set-route", "adopt-state" -> args.getOrNull(1)
+        "set-route", "set-runtime", "set-tun-routing", "adopt-state" -> args.getOrNull(1)
         "report-bug" -> args.drop(1).joinToString(" ")
         else -> null
     }
@@ -493,7 +495,7 @@ private fun dashboardState(
         activeProfileName = activeRouteLabel(activeRoute),
         activeProfileProtocol = routeProtocol(activeRoute),
         activeProfileProtocolLabel = routeProtocolLabel(activeRoute),
-        activeProfileSubtitle = "Windows runtime adapter - proxy mode",
+        activeProfileSubtitle = "Windows runtime adapter",
         uploadRate = RateDisplay(if (connected) 12_000 else 0),
         downloadRate = RateDisplay(if (connected) 42_000 else 0),
         latency = LatencyDisplay(if (connected) 98 else null),

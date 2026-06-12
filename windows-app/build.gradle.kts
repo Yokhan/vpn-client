@@ -44,7 +44,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Exe, TargetFormat.Msi)
             packageName = "GATES"
-            packageVersion = "1.6.42"
+            packageVersion = "1.6.43"
             vendor = "Yokhan"
             description = "GATES Windows client"
         }

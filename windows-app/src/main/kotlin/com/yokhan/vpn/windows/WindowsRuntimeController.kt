@@ -57,9 +57,29 @@ data class WindowsAppConfig(
     val systemProxyEnabled: Boolean = true,
     val restoreSystemProxyOnStop: Boolean = true,
     val autoStartOnLogin: Boolean = false,
+    val runtimeMode: String = "tun",
+    val allowProxyFallback: Boolean = true,
     val listenHost: String = "127.0.0.1",
     val socksPort: Int = 2088,
     val httpPort: Int = 2089,
+    val tunInterfaceName: String = "GATES",
+    val tunAddress: List<String> = listOf("172.19.0.1/30"),
+    val tunMtu: Int = 9000,
+    val tunStack: String = "mixed",
+    val tunAutoRoute: Boolean = true,
+    val tunStrictRoute: Boolean = true,
+    val tunRouteAll: Boolean = true,
+    val tunRouteExcludeAddress: List<String> = listOf(
+        "127.0.0.0/8",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "224.0.0.0/4",
+    ),
+    val appProxyProcessNames: List<String> = emptyList(),
+    val appProxyProcessPaths: List<String> = emptyList(),
+    val appDirectProcessNames: List<String> = listOf("GATES.exe", "sing-box.exe"),
+    val appDirectProcessPaths: List<String> = emptyList(),
     val roomNetEnabled: Boolean = true,
     val roomNetLocalGameHost: String = "127.0.0.1",
     val activeRoute: String = "auto",
@@ -342,7 +362,7 @@ private class RoomNetRelay(
     }
 }
 
-private const val WINDOWS_APP_VERSION = "1.6.42"
+private const val WINDOWS_APP_VERSION = "1.6.43"
 private const val WINDOWS_PLATFORM = "windows"
 
 class WindowsRuntimeController {
@@ -359,6 +379,7 @@ class WindowsRuntimeController {
     private val authStateFile = File(appDir, "auth-state.json")
     private val rawConfigFile = File(runtimeDir, "subscription.singbox.json")
     private val generatedConfigFile = File(runtimeDir, "config.json")
+    private val generatedModeFile = File(runtimeDir, "generated-mode.txt")
     private val pidFile = File(runtimeDir, "sing-box.pid")
     private val processStateFile = File(runtimeDir, "process-state.json")
     private val systemProxyStateFile = File(runtimeDir, "system-proxy-before.json")
@@ -381,16 +402,37 @@ class WindowsRuntimeController {
         val json = appConfigFile.readText(StandardCharsets.UTF_8)
         val source = runCatching { JsonParser.parseString(json).asJsonObject }.getOrNull()
         val normalized = normalizeConfig(gson.fromJson(json, WindowsAppConfig::class.java))
+        val defaults = WindowsAppConfig()
         return normalized.copy(
             systemProxyEnabled = if (source?.has("systemProxyEnabled") == true) {
                 normalized.systemProxyEnabled
             } else {
-                WindowsAppConfig().systemProxyEnabled
+                defaults.systemProxyEnabled
             },
             restoreSystemProxyOnStop = if (source?.has("restoreSystemProxyOnStop") == true) {
                 normalized.restoreSystemProxyOnStop
             } else {
-                WindowsAppConfig().restoreSystemProxyOnStop
+                defaults.restoreSystemProxyOnStop
+            },
+            allowProxyFallback = if (source?.has("allowProxyFallback") == true) {
+                normalized.allowProxyFallback
+            } else {
+                defaults.allowProxyFallback
+            },
+            tunAutoRoute = if (source?.has("tunAutoRoute") == true) {
+                normalized.tunAutoRoute
+            } else {
+                defaults.tunAutoRoute
+            },
+            tunStrictRoute = if (source?.has("tunStrictRoute") == true) {
+                normalized.tunStrictRoute
+            } else {
+                defaults.tunStrictRoute
+            },
+            tunRouteAll = if (source?.has("tunRouteAll") == true) {
+                normalized.tunRouteAll
+            } else {
+                defaults.tunRouteAll
             },
         )
     }
@@ -435,6 +477,15 @@ class WindowsRuntimeController {
         val reportUrls = runCatching { config.reportUrls.filter { it.startsWith("https://") } }
             .getOrDefault(defaults.reportUrls)
             .ifEmpty { defaults.reportUrls }
+        fun cleanList(values: List<String>?, fallback: List<String>, allowEmpty: Boolean = true): List<String> {
+            val cleaned = runCatching {
+                values.orEmpty()
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+            }.getOrDefault(fallback)
+            return if (!allowEmpty && cleaned.isEmpty()) fallback else cleaned
+        }
         return WindowsAppConfig(
             subscriptionUrl = runCatching { config.subscriptionUrl }.getOrNull()
                 ?.takeIf { it.isNotBlank() }
@@ -465,6 +516,10 @@ class WindowsRuntimeController {
             restoreSystemProxyOnStop = runCatching { config.restoreSystemProxyOnStop }
                 .getOrDefault(defaults.restoreSystemProxyOnStop),
             autoStartOnLogin = runCatching { config.autoStartOnLogin }.getOrDefault(defaults.autoStartOnLogin),
+            runtimeMode = runCatching { config.runtimeMode }.getOrNull()
+                ?.takeIf { it in listOf("tun", "system-proxy", "proxy") }
+                ?: defaults.runtimeMode,
+            allowProxyFallback = runCatching { config.allowProxyFallback }.getOrDefault(defaults.allowProxyFallback),
             listenHost = runCatching { config.listenHost }.getOrNull()
                 ?.takeIf { it.isNotBlank() }
                 ?: defaults.listenHost,
@@ -474,6 +529,29 @@ class WindowsRuntimeController {
             httpPort = runCatching { config.httpPort }.getOrDefault(defaults.httpPort)
                 .takeIf { it in 1..65535 }
                 ?: defaults.httpPort,
+            tunInterfaceName = runCatching { config.tunInterfaceName }.getOrNull()
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: defaults.tunInterfaceName,
+            tunAddress = cleanList(config.tunAddress, defaults.tunAddress, allowEmpty = false),
+            tunMtu = runCatching { config.tunMtu }.getOrDefault(defaults.tunMtu)
+                .takeIf { it in 1280..65535 }
+                ?: defaults.tunMtu,
+            tunStack = runCatching { config.tunStack }.getOrNull()
+                ?.takeIf { it in listOf("system", "gvisor", "mixed") }
+                ?: defaults.tunStack,
+            tunAutoRoute = runCatching { config.tunAutoRoute }.getOrDefault(defaults.tunAutoRoute),
+            tunStrictRoute = runCatching { config.tunStrictRoute }.getOrDefault(defaults.tunStrictRoute),
+            tunRouteAll = runCatching { config.tunRouteAll }.getOrDefault(defaults.tunRouteAll),
+            tunRouteExcludeAddress = cleanList(
+                config.tunRouteExcludeAddress,
+                defaults.tunRouteExcludeAddress,
+                allowEmpty = false,
+            ),
+            appProxyProcessNames = cleanList(config.appProxyProcessNames, defaults.appProxyProcessNames),
+            appProxyProcessPaths = cleanList(config.appProxyProcessPaths, defaults.appProxyProcessPaths),
+            appDirectProcessNames = cleanList(config.appDirectProcessNames, defaults.appDirectProcessNames),
+            appDirectProcessPaths = cleanList(config.appDirectProcessPaths, defaults.appDirectProcessPaths),
             roomNetEnabled = runCatching { config.roomNetEnabled }.getOrDefault(defaults.roomNetEnabled),
             roomNetLocalGameHost = runCatching { config.roomNetLocalGameHost }.getOrNull()
                 ?.takeIf { it.isNotBlank() }
@@ -520,6 +598,8 @@ class WindowsRuntimeController {
                 "update" -> checkUpdate(download = true)
                 "report-bug" -> reportBug(route.orEmpty())
                 "set-route" -> setRoute(route ?: "auto")
+                "set-runtime" -> setRuntimeMode(route ?: "tun")
+                "set-tun-routing" -> setTunRouting(route ?: "all")
                 "enable-system-proxy" -> enableSystemProxy(readConfig())
                 "disable-system-proxy" -> disableSystemProxy()
                 "enable-autostart" -> setAutoStart(enabled = true)
@@ -700,38 +780,27 @@ class WindowsRuntimeController {
         return RuntimeCommandResult(0, "Imported subscription sing-box JSON to ${rawConfigFile.absolutePath}")
     }
 
-    private fun generateConfig(): RuntimeCommandResult {
+    private fun generateConfig(forceProxyMode: Boolean = false): RuntimeCommandResult {
         ensureDirs()
         if (!rawConfigFile.isFile) {
             return RuntimeCommandResult(1, "Missing imported config. Run Import first.")
         }
         val appConfig = readConfig()
+        val runtimeMode = effectiveRuntimeMode(appConfig, forceProxyMode)
         val root = JsonParser.parseString(rawConfigFile.readText(StandardCharsets.UTF_8)).asJsonObject
-        root.add("inbounds", JsonArray().apply {
-            add(JsonObject().apply {
-                addProperty("type", "mixed")
-                addProperty("tag", "mixed-in")
-                addProperty("listen", appConfig.listenHost)
-                addProperty("listen_port", appConfig.socksPort)
-            })
-            add(JsonObject().apply {
-                addProperty("type", "http")
-                addProperty("tag", "http-in")
-                addProperty("listen", appConfig.listenHost)
-                addProperty("listen_port", appConfig.httpPort)
-            })
-        })
+        root.add("inbounds", buildInbounds(appConfig, runtimeMode))
         normalizeLog(root)
         normalizeDns(root, appConfig)
-        normalizeRoute(root, appConfig)
+        normalizeRoute(root, appConfig, runtimeMode)
         applyPhysicalBind(root, appConfig)
+        generatedModeFile.writeText(runtimeMode, StandardCharsets.US_ASCII)
         generatedConfigFile.writeText(gson.toJson(root), StandardCharsets.UTF_8)
         return checkConfig().let { check ->
             if (check.exitCode == 0) {
                 RuntimeCommandResult(
                     0,
                     buildString {
-                        appendLine("Generated proxy-mode config: ${generatedConfigFile.absolutePath}")
+                        appendLine("Generated $runtimeMode config: ${generatedConfigFile.absolutePath}")
                         append("Physical bind: ${physicalBindSummary(appConfig)}")
                     }.trim(),
                 )
@@ -740,6 +809,42 @@ class WindowsRuntimeController {
             }
         }
     }
+
+    private fun effectiveRuntimeMode(config: WindowsAppConfig, forceProxyMode: Boolean = false): String =
+        if (forceProxyMode || config.runtimeMode != "tun") "proxy" else "tun"
+
+    private fun buildInbounds(config: WindowsAppConfig, runtimeMode: String): JsonArray =
+        JsonArray().apply {
+            if (runtimeMode == "tun") {
+                add(JsonObject().apply {
+                    addProperty("type", "tun")
+                    addProperty("tag", "tun-in")
+                    addProperty("interface_name", config.tunInterfaceName)
+                    add("address", JsonArray().also { array ->
+                        config.tunAddress.forEach { array.add(it) }
+                    })
+                    addProperty("mtu", config.tunMtu)
+                    addProperty("auto_route", config.tunAutoRoute)
+                    addProperty("strict_route", config.tunStrictRoute)
+                    add("route_exclude_address", JsonArray().also { array ->
+                        config.tunRouteExcludeAddress.forEach { array.add(it) }
+                    })
+                    addProperty("stack", config.tunStack)
+                })
+            }
+            add(JsonObject().apply {
+                addProperty("type", "mixed")
+                addProperty("tag", "mixed-in")
+                addProperty("listen", config.listenHost)
+                addProperty("listen_port", config.socksPort)
+            })
+            add(JsonObject().apply {
+                addProperty("type", "http")
+                addProperty("tag", "http-in")
+                addProperty("listen", config.listenHost)
+                addProperty("listen_port", config.httpPort)
+            })
+        }
 
     private fun checkConfig(): RuntimeCommandResult {
         if (!generatedConfigFile.isFile) {
@@ -787,9 +892,19 @@ class WindowsRuntimeController {
         if (generated.exitCode != 0) {
             return RuntimeCommandResult(generated.exitCode, steps.joinToString("\n") + "\n" + generated.output)
         }
-        val started = startProxy()
+        var started = startProxy()
         steps += "start-proxy exit=${started.exitCode}"
-        val systemProxy = if (started.exitCode == 0 && config.systemProxyEnabled) {
+        var startedMode = generatedRuntimeModeSummary()
+        if (started.exitCode != 0 && config.runtimeMode == "tun" && config.allowProxyFallback) {
+            val fallbackGenerated = generateConfig(forceProxyMode = true)
+            steps += "fallback-generate exit=${fallbackGenerated.exitCode}"
+            if (fallbackGenerated.exitCode == 0) {
+                started = startProxy()
+                startedMode = generatedRuntimeModeSummary()
+                steps += "fallback-start-proxy exit=${started.exitCode}"
+            }
+        }
+        val systemProxy = if (started.exitCode == 0 && startedMode != "tun" && config.systemProxyEnabled) {
             enableSystemProxy(config).also {
                 steps += "system-proxy exit=${it.exitCode}"
             }
@@ -852,6 +967,8 @@ class WindowsRuntimeController {
         )
         Thread.sleep(1800)
         if (!process.isAlive) {
+            pidFile.delete()
+            processStateFile.delete()
             return RuntimeCommandResult(
                 1,
                 buildString {
@@ -860,7 +977,7 @@ class WindowsRuntimeController {
                 }.trim(),
             )
         }
-        return RuntimeCommandResult(0, "Started proxy-mode runtime. PID ${process.pid()}")
+        return RuntimeCommandResult(0, "Started ${generatedRuntimeModeSummary()} runtime. PID ${process.pid()}")
     }
 
     private fun stop(): RuntimeCommandResult {
@@ -910,7 +1027,7 @@ class WindowsRuntimeController {
             0,
             buildString {
                 appendLine("Process: ${if (process?.isAlive == true) "running PID ${process.pid()}" else "stopped"}")
-                appendLine("Mode: local proxy with optional Windows system proxy")
+                appendLine("Mode: requested=${config.runtimeMode}; generated=${generatedRuntimeModeSummary()}")
                 appendLine("SOCKS: ${config.listenHost}:${config.socksPort}")
                 appendLine("HTTP: ${config.listenHost}:${config.httpPort}")
                 appendLine("System proxy: ${systemProxySummary()}")
@@ -923,6 +1040,13 @@ class WindowsRuntimeController {
             }.trim(),
         )
     }
+
+    private fun generatedRuntimeModeSummary(): String =
+        if (generatedModeFile.isFile) {
+            generatedModeFile.readText(StandardCharsets.US_ASCII).trim().ifBlank { "unknown" }
+        } else {
+            "none"
+        }
 
     private fun test(): RuntimeCommandResult {
         val config = readConfig()
@@ -955,6 +1079,28 @@ class WindowsRuntimeController {
         return RuntimeCommandResult(generated.exitCode, "Active route set to $normalized\n${generated.output}".trim())
     }
 
+    private fun setRuntimeMode(mode: String): RuntimeCommandResult {
+        val normalized = mode.lowercase()
+        if (normalized !in listOf("tun", "system-proxy", "proxy")) {
+            return RuntimeCommandResult(1, "Unsupported runtime mode: $mode")
+        }
+        val config = readConfig()
+        writeConfig(config.copy(runtimeMode = normalized))
+        val generated = if (rawConfigFile.isFile) generateConfig() else RuntimeCommandResult(0, "Config will be generated after import")
+        return RuntimeCommandResult(generated.exitCode, "Runtime mode set to $normalized\n${generated.output}".trim())
+    }
+
+    private fun setTunRouting(mode: String): RuntimeCommandResult {
+        val normalized = mode.lowercase()
+        if (normalized !in listOf("all", "selected")) {
+            return RuntimeCommandResult(1, "Unsupported TUN routing mode: $mode")
+        }
+        val config = readConfig()
+        writeConfig(config.copy(tunRouteAll = normalized == "all"))
+        val generated = if (rawConfigFile.isFile) generateConfig() else RuntimeCommandResult(0, "Config will be generated after import")
+        return RuntimeCommandResult(generated.exitCode, "TUN routing set to $normalized\n${generated.output}".trim())
+    }
+
     private fun probeRoutes(): RuntimeCommandResult {
         val original = readConfig()
         val wasRunning = managedProcess()?.isAlive == true
@@ -962,7 +1108,7 @@ class WindowsRuntimeController {
         try {
             for (route in original.routeOrder) {
                 writeConfig(readConfig().copy(activeRoute = route))
-                val generated = generateConfig()
+                val generated = generateConfig(forceProxyMode = true)
                 if (generated.exitCode != 0) {
                     rows += "$route: config failed: ${generated.output}"
                     continue
@@ -1404,7 +1550,7 @@ class WindowsRuntimeController {
 
     private fun normalizeDns(root: JsonObject, config: WindowsAppConfig) {
         val dns = root.getAsJsonObject("dns") ?: return
-        val finalRoute = finalRoute(config)
+        val finalRoute = selectedProxyOutbound(config)
         dns.getAsJsonArray("servers")?.forEach { element ->
             val server = element.asJsonObject
             when (server.get("tag")?.asString) {
@@ -1414,9 +1560,10 @@ class WindowsRuntimeController {
         }
     }
 
-    private fun normalizeRoute(root: JsonObject, config: WindowsAppConfig) {
+    private fun normalizeRoute(root: JsonObject, config: WindowsAppConfig, runtimeMode: String) {
         val route = root.getAsJsonObject("route") ?: JsonObject().also { root.add("route", it) }
         val outbounds = root.getAsJsonArray("outbounds") ?: JsonArray().also { root.add("outbounds", it) }
+        ensureDirectOutbound(outbounds)
         val tags = outbounds.mapNotNull { it.asJsonObject.get("tag")?.asString }.toSet()
         if (config.disableBridgeMultiplex == true) {
             disableBridgeMultiplex(outbounds)
@@ -1438,7 +1585,71 @@ class WindowsRuntimeController {
             outbounds.forEach { normalizedOutbounds.add(it) }
             root.add("outbounds", normalizedOutbounds)
         }
-        route.addProperty("final", finalRoute(config))
+        if (runtimeMode == "tun") {
+            route.addProperty("auto_detect_interface", true)
+        }
+        normalizeAppRouteRules(route, config)
+        route.addProperty("final", finalRoute(config, runtimeMode))
+    }
+
+    private fun ensureDirectOutbound(outbounds: JsonArray) {
+        val hasDirect = outbounds.any { it.asJsonObject.get("tag")?.asString == "direct" }
+        if (!hasDirect) {
+            outbounds.add(
+                JsonObject().apply {
+                    addProperty("type", "direct")
+                    addProperty("tag", "direct")
+                },
+            )
+        }
+    }
+
+    private fun normalizeAppRouteRules(route: JsonObject, config: WindowsAppConfig) {
+        val rules = route.getAsJsonArray("rules") ?: JsonArray()
+        val prepend = JsonArray()
+        addProcessRule(
+            prepend,
+            processNames = config.appDirectProcessNames,
+            processPaths = config.appDirectProcessPaths,
+            outbound = "direct",
+        )
+        addProcessRule(
+            prepend,
+            processNames = config.appProxyProcessNames,
+            processPaths = config.appProxyProcessPaths,
+            outbound = selectedProxyOutbound(config),
+        )
+        if (prepend.size() == 0) {
+            route.add("rules", rules)
+            return
+        }
+        val merged = JsonArray()
+        prepend.forEach { merged.add(it) }
+        rules.forEach { merged.add(it) }
+        route.add("rules", merged)
+        route.addProperty("find_process", true)
+    }
+
+    private fun addProcessRule(
+        rules: JsonArray,
+        processNames: List<String>,
+        processPaths: List<String>,
+        outbound: String,
+    ) {
+        val names = processNames.filter { it.isNotBlank() }
+        val paths = processPaths.filter { it.isNotBlank() }
+        if (names.isEmpty() && paths.isEmpty()) return
+        rules.add(
+            JsonObject().apply {
+                if (names.isNotEmpty()) {
+                    add("process_name", JsonArray().also { array -> names.forEach { array.add(it) } })
+                }
+                if (paths.isNotEmpty()) {
+                    add("process_path", JsonArray().also { array -> paths.forEach { array.add(it) } })
+                }
+                addProperty("outbound", outbound)
+            },
+        )
     }
 
     private fun disableBridgeMultiplex(outbounds: JsonArray) {
@@ -1453,7 +1664,10 @@ class WindowsRuntimeController {
         }
     }
 
-    private fun finalRoute(config: WindowsAppConfig): String =
+    private fun finalRoute(config: WindowsAppConfig, runtimeMode: String): String =
+        if (runtimeMode == "tun" && !config.tunRouteAll) "direct" else selectedProxyOutbound(config)
+
+    private fun selectedProxyOutbound(config: WindowsAppConfig): String =
         if (config.activeRoute == "auto") "auto" else config.activeRoute
 
     private fun applyPhysicalBind(root: JsonObject, config: WindowsAppConfig) {
