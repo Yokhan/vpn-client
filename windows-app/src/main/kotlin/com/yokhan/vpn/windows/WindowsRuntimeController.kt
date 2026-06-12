@@ -342,7 +342,7 @@ private class RoomNetRelay(
     }
 }
 
-private const val WINDOWS_APP_VERSION = "1.6.41"
+private const val WINDOWS_APP_VERSION = "1.6.42"
 private const val WINDOWS_PLATFORM = "windows"
 
 class WindowsRuntimeController {
@@ -757,6 +757,17 @@ class WindowsRuntimeController {
         extractRuntime()
         val config = readConfig()
         val steps = mutableListOf<String>()
+        if (
+            !authStateFile.isFile &&
+            !rawConfigFile.isFile &&
+            config.subscriptionUrl.contains("REPLACE_WITH_PERSONAL_TOKEN")
+        ) {
+            val signedIn = login()
+            steps += "login exit=${signedIn.exitCode}"
+            if (signedIn.exitCode != 0) {
+                return RuntimeCommandResult(signedIn.exitCode, steps.joinToString("\n") + "\n" + signedIn.output)
+            }
+        }
         if (authStateFile.isFile) {
             val imported = importAuthenticatedAppConfig()
             steps += "import-app exit=${imported.exitCode}"
