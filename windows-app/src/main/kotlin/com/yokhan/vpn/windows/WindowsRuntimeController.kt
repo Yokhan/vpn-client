@@ -55,11 +55,18 @@ data class WindowsProcessCandidate(
     val path: String,
 )
 
+data class WindowsSessionState(
+    val signedIn: Boolean,
+    val hasImportedConfig: Boolean,
+    val ready: Boolean,
+    val summary: String,
+)
+
 data class WindowsAppConfig(
     val subscriptionUrl: String = "https://cloak.yokhanfitness.ru/api/sub/REPLACE_WITH_PERSONAL_TOKEN",
     val appApiBaseUrl: String = "https://cloak.yokhanfitness.ru",
     val authIssuer: String = "https://auth.yokhanfitness.ru/realms/yokhan",
-    val authClientId: String = "gates-windows",
+    val authClientId: String = "yokhan-vpn-windows",
     val authDevice: String = "main",
     val authRoom: String = "",
     val downloadPageUrl: String = "https://yokhanfitness.ru/hub/gates",
@@ -376,7 +383,7 @@ private class RoomNetRelay(
     }
 }
 
-private const val WINDOWS_APP_VERSION = "1.6.44"
+private const val WINDOWS_APP_VERSION = "1.6.45"
 private const val WINDOWS_PLATFORM = "windows"
 
 class WindowsRuntimeController {
@@ -454,6 +461,18 @@ class WindowsRuntimeController {
     fun writeConfig(config: WindowsAppConfig) {
         ensureDirs()
         appConfigFile.writeText(gson.toJson(config), StandardCharsets.UTF_8)
+    }
+
+    fun sessionState(): WindowsSessionState {
+        ensureDirs()
+        val signedIn = readAuthState() != null
+        val hasImportedConfig = rawConfigFile.isFile
+        return WindowsSessionState(
+            signedIn = signedIn,
+            hasImportedConfig = hasImportedConfig,
+            ready = signedIn && hasImportedConfig,
+            summary = authSummary(),
+        )
     }
 
     fun appRoutingState(): AppRoutingState {
@@ -581,6 +600,7 @@ class WindowsRuntimeController {
                 ?.takeIf { it.startsWith("https://") }
                 ?: defaults.authIssuer,
             authClientId = runCatching { config.authClientId }.getOrNull()
+                ?.takeUnless { it.equals("gates-windows", ignoreCase = true) }
                 ?.takeIf { it.isNotBlank() }
                 ?: defaults.authClientId,
             authDevice = runCatching { config.authDevice }.getOrNull()
@@ -2288,16 +2308,26 @@ class WindowsRuntimeController {
         return target
     }
 
-    private fun openUri(url: String): Boolean =
-        runCatching {
+    private fun openUri(url: String): Boolean {
+        val desktopOpened = runCatching {
             if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
                 Desktop.getDesktop().browse(URI.create(url))
                 true
             } else {
-                ProcessBuilder("cmd.exe", "/c", "start", "", url).start()
-                true
+                false
             }
         }.getOrDefault(false)
+        if (desktopOpened) return true
+        val cmdOpened = runCatching {
+            ProcessBuilder("cmd.exe", "/c", "start", "", url).start()
+            true
+        }.getOrDefault(false)
+        if (cmdOpened) return true
+        return runCatching {
+            ProcessBuilder("rundll32.exe", "url.dll,FileProtocolHandler", url).start()
+            true
+        }.getOrDefault(false)
+    }
 
     private fun openFile(file: File): Boolean =
         runCatching {

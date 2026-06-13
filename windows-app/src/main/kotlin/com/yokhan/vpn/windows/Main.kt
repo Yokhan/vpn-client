@@ -191,15 +191,18 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null) {
     var roomNetMessage by remember { mutableStateOf("") }
     var showBugDialog by remember { mutableStateOf(false) }
     var showAppsDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
     var bugMessage by remember { mutableStateOf("") }
     var appRoutingState by remember { mutableStateOf(controller.appRoutingState()) }
     var runningApps by remember { mutableStateOf(emptyList<WindowsProcessCandidate>()) }
+    var sessionState by remember { mutableStateOf(controller.sessionState()) }
     val state = remember(connectionStatus, activeRoute, busy) {
         dashboardState(connectionStatus, activeRoute, busy)
     }
 
     LaunchedEffect(Unit) {
         busy = true
+        sessionState = controller.sessionState()
         val result = withContext(Dispatchers.IO) {
             controller.run("status")
         }
@@ -245,6 +248,7 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null) {
             val result = withContext(Dispatchers.IO) {
                 controller.run(command, argument ?: route)
             }
+            sessionState = controller.sessionState()
             if (result.exitCode == 0 && nextStatus != null) {
                 connectionStatus = nextStatus
             } else if (result.exitCode != 0) {
@@ -285,6 +289,27 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null) {
             runningApps = withContext(Dispatchers.IO) {
                 controller.listRunningApps()
             }
+        }
+    }
+
+    fun launchAuthSetup() {
+        scope.launch {
+            busy = true
+            val currentSession = controller.sessionState()
+            val command = if (currentSession.signedIn) "import-app" else "login"
+            val label = if (currentSession.signedIn) "Доступ" else "Вход"
+            lastMessage = if (command == "login") {
+                "Открываю браузер для входа."
+            } else {
+                "Получаю личную конфигурацию."
+            }
+            val result = withContext(Dispatchers.IO) {
+                controller.run(command)
+            }
+            sessionState = controller.sessionState()
+            activeRoute = controller.readConfig().activeRoute
+            lastMessage = resultMessage(label, result)
+            busy = false
         }
     }
 
@@ -334,6 +359,38 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null) {
         )
     }
 
+    if (showSettingsDialog) {
+        SettingsDialog(
+            busy = busy,
+            onDismiss = { showSettingsDialog = false },
+            onApps = {
+                showSettingsDialog = false
+                appRoutingState = controller.appRoutingState()
+                showAppsDialog = true
+                refreshRunningApps()
+            },
+            onUpdate = {
+                showSettingsDialog = false
+                launchRuntime("Обновление", "update")
+            },
+            onBugReport = {
+                showSettingsDialog = false
+                showBugDialog = true
+            },
+        )
+    }
+
+    if (!sessionState.ready) {
+        AuthGateScreen(
+            sessionState = sessionState,
+            busy = busy,
+            message = lastMessage,
+            onLogin = { launchAuthSetup() },
+            onBugReport = { showBugDialog = true },
+        )
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -375,17 +432,9 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null) {
             )
         }
         RoomNetPanel(roomNetMessage)
-        WindowsActionBar(
-            busy = busy,
+        WindowsStatusBar(
             message = lastMessage,
-            onLogin = { launchRuntime("Вход", "login") },
-            onUpdate = { launchRuntime("Обновление", "update") },
-            onApps = {
-                appRoutingState = controller.appRoutingState()
-                showAppsDialog = true
-                refreshRunningApps()
-            },
-            onBugReport = { showBugDialog = true },
+            onSettings = { showSettingsDialog = true },
         )
     }
 }
@@ -416,13 +465,68 @@ private fun RoomNetPanel(message: String) {
 }
 
 @Composable
-private fun WindowsActionBar(
+private fun AuthGateScreen(
+    sessionState: WindowsSessionState,
     busy: Boolean,
     message: String,
     onLogin: () -> Unit,
-    onUpdate: () -> Unit,
-    onApps: () -> Unit,
     onBugReport: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF080812))
+            .padding(horizontal = 24.dp, vertical = 28.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.Start,
+    ) {
+        Text(
+            text = "GATES",
+            color = Color(0xFFF1F3FF),
+            style = MaterialTheme.typography.headlineLarge,
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = if (sessionState.signedIn) {
+                "Получаем личную конфигурацию."
+            } else {
+                "Войдите через браузер, чтобы получить личный доступ."
+            },
+            color = Color(0xFFABB2D9),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.height(22.dp))
+        Button(
+            onClick = onLogin,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (sessionState.signedIn) "Получить доступ" else "Войти через браузер")
+        }
+        TextButton(
+            onClick = onBugReport,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Сообщить об ошибке")
+        }
+        if (message.isNotBlank()) {
+            Spacer(Modifier.height(14.dp))
+            Text(
+                text = message,
+                color = Color(0xFFE6E8FF),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun WindowsStatusBar(
+    message: String,
+    onSettings: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -435,53 +539,63 @@ private fun WindowsActionBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Button(
-                onClick = onLogin,
-                enabled = !busy,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Войти")
-            }
-            Button(
-                onClick = onUpdate,
-                enabled = !busy,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Обновить")
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Button(
-                onClick = onApps,
-                enabled = !busy,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Приложения")
-            }
-            Button(
-                onClick = onBugReport,
-                enabled = !busy,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Ошибка")
-            }
-        }
-        if (message.isNotBlank()) {
-            Spacer(Modifier.height(10.dp))
             Text(
-                text = message,
+                text = message.ifBlank { "Готово" },
                 color = Color(0xFFE6E8FF),
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
+            TextButton(onClick = onSettings) {
+                Text("Настройки")
+            }
         }
     }
+}
+
+@Composable
+private fun SettingsDialog(
+    busy: Boolean,
+    onDismiss: () -> Unit,
+    onApps: () -> Unit,
+    onUpdate: () -> Unit,
+    onBugReport: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Настройки") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onApps,
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Маршрутизация приложений")
+                }
+                OutlinedButton(
+                    onClick = onUpdate,
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Обновить приложение")
+                }
+                OutlinedButton(
+                    onClick = onBugReport,
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Отправить отчёт")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Готово")
+            }
+        },
+    )
 }
 
 @Composable
