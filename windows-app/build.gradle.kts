@@ -37,6 +37,42 @@ tasks.named<ProcessResources>("processResources") {
     }
 }
 
+val forbiddenWindowsUiStylePatterns = listOf(
+    Regex("""\bColor\s*\(\s*0x[0-9A-Fa-f_]+"""),
+    Regex("""\bColor\s*\(\s*\d+\s*,"""),
+    Regex("""java\.awt\.Color\s*(?:\(|\.)"""),
+)
+
+tasks.register("checkWindowsUiUsesDesignTokens") {
+    val kotlinFiles = fileTree("src/main/kotlin") {
+        include("**/*.kt")
+    }
+    inputs.files(kotlinFiles)
+
+    doLast {
+        val offenders = kotlinFiles.files
+            .sortedBy { it.path }
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    if (forbiddenWindowsUiStylePatterns.any { it.containsMatchIn(line) }) {
+                        "${file.relativeTo(projectDir)}:${index + 1}: ${line.trim()}"
+                    } else {
+                        null
+                    }
+                }
+            }
+
+        check(offenders.isEmpty()) {
+            "Windows UI must use shared app design tokens/contracts, not hard-coded colors:\n" +
+                offenders.joinToString(separator = "\n")
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn("checkWindowsUiUsesDesignTokens")
+}
+
 compose.desktop {
     application {
         mainClass = "com.yokhan.gates.windows.MainKt"
@@ -44,7 +80,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Exe, TargetFormat.Msi)
             packageName = "GATES"
-            packageVersion = "1.6.45"
+            packageVersion = "1.6.46"
             vendor = "Yokhan"
             description = "GATES Windows client"
         }

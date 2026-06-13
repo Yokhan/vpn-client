@@ -383,7 +383,7 @@ private class RoomNetRelay(
     }
 }
 
-private const val WINDOWS_APP_VERSION = "1.6.45"
+private const val WINDOWS_APP_VERSION = "1.6.46"
 private const val WINDOWS_PLATFORM = "windows"
 
 class WindowsRuntimeController {

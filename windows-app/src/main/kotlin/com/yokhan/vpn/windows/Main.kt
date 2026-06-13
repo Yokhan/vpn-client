@@ -15,12 +15,14 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -31,7 +33,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -48,6 +49,12 @@ import com.yokhan.gates.shared.ui.dashboard.DashboardUiActions
 import com.yokhan.gates.shared.ui.dashboard.DashboardUiLabels
 import com.yokhan.gates.shared.ui.dashboard.DashboardUiVisibility
 import com.yokhan.gates.shared.ui.dashboard.YokhanDashboardScreen
+import com.yokhan.gates.shared.ui.design.YokhanLightPalette
+import com.yokhan.gates.shared.ui.design.YokhanPalette
+import com.yokhan.gates.shared.ui.design.YokhanRed
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.shared.ui.design.YokhanStroke
+import com.yokhan.gates.shared.ui.design.yokhanPalette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -102,13 +109,62 @@ fun main(args: Array<String>) {
                 title = "GATES",
                 state = windowState,
             ) {
-                MaterialTheme {
-                    Surface(Modifier.fillMaxSize()) {
-                        WindowsApp(window)
-                    }
-                }
+                WindowsApp(window)
             }
         }
+    }
+}
+
+@Composable
+private fun GatesWindowsTheme(
+    palette: YokhanPalette,
+    spaceActive: Boolean,
+    content: @Composable () -> Unit,
+) {
+    MaterialTheme(
+        colorScheme = windowsColorScheme(palette, spaceActive),
+        content = content,
+    )
+}
+
+private fun windowsColorScheme(
+    palette: YokhanPalette,
+    spaceActive: Boolean,
+): ColorScheme {
+    return if (spaceActive) {
+        darkColorScheme(
+            primary = palette.accent,
+            onPrimary = palette.background,
+            secondary = palette.secondary,
+            onSecondary = palette.background,
+            background = palette.background,
+            onBackground = palette.primary,
+            surface = palette.orbCenter,
+            onSurface = palette.primary,
+            surfaceVariant = palette.orbCenter,
+            onSurfaceVariant = palette.secondary,
+            outline = palette.border,
+            outlineVariant = palette.divider,
+            error = YokhanRed,
+            onError = palette.background,
+        )
+    } else {
+        lightColorScheme(
+            primary = palette.accent,
+            onPrimary = palette.background,
+            secondary = palette.secondary,
+            onSecondary = palette.background,
+            background = palette.background,
+            onBackground = palette.primary,
+            surface = palette.orbCenter,
+            onSurface = palette.primary,
+            surfaceVariant = palette.orbCenter,
+            onSurfaceVariant = palette.secondary,
+            outline = palette.border,
+            outlineVariant = palette.divider,
+            error = YokhanRed,
+            onError = palette.background,
+        )
     }
 }
 
@@ -198,6 +254,13 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null) {
     var sessionState by remember { mutableStateOf(controller.sessionState()) }
     val state = remember(connectionStatus, activeRoute, busy) {
         dashboardState(connectionStatus, activeRoute, busy)
+    }
+    val windowSpaceActive = sessionState.ready &&
+        (state.shouldAnimateSpace || connectionStatus == ConnectionStatus.Disconnecting)
+    val windowPalette = if (sessionState.ready) {
+        yokhanPalette(spaceActive = windowSpaceActive)
+    } else {
+        YokhanLightPalette
     }
 
     LaunchedEffect(Unit) {
@@ -325,138 +388,154 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null) {
     }
 
     if (showBugDialog) {
-        BugReportDialog(
-            message = bugMessage,
-            onMessageChange = { bugMessage = it },
-            onDismiss = { showBugDialog = false },
-            onSend = {
-                val text = bugMessage
-                bugMessage = ""
-                showBugDialog = false
-                launchRuntime("Отчёт", "report-bug", argument = text)
-            },
-        )
+        GatesWindowsTheme(windowPalette, windowSpaceActive) {
+            BugReportDialog(
+                message = bugMessage,
+                onMessageChange = { bugMessage = it },
+                onDismiss = { showBugDialog = false },
+                onSend = {
+                    val text = bugMessage
+                    bugMessage = ""
+                    showBugDialog = false
+                    launchRuntime("Отчёт", "report-bug", argument = text)
+                },
+            )
+        }
     }
 
     if (showAppsDialog) {
-        AppRoutingDialog(
-            state = appRoutingState,
-            runningApps = runningApps,
-            busy = busy,
-            onDismiss = { showAppsDialog = false },
-            onRefreshProcesses = { refreshRunningApps() },
-            onPickExe = {
-                chooseExeFile(ownerWindow)?.let { path ->
-                    launchAppRouting("Приложение", "add-app-proxy", path)
-                }
-            },
-            onRouteAll = { launchAppRouting("Режим", "set-tun-routing", "all") },
-            onRouteSelected = { launchAppRouting("Режим", "set-tun-routing", "selected") },
-            onAddProxy = { path -> launchAppRouting("Приложение", "add-app-proxy", path) },
-            onAddDirect = { path -> launchAppRouting("Исключение", "add-app-direct", path) },
-            onRemoveProxy = { value -> launchAppRouting("Приложение", "remove-app-proxy", value) },
-            onRemoveDirect = { value -> launchAppRouting("Исключение", "remove-app-direct", value) },
-        )
+        GatesWindowsTheme(windowPalette, windowSpaceActive) {
+            AppRoutingDialog(
+                state = appRoutingState,
+                runningApps = runningApps,
+                busy = busy,
+                palette = windowPalette,
+                onDismiss = { showAppsDialog = false },
+                onRefreshProcesses = { refreshRunningApps() },
+                onPickExe = {
+                    chooseExeFile(ownerWindow)?.let { path ->
+                        launchAppRouting("Приложение", "add-app-proxy", path)
+                    }
+                },
+                onRouteAll = { launchAppRouting("Режим", "set-tun-routing", "all") },
+                onRouteSelected = { launchAppRouting("Режим", "set-tun-routing", "selected") },
+                onAddProxy = { path -> launchAppRouting("Приложение", "add-app-proxy", path) },
+                onAddDirect = { path -> launchAppRouting("Исключение", "add-app-direct", path) },
+                onRemoveProxy = { value -> launchAppRouting("Приложение", "remove-app-proxy", value) },
+                onRemoveDirect = { value -> launchAppRouting("Исключение", "remove-app-direct", value) },
+            )
+        }
     }
 
     if (showSettingsDialog) {
-        SettingsDialog(
-            busy = busy,
-            onDismiss = { showSettingsDialog = false },
-            onApps = {
-                showSettingsDialog = false
-                appRoutingState = controller.appRoutingState()
-                showAppsDialog = true
-                refreshRunningApps()
-            },
-            onUpdate = {
-                showSettingsDialog = false
-                launchRuntime("Обновление", "update")
-            },
-            onBugReport = {
-                showSettingsDialog = false
-                showBugDialog = true
-            },
-        )
+        GatesWindowsTheme(windowPalette, windowSpaceActive) {
+            SettingsDialog(
+                busy = busy,
+                onDismiss = { showSettingsDialog = false },
+                onApps = {
+                    showSettingsDialog = false
+                    appRoutingState = controller.appRoutingState()
+                    showAppsDialog = true
+                    refreshRunningApps()
+                },
+                onUpdate = {
+                    showSettingsDialog = false
+                    launchRuntime("Обновление", "update")
+                },
+                onBugReport = {
+                    showSettingsDialog = false
+                    showBugDialog = true
+                },
+            )
+        }
     }
 
     if (!sessionState.ready) {
-        AuthGateScreen(
-            sessionState = sessionState,
-            busy = busy,
-            message = lastMessage,
-            onLogin = { launchAuthSetup() },
-            onBugReport = { showBugDialog = true },
-        )
+        GatesWindowsTheme(windowPalette, windowSpaceActive) {
+            AuthGateScreen(
+                sessionState = sessionState,
+                busy = busy,
+                message = lastMessage,
+                palette = windowPalette,
+                onLogin = { launchAuthSetup() },
+                onBugReport = { showBugDialog = true },
+            )
+        }
         return
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF080812)),
-    ) {
-        Box(
+    GatesWindowsTheme(windowPalette, windowSpaceActive) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+                .fillMaxSize()
+                .background(windowPalette.background),
         ) {
-            YokhanDashboardScreen(
-                state = state,
-                profiles = profiles,
-                labels = DashboardUiLabels.Russian,
-                actions = DashboardUiActions(
-                    onToggleConnection = {
-                        if (connectionStatus == ConnectionStatus.Connected) {
-                            connectionStatus = ConnectionStatus.Disconnecting
-                            launchRuntime("Отключение", "stop", nextStatus = ConnectionStatus.Disconnected)
-                        } else {
-                            connectionStatus = ConnectionStatus.Connecting
-                            launchRuntime("Подключение", "connect", nextStatus = ConnectionStatus.Connected)
-                        }
-                    },
-                    onSelectProfile = { id ->
-                        val route = when (id) {
-                            1L -> "auto"
-                            2L -> "bridge"
-                            3L -> "relay"
-                            4L -> "naive"
-                            5L -> "hy2"
-                            else -> "auto"
-                        }
-                        launchRuntime("Маршрут $route", "set-route", route = route)
-                    },
-                ),
-                modifier = Modifier.fillMaxSize(),
-                visibility = ProductionDashboardVisibility,
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                YokhanDashboardScreen(
+                    state = state,
+                    profiles = profiles,
+                    labels = DashboardUiLabels.Russian,
+                    actions = DashboardUiActions(
+                        onToggleConnection = {
+                            if (connectionStatus == ConnectionStatus.Connected) {
+                                connectionStatus = ConnectionStatus.Disconnecting
+                                launchRuntime("Отключение", "stop", nextStatus = ConnectionStatus.Disconnected)
+                            } else {
+                                connectionStatus = ConnectionStatus.Connecting
+                                launchRuntime("Подключение", "connect", nextStatus = ConnectionStatus.Connected)
+                            }
+                        },
+                        onSelectProfile = { id ->
+                            val route = when (id) {
+                                1L -> "auto"
+                                2L -> "bridge"
+                                3L -> "relay"
+                                4L -> "naive"
+                                5L -> "hy2"
+                                else -> "auto"
+                            }
+                            launchRuntime("Маршрут $route", "set-route", route = route)
+                        },
+                    ),
+                    modifier = Modifier.fillMaxSize(),
+                    visibility = ProductionDashboardVisibility,
+                )
+            }
+            RoomNetPanel(roomNetMessage, windowPalette)
+            WindowsStatusBar(
+                message = lastMessage,
+                palette = windowPalette,
+                onSettings = { showSettingsDialog = true },
             )
         }
-        RoomNetPanel(roomNetMessage)
-        WindowsStatusBar(
-            message = lastMessage,
-            onSettings = { showSettingsDialog = true },
-        )
     }
 }
 
 @Composable
-private fun RoomNetPanel(message: String) {
+private fun RoomNetPanel(
+    message: String,
+    palette: YokhanPalette,
+) {
     if (message.isBlank()) return
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF111628))
+            .background(palette.orbCenter)
             .padding(horizontal = 18.dp, vertical = 12.dp),
     ) {
         Text(
             text = "Комната",
-            color = Color(0xFFAEB8FF),
+            color = palette.secondary,
             style = MaterialTheme.typography.labelMedium,
         )
         Spacer(Modifier.height(4.dp))
         Text(
             text = message,
-            color = Color(0xFFF1F3FF),
+            color = palette.primary,
             style = MaterialTheme.typography.bodySmall,
             maxLines = 4,
             overflow = TextOverflow.Ellipsis,
@@ -469,20 +548,21 @@ private fun AuthGateScreen(
     sessionState: WindowsSessionState,
     busy: Boolean,
     message: String,
+    palette: YokhanPalette,
     onLogin: () -> Unit,
     onBugReport: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF080812))
+            .background(palette.background)
             .padding(horizontal = 24.dp, vertical = 28.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.Start,
     ) {
         Text(
             text = "GATES",
-            color = Color(0xFFF1F3FF),
+            color = palette.primary,
             style = MaterialTheme.typography.headlineLarge,
         )
         Spacer(Modifier.height(12.dp))
@@ -492,7 +572,7 @@ private fun AuthGateScreen(
             } else {
                 "Войдите через браузер, чтобы получить личный доступ."
             },
-            color = Color(0xFFABB2D9),
+            color = palette.secondary,
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.height(22.dp))
@@ -514,7 +594,7 @@ private fun AuthGateScreen(
             Spacer(Modifier.height(14.dp))
             Text(
                 text = message,
-                color = Color(0xFFE6E8FF),
+                color = palette.primary,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
@@ -526,12 +606,13 @@ private fun AuthGateScreen(
 @Composable
 private fun WindowsStatusBar(
     message: String,
+    palette: YokhanPalette,
     onSettings: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xEE0E1020))
+            .background(palette.orbCenter)
             .padding(horizontal = 18.dp, vertical = 14.dp),
     ) {
         Row(
@@ -541,7 +622,7 @@ private fun WindowsStatusBar(
         ) {
             Text(
                 text = message.ifBlank { "Готово" },
-                color = Color(0xFFE6E8FF),
+                color = palette.primary,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -636,6 +717,7 @@ private fun AppRoutingDialog(
     state: AppRoutingState,
     runningApps: List<WindowsProcessCandidate>,
     busy: Boolean,
+    palette: YokhanPalette,
     onDismiss: () -> Unit,
     onRefreshProcesses: () -> Unit,
     onPickExe: () -> Unit,
@@ -659,12 +741,12 @@ private fun AppRoutingDialog(
             ) {
                 Text(
                     text = "Перетащи .exe в окно GATES или выбери приложение ниже.",
-                    color = Color(0xFFE6E8FF),
+                    color = palette.primary,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
                     text = "Режим",
-                    color = Color(0xFFAEB8FF),
+                    color = palette.secondary,
                     style = MaterialTheme.typography.labelMedium,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -723,29 +805,32 @@ private fun AppRoutingDialog(
                     title = "Через GATES",
                     names = state.proxyProcessNames,
                     paths = state.proxyProcessPaths,
+                    palette = palette,
                     onRemove = onRemoveProxy,
                 )
                 AppRouteSection(
                     title = "Напрямую",
                     names = state.directProcessNames,
                     paths = state.directProcessPaths,
+                    palette = palette,
                     onRemove = onRemoveDirect,
                 )
                 Spacer(
                     Modifier
                         .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Color(0xFF27304E)),
+                        .height(YokhanStroke.Thin)
+                        .background(palette.divider),
                 )
                 Text(
                     text = "Запущенные",
-                    color = Color(0xFFAEB8FF),
+                    color = palette.secondary,
                     style = MaterialTheme.typography.labelMedium,
                 )
                 runningApps.take(24).forEach { app ->
                     RunningAppRow(
                         app = app,
                         busy = busy,
+                        palette = palette,
                         onAddProxy = { onAddProxy(app.path) },
                         onAddDirect = { onAddDirect(app.path) },
                     )
@@ -753,7 +838,7 @@ private fun AppRoutingDialog(
                 if (runningApps.isEmpty()) {
                     Text(
                         text = "Нажми «Процессы».",
-                        color = Color(0xFFABB2D9),
+                        color = palette.secondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -772,18 +857,19 @@ private fun AppRouteSection(
     title: String,
     names: List<String>,
     paths: List<String>,
+    palette: YokhanPalette,
     onRemove: (String) -> Unit,
 ) {
     Text(
         text = title,
-        color = Color(0xFFAEB8FF),
+        color = palette.secondary,
         style = MaterialTheme.typography.labelMedium,
     )
     val entries = paths.map { "path" to it } + names.map { "name" to it }
     if (entries.isEmpty()) {
         Text(
             text = "Пусто",
-            color = Color(0xFFABB2D9),
+            color = palette.tertiary,
             style = MaterialTheme.typography.bodySmall,
         )
         return
@@ -796,7 +882,7 @@ private fun AppRouteSection(
         ) {
             Text(
                 text = value,
-                color = Color(0xFFF1F3FF),
+                color = palette.primary,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -813,25 +899,26 @@ private fun AppRouteSection(
 private fun RunningAppRow(
     app: WindowsProcessCandidate,
     busy: Boolean,
+    palette: YokhanPalette,
     onAddProxy: () -> Unit,
     onAddDirect: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF111628))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .background(palette.orbCenter)
+            .padding(horizontal = YokhanSpacing.CompactGap, vertical = YokhanSpacing.CompactGap),
     ) {
         Text(
             text = app.name,
-            color = Color(0xFFF1F3FF),
+            color = palette.primary,
             style = MaterialTheme.typography.bodySmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
             text = app.path,
-            color = Color(0xFFABB2D9),
+            color = palette.secondary,
             style = MaterialTheme.typography.labelSmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

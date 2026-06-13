@@ -1,5 +1,7 @@
 package com.yokhan.gates.windows
 
+import com.yokhan.gates.shared.ui.design.YokhanSpacePalette
+import java.awt.Color as AwtColor
 import java.awt.EventQueue
 import java.awt.MenuItem
 import java.awt.PopupMenu
@@ -53,11 +55,11 @@ class NativeTray(
                 java.awt.RenderingHints.KEY_ANTIALIASING,
                 java.awt.RenderingHints.VALUE_ANTIALIAS_ON,
             )
-            graphics.color = java.awt.Color(36, 42, 74)
+            graphics.color = YokhanSpacePalette.orbCenter.toAwtColor()
             graphics.fillRoundRect(2, 2, 28, 28, 8, 8)
-            graphics.color = java.awt.Color(132, 151, 255)
+            graphics.color = YokhanSpacePalette.accent.toAwtColor()
             graphics.fillRoundRect(8, 8, 16, 16, 5, 5)
-            graphics.color = java.awt.Color.WHITE
+            graphics.color = YokhanSpacePalette.primary.toAwtColor()
             graphics.drawLine(12, 16, 16, 20)
             graphics.drawLine(16, 20, 22, 12)
         } finally {
@@ -70,3 +72,5 @@ class NativeTray(
         fun isSupported(): Boolean = runCatching { SystemTray.isSupported() }.getOrDefault(false)
     }
 }
+
+private fun androidx.compose.ui.graphics.Color.toAwtColor(): AwtColor = AwtColor(red, green, blue, alpha)
