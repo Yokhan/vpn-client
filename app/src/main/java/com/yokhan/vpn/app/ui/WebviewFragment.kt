@@ -21,13 +21,13 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
-import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
+import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
 import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.gates.app.ui.compose.YokhanMonoValue
-import com.yokhan.gates.app.ui.compose.YokhanRouteAction
-import com.yokhan.gates.app.ui.compose.YokhanRouteCard
-import com.yokhan.gates.app.ui.compose.YokhanRouteSurface
-import com.yokhan.gates.app.ui.compose.yokhanOutlinedSurface
+import com.yokhan.gates.shared.ui.route.YokhanMonoValue
+import com.yokhan.gates.shared.ui.route.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanRouteCard
+import com.yokhan.gates.shared.ui.route.YokhanRouteSurface
+import com.yokhan.gates.shared.ui.route.yokhanOutlinedSurface
 import com.yokhan.gates.shared.ui.design.YokhanSpacing
 import moe.matsuri.nb4a.utils.WebViewUtil
 

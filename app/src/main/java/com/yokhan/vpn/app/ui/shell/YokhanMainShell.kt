@@ -1,5 +1,6 @@
-﻿package com.yokhan.gates.app.ui.shell
+package com.yokhan.gates.app.ui.shell
 
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.animation.core.animateFloatAsState
@@ -51,8 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentContainerView
-import com.yokhan.gates.app.ui.compose.YokhanRouteStatusDot
-import com.yokhan.gates.app.ui.compose.yokhanOutlinedSurface
+import com.yokhan.gates.shared.ui.route.YokhanRouteStatusDot
+import com.yokhan.gates.shared.ui.route.yokhanOutlinedSurface
 import com.yokhan.gates.shared.ui.design.YokhanAccent
 import com.yokhan.gates.shared.ui.design.YokhanMotion
 import com.yokhan.gates.shared.ui.design.YokhanPalette
@@ -226,10 +227,17 @@ fun YokhanMainShell(
                             onFragmentHostReady(this)
                         }
                     },
+                    update = { host ->
+                        host.visibility = if (showingDashboard) View.INVISIBLE else View.VISIBLE
+                        host.importantForAccessibility = if (showingDashboard) {
+                            View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                        } else {
+                            View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = if (showingDashboard) 0.dp else topSafePadding)
-                        .alpha(if (showingDashboard) 0f else 1f),
+                        .padding(top = if (showingDashboard) 0.dp else topSafePadding),
                 )
                 if (showingDashboard) {
                     content()
@@ -246,7 +254,7 @@ fun YokhanMainShell(
     }
 }
 
-private val ShellBottomNavigationHeight = 74.dp
+private val ShellBottomNavigationHeight = com.yokhan.gates.shared.ui.navigation.GatesNavigationTokens.Height
 
 @Composable
 private fun ShellBottomNavigation(
@@ -256,96 +264,13 @@ private fun ShellBottomNavigation(
     onRouteSelected: (YokhanShellRoute) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val typography = yokhanTypography()
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color.Transparent,
-                        colors.background.copy(alpha = 0.92f),
-                        colors.background,
-                    ),
-                ),
-            )
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-            .padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(58.dp)
-                .clip(RoundedCornerShape(26.dp))
-                .background(colors.background.copy(alpha = 0.88f))
-                .border(1.dp, colors.border, RoundedCornerShape(26.dp))
-                .padding(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            items.forEach { item ->
-                ShellBottomNavigationItem(
-                    item = item,
-                    selected = item.route == selectedRoute,
-                    colors = colors,
-                    typography = typography,
-                    onClick = { onRouteSelected(item.route) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowScope.ShellBottomNavigationItem(
-    item: ShellBottomNavItemModel,
-    selected: Boolean,
-    colors: YokhanPalette,
-    typography: YokhanTypography,
-    onClick: () -> Unit,
-) {
-    val selectedBackground = colors.primary.copy(alpha = if (selected) 0.09f else 0f)
-    val selectedColor = if (selected) colors.primary else colors.secondary
-    val accentColor = if (selected) colors.accent else colors.secondary.copy(alpha = 0.58f)
-    Column(
-        modifier = Modifier
-            .weight(1f)
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(22.dp))
-            .clickable(onClick = onClick)
-            .background(selectedBackground)
-            .padding(horizontal = 2.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Box(
-            Modifier
-                .width(if (selected) 24.dp else 14.dp)
-                .height(3.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(accentColor),
-        )
-        Text(
-            text = item.glyph,
-            color = accentColor,
-            fontFamily = typography.mono,
-            fontSize = 10.sp,
-            lineHeight = 10.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 5.dp),
-        )
-        Text(
-            text = item.title,
-            color = selectedColor,
-            fontFamily = typography.mono,
-            fontSize = 9.sp,
-            lineHeight = 10.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp),
-        )
-    }
+    com.yokhan.gates.shared.ui.navigation.GatesBottomNavigation(
+        selectedKey = selectedRoute.name,
+        items = items.map { com.yokhan.gates.shared.ui.navigation.GatesNavigationItem(it.route.name, it.title, it.glyph) },
+        colors = colors,
+        onSelect = { key -> items.firstOrNull { it.route.name == key }?.let { onRouteSelected(it.route) } },
+        modifier = modifier,
+    )
 }
 
 @Composable

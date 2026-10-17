@@ -5,7 +5,10 @@ import android.provider.OpenableColumns
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
@@ -34,16 +37,18 @@ import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.snackbar
 import io.nekohasekai.sagernet.ktx.startFilesForResult
 import com.yokhan.gates.app.auth.YokhanKeycloakAuth
-import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
-import com.yokhan.gates.app.ui.compose.YokhanCaption
+import com.yokhan.gates.app.roomnet.RoomNetClient
+import com.yokhan.gates.app.roomnet.RoomNetState
+import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
+import com.yokhan.gates.shared.ui.route.YokhanCaption
 import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.gates.app.ui.compose.YokhanDivider
-import com.yokhan.gates.app.ui.compose.YokhanHeadline
-import com.yokhan.gates.app.ui.compose.YokhanMonoValue
-import com.yokhan.gates.app.ui.compose.YokhanRouteAction
-import com.yokhan.gates.app.ui.compose.YokhanRouteCard
-import com.yokhan.gates.app.ui.compose.YokhanRouteFrame
-import com.yokhan.gates.app.ui.compose.YokhanStatPair
+import com.yokhan.gates.shared.ui.route.YokhanDivider
+import com.yokhan.gates.shared.ui.route.YokhanHeadline
+import com.yokhan.gates.shared.ui.route.YokhanMonoValue
+import com.yokhan.gates.shared.ui.route.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanRouteCard
+import com.yokhan.gates.shared.ui.route.YokhanRouteFrame
+import com.yokhan.gates.shared.ui.route.YokhanStatPair
 import com.yokhan.gates.app.ui.shell.YokhanManualProfileProtocol
 import com.yokhan.gates.app.ui.shell.YokhanShellActivityRoute
 import com.yokhan.gates.app.ui.shell.YokhanShellRoute
@@ -128,14 +133,20 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
 
     override fun onPreferenceDataStoreChanged(store: PreferenceDataStore, key: String) {
         if (store !== DataStore.configurationStore) return
+        val currentView = view ?: return
         when (key) {
-            Key.PROFILE_ID, Key.PROFILE_GROUP, Key.SERVICE_MODE -> view?.post { refreshSummary() }
+            Key.PROFILE_ID, Key.PROFILE_GROUP, Key.SERVICE_MODE -> currentView.post {
+                if (view === currentView) refreshSummary()
+            }
         }
     }
 
     @Composable
     override fun Content(spaceActive: Boolean) {
         val summary = summaryState.value
+        val roomStatus by RoomNetClient.status.collectAsState()
+        val signedIn by YokhanKeycloakAuth.sessionAvailable.collectAsState()
+        val authBusy by YokhanKeycloakAuth.busy.collectAsState()
         YokhanRouteFrame(
             title = stringResource(R.string.configuration_hub_title),
             systemLabel = stringResource(R.string.dashboard_system_label),
@@ -219,6 +230,50 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                 )
             }
 
+            if (roomStatus.room.isNotBlank() || roomStatus.state == RoomNetState.ERROR) {
+                YokhanHeadline(
+                    text = if (roomStatus.room.isBlank()) stringResource(R.string.gates_room_title)
+                    else stringResource(R.string.gates_room_named_title, roomStatus.room),
+                    colors = colors,
+                    typography = typography,
+                )
+                YokhanCaption(
+                    text = stringResource(when (roomStatus.state) {
+                        RoomNetState.FETCHING, RoomNetState.CONNECTING -> R.string.gates_room_connecting
+                        RoomNetState.CONNECTED -> R.string.gates_room_connected
+                        RoomNetState.ERROR -> R.string.gates_room_unavailable
+                        else -> R.string.gates_room_disconnected
+                    }),
+                    colors = colors,
+                    typography = typography,
+                )
+                SelectionContainer {
+                    roomStatus.self?.let { self ->
+                        YokhanMonoValue(
+                            text = stringResource(R.string.gates_room_self_address, self.address),
+                            colors = colors,
+                            typography = typography,
+                        )
+                    }
+                }
+                roomStatus.peers.forEach { peer ->
+                    YokhanCaption(
+                        text = stringResource(
+                            R.string.gates_room_peer_label,
+                            peer.username,
+                            peer.device,
+                            stringResource(if (peer.id in roomStatus.connectedPeerIds) R.string.gates_room_peer_online else R.string.gates_room_peer_offline),
+                        ),
+                        colors = colors,
+                        typography = typography,
+                    )
+                    SelectionContainer {
+                        YokhanMonoValue(text = peer.address, colors = colors, typography = typography)
+                    }
+                }
+                YokhanDivider(colors)
+            }
+
             YokhanRouteCard(
                 title = stringResource(R.string.configuration_hub_import_title),
                 colors = colors,
@@ -227,9 +282,9 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
                 YokhanButtonGrid(
                     actions = listOf(
                         YokhanRouteAction(
-                            title = stringResource(R.string.yokhan_auth_login_action),
+                            title = stringResource(if (signedIn) R.string.yokhan_auth_refresh_action else R.string.yokhan_auth_login_action),
                             primary = true,
-                            enabled = YokhanKeycloakAuth.isConfigured(),
+                            enabled = YokhanKeycloakAuth.isConfigured() && !authBusy,
                             onClick = { (activity as? MainActivity)?.startYokhanLogin() },
                         ),
                         YokhanRouteAction(
@@ -316,7 +371,7 @@ class ConfigurationHubFragment : YokhanComposeRouteFragment(),
     }
 
     private fun refreshSummary() {
-        val owner = viewLifecycleOwner
+        val owner = viewLifecycleOwnerLiveData.value ?: return
         owner.lifecycleScope.launch {
             val summary = withContext(Dispatchers.IO) {
                 val groups = DataStore.ensureGroupsLoaded()

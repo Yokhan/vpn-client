@@ -7,6 +7,8 @@ import android.content.IntentFilter
 import android.os.*
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import com.yokhan.gates.app.diagnostics.AndroidDiagnosticsObserver
+import com.yokhan.gates.app.roomnet.RoomNetClient
 import io.nekohasekai.sagernet.Action
 import io.nekohasekai.sagernet.BootReceiver
 import io.nekohasekai.sagernet.R
@@ -55,8 +57,10 @@ class BaseService {
                 PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED -> {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         if (SagerNet.power.isDeviceIdleMode) {
+                            (service as? VpnService)?.let { AndroidDiagnosticsObserver.deviceIdleChanged(it, true) }
                             proxy?.box?.sleep()
                         } else {
+                            (service as? VpnService)?.let { AndroidDiagnosticsObserver.deviceIdleChanged(it, false) }
                             proxy?.box?.wake()
                             if (DataStore.wakeResetConnections) {
                                 Libcore.resetAllConnections(true)
@@ -259,6 +263,12 @@ class BaseService {
             data.proxy!!.launch()
         }
 
+        fun onConnected() {
+            val vpnService = this as? VpnService ?: return
+            AndroidDiagnosticsObserver.connected(vpnService)
+            RoomNetClient.start(vpnService)
+        }
+
         fun startRunner() {
             this as Context
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(Intent(this, javaClass))
@@ -266,6 +276,10 @@ class BaseService {
         }
 
         fun killProcesses() {
+            (this as? VpnService)?.let {
+                AndroidDiagnosticsObserver.stop(it)
+                RoomNetClient.stop(it)
+            }
             data.proxy?.close()
             wakeLock?.apply {
                 release()
@@ -277,6 +291,7 @@ class BaseService {
         }
 
         fun stopRunner(restart: Boolean = false, msg: String? = null) {
+            (this as? VpnService)?.let(AndroidDiagnosticsObserver::stop)
             DataStore.baseService = null
             DataStore.vpnService = null
 
@@ -401,19 +416,29 @@ class BaseService {
                     Executable.killAll()    // clean up old processes
                     preInit()
                     proxy.init()
+                    (service as? VpnService)?.let {
+                        AndroidDiagnosticsObserver.start(
+                            it,
+                            proxy.box,
+                            AndroidDiagnosticsObserver.transportFor(profile),
+                        )
+                    }
                     DataStore.currentProfile = profile.id
 
                     proxy.processes = GuardedProcessPool {
+                        (service as? VpnService)?.let(AndroidDiagnosticsObserver::runtimeFailure)
                         Logs.w(it)
                         stopRunner(false, it.readableMessage)
                     }
 
                     startProcesses()
                     data.changeState(State.Connected)
+                    runCatching { onConnected() }.onFailure { Logs.w(it) }
 
                     lateInit()
                 } catch (_: CancellationException) { // if the job was cancelled, it is canceller's responsibility to call stopRunner
                 } catch (_: UnknownHostException) {
+                    (service as? VpnService)?.let(AndroidDiagnosticsObserver::runtimeFailure)
                     stopRunner(false, getString(R.string.invalid_server))
                 } catch (e: PluginManager.PluginNotFoundException) {
                     Toast.makeText(this@Interface, e.readableMessage, Toast.LENGTH_SHORT).show()
@@ -421,6 +446,7 @@ class BaseService {
                     data.binder.missingPlugin(e.plugin)
                     stopRunner(false, null)
                 } catch (exc: Throwable) {
+                    (service as? VpnService)?.let(AndroidDiagnosticsObserver::runtimeFailure)
                     if (exc.javaClass.name.endsWith("proxyerror")) {
                         // error from golang
                         Logs.w(exc.readableMessage)

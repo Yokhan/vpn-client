@@ -1,8 +1,9 @@
-﻿package com.yokhan.gates.shared.ui.design
+package com.yokhan.gates.shared.ui.design
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -33,11 +34,16 @@ data class YokhanTypography(
 
 @Composable
 fun yokhanTypography(): YokhanTypography {
-    return YokhanTypography(
-        display = FontFamily(Font(Res.font.unbounded)),
-        text = FontFamily(Font(Res.font.golos_text)),
-        mono = FontFamily(Font(Res.font.jetbrains_mono_regular)),
-    )
+    val displayFont = Font(Res.font.unbounded)
+    val textFont = Font(Res.font.golos_text)
+    val monoFont = Font(Res.font.jetbrains_mono_regular)
+    return remember(displayFont, textFont, monoFont) {
+        YokhanTypography(
+            display = FontFamily(displayFont),
+            text = FontFamily(textFont),
+            mono = FontFamily(monoFont),
+        )
+    }
 }
 
 fun yokhanPalette(spaceActive: Boolean): YokhanPalette {

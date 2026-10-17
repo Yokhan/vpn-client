@@ -1,6 +1,7 @@
 package com.yokhan.gates.app.ui
 
 import android.Manifest.permission.POST_NOTIFICATIONS
+import com.yokhan.gates.app.GATES_DOWNLOAD_PAGE_URL
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -12,7 +13,6 @@ import android.view.KeyEvent
 import android.view.View
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -50,7 +50,10 @@ import io.nekohasekai.sagernet.ktx.parseProxies
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import com.yokhan.gates.app.auth.YokhanKeycloakAuth
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.yokhan.gates.app.manifest.YokhanRouteManifestManager
+import com.yokhan.gates.app.migration.YokhanPackageMigration
 import com.yokhan.gates.app.ui.compose.YokhanServiceStateConsumer
 import com.yokhan.gates.app.update.YokhanAppUpdater
 import com.yokhan.gates.app.ui.profile.AnyTLSSettingsActivity
@@ -92,14 +95,6 @@ class MainActivity : ThemedActivity(),
     private var pendingInitialFragment = true
     private val dashboardController by lazy { DashboardController(this) }
     private val yokhanAuthService by lazy { AuthorizationService(this) }
-    private val yokhanAuthLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            YokhanKeycloakAuth.handleAuthorizationResponse(
-                this,
-                yokhanAuthService,
-                result.data,
-            )
-        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -139,9 +134,8 @@ class MainActivity : ThemedActivity(),
         DataStore.configurationStore.registerChangeListener(this)
         GroupManager.userInterface = GroupInterfaceAdapter(this)
 
-        if (intent?.action == Intent.ACTION_VIEW) {
-            onNewIntent(intent)
-        }
+        handleIncomingIntent(intent)
+        lifecycleScope.launch { YokhanKeycloakAuth.restoreSession(this@MainActivity) }
 
         // sdk 33 notification
         if (Build.VERSION.SDK_INT >= 33) {
@@ -165,6 +159,7 @@ class MainActivity : ThemedActivity(),
 
         YokhanAppUpdater.checkOnLaunch(this)
         YokhanRouteManifestManager.refreshOnLaunch(this)
+        YokhanPackageMigration.showIntroIfNeeded(this)
     }
 
     private fun onFragmentHostReady(host: FragmentContainerView, savedInstanceState: Bundle?) {
@@ -189,6 +184,11 @@ class MainActivity : ThemedActivity(),
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (YokhanKeycloakAuth.handleAuthorizationIntent(this, yokhanAuthService, intent)) {
+            setIntent(Intent(this, MainActivity::class.java))
+            return
+        }
+        if (intent.action != Intent.ACTION_VIEW) return
 
         val uri = intent.data ?: return
 
@@ -324,7 +324,7 @@ class MainActivity : ThemedActivity(),
             }
             .setNeutralButton(android.R.string.cancel, null)
             .setNeutralButton(R.string.action_learn_more) { _, _ ->
-                launchCustomTab("https://yokhanfitness.ru/hub/gates")
+                launchCustomTab(GATES_DOWNLOAD_PAGE_URL)
             }
             .show()
     }
@@ -379,6 +379,7 @@ class MainActivity : ThemedActivity(),
             YokhanShellSubRoute.Profiles -> ConfigurationFragment()
             YokhanShellSubRoute.Groups -> GroupFragment()
             YokhanShellSubRoute.Routes -> RouteFragment()
+            YokhanShellSubRoute.UsbBridge -> UsbBridgeSettingsFragment()
             YokhanShellSubRoute.AdvancedSettings -> SettingsAdvancedFragment()
         }
         displayFragment(fragment, addToBackStack = true)
@@ -463,7 +464,7 @@ class MainActivity : ThemedActivity(),
                 displayFragment(LogcatFragment())
             }
             YokhanShellRoute.Faq -> {
-                launchCustomTab("https://yokhanfitness.ru/hub/gates")
+                launchCustomTab(GATES_DOWNLOAD_PAGE_URL)
                 return false
             }
 
@@ -486,6 +487,12 @@ class MainActivity : ThemedActivity(),
         shellServiceState.value = state
 
         dashboardController.updateConnectionState(state)
+        if (state == BaseService.State.Connected) {
+            YokhanRouteManifestManager.recordTunnelConnected(this)
+        }
+        if (msg != null) {
+            YokhanRouteManifestManager.recordConnectionFailure(this)
+        }
         (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? YokhanServiceStateConsumer)
             ?.onShellServiceStateChanged(state)
         if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
@@ -562,6 +569,7 @@ class MainActivity : ThemedActivity(),
 
     override fun onResume() {
         super.onResume()
+        YokhanAppUpdater.resumePendingInstall(this)
         if (selectedRoute.value == YokhanShellRoute.Home) {
             dashboardController.onShown()
         }
@@ -641,7 +649,18 @@ class MainActivity : ThemedActivity(),
     }
 
     fun startYokhanLogin() {
-        YokhanKeycloakAuth.startLogin(this, yokhanAuthService, yokhanAuthLauncher)
+        YokhanKeycloakAuth.syncOrLogin(this, yokhanAuthService)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        val incomingIntent = intent ?: return
+        if (YokhanKeycloakAuth.handleAuthorizationIntent(this, yokhanAuthService, incomingIntent)) {
+            setIntent(Intent(this, MainActivity::class.java))
+            return
+        }
+        if (incomingIntent.action == Intent.ACTION_VIEW) {
+            onNewIntent(incomingIntent)
+        }
     }
 
     fun onYokhanAuthImportComplete(profileCount: Int) {

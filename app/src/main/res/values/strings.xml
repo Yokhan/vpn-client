@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">BUFF IT GATES</string>
-    <string name="app_name_long" translatable="false">BUFF IT GATES</string>
+    <string name="app_name" translatable="false">GATES</string>
+    <string name="app_name_long" translatable="false">GATES</string>
     <string name="app_desc">Частный GATES-клиент для Android.</string>
     <string name="yokhan_app_desc">Частный GATES-клиент с Android-сервисом, общей UI-оболочкой и контролируемыми релизами.</string>
     <string name="dashboard_home">Главная</string>
@@ -38,9 +38,12 @@
     <string name="dashboard_check_connection">ПРОВЕРИТЬ СОЕДИНЕНИЕ</string>
     <string name="dashboard_configurations">КОНФИГУРАЦИИ</string>
     <string name="dashboard_add">+ ДОБАВИТЬ</string>
+    <string name="dashboard_auth_add">&#1042;&#1054;&#1049;&#1058;&#1048;</string>
     <string name="dashboard_first_run_title">НЕТ КОНФИГУРАЦИЙ</string>
     <string name="dashboard_first_run_body">Импортируйте подписку, добавьте профиль вручную или откройте список конфигураций.</string>
     <string name="dashboard_first_run_action">ОТКРЫТЬ НАСТРОЙКУ</string>
+    <string name="dashboard_auth_first_run_title">&#1042;&#1054;&#1049;&#1044;&#1048;&#1058;&#1045; &#1042; GATES</string>
+    <string name="dashboard_auth_first_run_body">GATES &#1087;&#1086;&#1083;&#1091;&#1095;&#1080;&#1090; &#1082;&#1086;&#1085;&#1092;&#1080;&#1075; &#1080;&#1079; &#1074;&#1072;&#1096;&#1077;&#1075;&#1086; &#1072;&#1082;&#1082;&#1072;&#1091;&#1085;&#1090;&#1072;.</string>
     <string name="dashboard_upload_label">ОТПРАВКА</string>
     <string name="dashboard_download_label">ПОЛУЧЕНИЕ</string>
     <string name="dashboard_tap_connect">Нажмите для подключения</string>
@@ -114,13 +117,28 @@
     <string name="settings_ru_compatibility">RU-совместимость</string>
     <string name="settings_ru_compatibility_summary">%1$d из %2$d установленных приложений напрямую | %3$d точных правил | %4$d префиксов</string>
     <string name="settings_open_routes">Открыть маршруты</string>
+    <string name="settings_usb_bridge">USB-мост</string>
     <string name="settings_open_advanced">Открыть все настройки</string>
+    <string name="usb_bridge_title">USB-мост</string>
+    <string name="usb_bridge_subtitle">Подключение компьютера через телефон</string>
+    <string name="usb_bridge_section">USB-подключение</string>
+    <string name="usb_bridge_interface">USB-интерфейс</string>
+    <string name="usb_bridge_not_detected">Не подключен</string>
+    <string name="usb_bridge_open_settings">ОТКРЫТЬ USB</string>
+    <string name="usb_bridge_open">ОТКРЫТЬ</string>
+    <string name="usb_bridge_enable">Разрешить USB-мост</string>
+    <string name="usb_bridge_enable_summary">Прокси доступен только с компьютера по USB и локально через ADB.</string>
+    <string name="usb_bridge_port">Порт USB-моста</string>
+    <string name="usb_bridge_connect_first">Сначала подключите USB-кабель и включите USB-модем.</string>
+    <string name="usb_bridge_invalid_port">Порт должен быть от 1 до 65535.</string>
     <string name="settings_stealth_title">Скрытый режим</string>
     <string name="settings_stealth_summary">Отключает локальные proxy-поверхности и чувствительные побочные каналы.</string>
     <string name="settings_direct_speed_title">Показывать прямую скорость</string>
     <string name="settings_direct_speed_summary">Показывает скорость прямого трафика рядом с proxy-трафиком в уведомлениях.</string>
     <string name="settings_auto_connect_title">Автоподключение после перезагрузки</string>
     <string name="settings_auto_connect_summary">Восстанавливает предыдущее рабочее состояние после перезагрузки или обновления приложения.</string>
+    <string name="settings_automatic_recovery_reports_title">Автоматически отправлять отчёты о сбоях</string>
+    <string name="settings_automatic_recovery_reports_summary">Отправляет компактные обезличенные события подключения после появления интернета. Записи остаются на устройстве, даже если отправка выключена.</string>
     <string name="settings_dns_title">Настройка DNS</string>
     <string name="settings_apps_title">Маршрутизация приложений</string>
     <string name="settings_network_title">Сетевые поверхности</string>
@@ -767,6 +785,8 @@
     <string name="app_list_loading">Reading installed apps…</string>
     <string name="app_list_no_matches">No applications match the current filter.</string>
     <string name="yokhan_auth_login_action">ВОЙТИ И ПОЛУЧИТЬ КОНФИГ</string>
+    <string name="yokhan_auth_refresh_action">ОБНОВИТЬ КОНФИГИ</string>
+    <string name="yokhan_auth_sync_failed">Не удалось обновить конфиги. VPN и сохранённые ключи не изменены. Повторный вход доступен по кнопке «Войти».</string>
     <string name="yokhan_auth_not_configured">Вход не настроен в этой сборке.</string>
     <string name="yokhan_auth_open_failed">Не удалось открыть вход.</string>
     <string name="yokhan_auth_cancelled">Вход отменён.</string>
@@ -775,4 +795,18 @@
     <string name="yokhan_auth_import_failed">Не удалось получить конфиг: %1$s</string>
     <string name="yokhan_auth_import_success">Импортировано профилей: %1$d</string>
     <string name="yokhan_auth_group_name">GATES App</string>
+    <string name="gates_migration_title">Move to the new GATES app</string>
+    <string name="gates_migration_intro">Keep the old app and its backup until all profiles and settings are transferred and real traffic works in this app. You can use saved keys without signing in. Android will ask for VPN permission again.</string>
+    <string name="gates_migration_continue">Continue setup</string>
+    <string name="gates_migration_open_legacy">Open old app</string>
+    <string name="gates_room_title">Room</string>
+    <string name="gates_room_named_title">Room %1$s</string>
+    <string name="gates_room_connecting">Connecting room</string>
+    <string name="gates_room_connected">Room connected</string>
+    <string name="gates_room_unavailable">Room connection unavailable</string>
+    <string name="gates_room_disconnected">Room disconnected</string>
+    <string name="gates_room_self_address">My address: %1$s</string>
+    <string name="gates_room_peer_label">%1$s · %2$s · %3$s</string>
+    <string name="gates_room_peer_online">Online</string>
+    <string name="gates_room_peer_offline">Offline</string>
 </resources>

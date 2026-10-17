@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.yokhan.gates.app.ui.shell.YokhanShellActivityRoute
+import com.yokhan.gates.app.ui.shell.YokhanShellSubRoute
 import com.yokhan.gates.app.ui.form.arrayOptions
 import com.yokhan.gates.app.ui.form.selectValue
 import com.yokhan.gates.app.ui.form.switchValue
@@ -96,6 +97,9 @@ class SettingsAdvancedFragment : ToolbarFragment() {
 
             is YokhanFormEvent.ActionInvoked -> when (event.id) {
                 FieldGlobalConfig -> openGlobalConfig()
+                FieldUsbBridge -> {
+                    (activity as? MainActivity)?.openSubRoute(YokhanShellSubRoute.UsbBridge)
+                }
                 FieldProxyAppsManager -> {
                     (activity as? MainActivity)?.openActivityRoute(YokhanShellActivityRoute.AppManager)
                 }
@@ -347,6 +351,14 @@ class SettingsAdvancedFragment : ToolbarFragment() {
                             helper = getString(R.string.allow_access_sum),
                             checked = DataStore.allowAccess,
                         ),
+                        YokhanFormField.Action(
+                            id = FieldUsbBridge,
+                            label = getString(R.string.settings_usb_bridge),
+                            value = getString(
+                                if (DataStore.enableUsbBridge) R.string.on else R.string.off,
+                            ),
+                            actionLabel = getString(R.string.usb_bridge_open),
+                        ),
                     ),
                 ),
                 YokhanFormSection(
@@ -404,6 +416,7 @@ class SettingsAdvancedFragment : ToolbarFragment() {
     private fun validateSettingsForm(state: YokhanFormState): YokhanFormState {
         val stealth = state.switchValue(Key.STEALTH_MODE)
         val localInbound = !stealth && state.switchValue(Key.ENABLE_LOCAL_INBOUND)
+        val usbBridge = DataStore.enableUsbBridge
         val speedEnabled = state.selectValue(Key.SPEED_INTERVAL) != "0"
         return state.copy(
             sections = state.sections.map { section ->
@@ -423,8 +436,8 @@ class SettingsAdvancedFragment : ToolbarFragment() {
                                 Key.APPEND_HTTP_PROXY,
                                 Key.ALLOW_ACCESS,
                                 -> updated.copy(
-                                    checked = if (stealth) false else updated.checked,
-                                    enabled = localInbound,
+                                    checked = if (stealth || usbBridge) false else updated.checked,
+                                    enabled = localInbound && !usbBridge,
                                 )
 
                                 Key.ENABLE_CLASH_API -> updated.copy(
@@ -439,7 +452,7 @@ class SettingsAdvancedFragment : ToolbarFragment() {
                             is YokhanFormField.Port -> if (updated.id == Key.MIXED_PORT) {
                                 val port = updated.value.toIntOrNull()
                                 updated.copy(
-                                    enabled = localInbound,
+                                    enabled = localInbound || usbBridge,
                                     validation = if (port == null || port !in 1..65535) {
                                         YokhanFormValidation(
                                             state = YokhanFormValidationState.Error,
@@ -498,7 +511,9 @@ class SettingsAdvancedFragment : ToolbarFragment() {
             needRestart()
         }
         if (before.requiresReload(after)) {
-            needReload()
+            if (DataStore.serviceState.started) {
+                SagerNet.reloadServiceAsync()
+            }
         }
         (activity as? MainActivity)?.refreshNavMenu(DataStore.enableClashAPI && !DataStore.stealthMode)
         formState.value = validateSettingsForm(buildSettingsForm(dirty = false))
@@ -540,7 +555,9 @@ class SettingsAdvancedFragment : ToolbarFragment() {
         DataStore.enableLocalInbound = !stealth && state.switchValue(Key.ENABLE_LOCAL_INBOUND)
         DataStore.mixedPort = state.textValue(Key.MIXED_PORT).toIntOrNull() ?: DataStore.mixedPort
         DataStore.appendHttpProxy = !stealth && state.switchValue(Key.APPEND_HTTP_PROXY)
-        DataStore.allowAccess = !stealth && state.switchValue(Key.ALLOW_ACCESS)
+        DataStore.allowAccess = !stealth &&
+            !DataStore.enableUsbBridge &&
+            state.switchValue(Key.ALLOW_ACCESS)
 
         DataStore.connectionTestURL = state.textValue(Key.CONNECTION_TEST_URL)
         DataStore.enableClashAPI = !stealth && state.switchValue(Key.ENABLE_CLASH_API)
@@ -678,6 +695,7 @@ class SettingsAdvancedFragment : ToolbarFragment() {
                         DataStore.globalCustomConfig,
                         DataStore.stealthMode,
                         DataStore.enableLocalInbound,
+                        DataStore.enableUsbBridge,
                         DataStore.enableClashAPI,
                         DataStore.configurationStore.getString(FieldDomainStrategyRemote),
                         DataStore.configurationStore.getString(FieldDomainStrategyDirect),
@@ -694,6 +712,7 @@ class SettingsAdvancedFragment : ToolbarFragment() {
         const val FieldDomainStrategyDirect = "domain_strategy_for_direct"
         const val FieldDomainStrategyServer = "domain_strategy_for_server"
         const val FieldProxyAppsManager = "proxyAppsManager"
+        const val FieldUsbBridge = "usbBridge"
         const val FieldGlobalConfig = Key.GLOBAL_CUSTOM_CONFIG
         const val FieldLogBufferSize = "logBufferSize"
     }

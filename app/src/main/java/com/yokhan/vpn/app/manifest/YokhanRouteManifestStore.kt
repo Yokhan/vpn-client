@@ -13,6 +13,7 @@ class YokhanRouteManifestStore(context: Context) {
             .putString(key(cacheKey, KEY_MANIFEST_ID), manifest.manifestId)
             .putLong(key(cacheKey, KEY_EXPIRES_AT), manifest.expiresAt)
             .putLong(key(cacheKey, KEY_UPDATED_AT), System.currentTimeMillis())
+            .putString(KEY_LAST_CACHE_KEY, cacheKey)
             .apply()
     }
 
@@ -21,6 +22,11 @@ class YokhanRouteManifestStore(context: Context) {
     fun loadVerified(verifier: YokhanRouteManifestVerifier, cacheKey: String): YokhanRouteManifest? {
         val raw = loadRaw(cacheKey) ?: return null
         return runCatching { verifier.verify(raw) }.getOrNull()
+    }
+
+    fun loadLastVerified(verifier: YokhanRouteManifestVerifier): YokhanRouteManifest? {
+        val cacheKey = preferences.getString(KEY_LAST_CACHE_KEY, null) ?: return null
+        return loadVerified(verifier, cacheKey)
     }
 
     fun clear(cacheKey: String) {
@@ -46,5 +52,6 @@ class YokhanRouteManifestStore(context: Context) {
         private const val KEY_MANIFEST_ID = "manifest_id"
         private const val KEY_EXPIRES_AT = "expires_at"
         private const val KEY_UPDATED_AT = "updated_at"
+        private const val KEY_LAST_CACHE_KEY = "last_cache_key"
     }
 }

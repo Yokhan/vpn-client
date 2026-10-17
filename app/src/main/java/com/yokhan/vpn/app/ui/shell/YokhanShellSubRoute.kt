@@ -4,5 +4,6 @@ enum class YokhanShellSubRoute {
     Profiles,
     Groups,
     Routes,
+    UsbBridge,
     AdvancedSettings,
 }

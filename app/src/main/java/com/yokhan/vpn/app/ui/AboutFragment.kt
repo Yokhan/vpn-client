@@ -1,6 +1,7 @@
 package com.yokhan.gates.app.ui
 
 import android.app.Activity
+import com.yokhan.gates.app.GATES_DOWNLOAD_PAGE_URL
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -26,15 +27,15 @@ import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.ktx.launchCustomTab
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
-import com.yokhan.gates.app.ui.compose.YokhanBody
-import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
-import com.yokhan.gates.app.ui.compose.YokhanCaption
+import com.yokhan.gates.shared.ui.route.YokhanBody
+import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
+import com.yokhan.gates.shared.ui.route.YokhanCaption
 import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.gates.app.ui.compose.YokhanHeadline
-import com.yokhan.gates.app.ui.compose.YokhanMonoValue
-import com.yokhan.gates.app.ui.compose.YokhanRouteAction
-import com.yokhan.gates.app.ui.compose.YokhanRouteCard
-import com.yokhan.gates.app.ui.compose.YokhanRouteFrame
+import com.yokhan.gates.shared.ui.route.YokhanHeadline
+import com.yokhan.gates.shared.ui.route.YokhanMonoValue
+import com.yokhan.gates.shared.ui.route.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanRouteCard
+import com.yokhan.gates.shared.ui.route.YokhanRouteFrame
 import libcore.Libcore
 
 class AboutFragment : YokhanComposeRouteFragment() {
@@ -135,7 +136,7 @@ class AboutFragment : YokhanComposeRouteFragment() {
                     typography = typography,
                 )
                 YokhanBody(
-                    text = "yokhanfitness.ru/hub/gates",
+                    text = GATES_DOWNLOAD_PAGE_URL.removePrefix("https://"),
                     colors = colors,
                     typography = typography,
                     modifier = Modifier.padding(top = 5.dp),
@@ -234,6 +235,6 @@ class AboutFragment : YokhanComposeRouteFragment() {
     )
 
     private companion object {
-        const val YOKHAN_REPO_URL = "https://yokhanfitness.ru/hub/gates"
+        const val YOKHAN_REPO_URL = GATES_DOWNLOAD_PAGE_URL
     }
 }

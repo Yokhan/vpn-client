@@ -1,10 +1,11 @@
-﻿package com.yokhan.gates.shared.ui.form
+package com.yokhan.gates.shared.ui.form
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -323,7 +324,7 @@ private fun YokhanFormTextFieldRow(
                     lineHeight = 18.sp,
                     fontWeight = FontWeight.SemiBold,
                 ),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("form.input.$id"),
                 decorationBox = { input ->
                     Box(
                         modifier = Modifier
@@ -519,7 +520,7 @@ private fun YokhanFormActionRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            YokhanFormFieldLabel(field.label, field.required, colors, typography)
+            YokhanFormFieldLabel(field.label, field.required, colors, typography, maxLines = 3)
             field.value?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = it,
@@ -705,6 +706,7 @@ private fun YokhanFormFieldLabel(
     required: Boolean,
     colors: YokhanPalette,
     typography: YokhanTypography,
+    maxLines: Int = 1,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
@@ -715,7 +717,7 @@ private fun YokhanFormFieldLabel(
             lineHeight = 13.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.45.sp,
-            maxLines = 1,
+            maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
         )
         if (required) {

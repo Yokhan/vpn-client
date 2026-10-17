@@ -39,7 +39,7 @@ val yokhanRouteManifestEnabled = booleanProjectPropertyOrEnv("YOKHAN_ROUTE_MANIF
 val yokhanRouteManifestPublicKeys = projectPropertyOrEnv("YOKHAN_ROUTE_MANIFEST_PUBLIC_KEYS")
 val yokhanRouteManifestVersion = intProjectPropertyOrEnv("YOKHAN_ROUTE_MANIFEST_VERSION", 1)
 val yokhanKeycloakIssuer = projectPropertyOrEnv("YOKHAN_KEYCLOAK_ISSUER")
-    .ifBlank { "https://auth.yokhanfitness.ru/realms/yokhan" }
+    .ifBlank { "https://auth.yokhan.xyz/realms/yokhan" }
 val yokhanKeycloakClientId = projectPropertyOrEnv("YOKHAN_KEYCLOAK_CLIENT_ID")
     .ifBlank { "gates-android" }
 val yokhanKeycloakRedirectScheme =
@@ -47,7 +47,17 @@ val yokhanKeycloakRedirectScheme =
 val yokhanKeycloakRedirectUri = projectPropertyOrEnv("YOKHAN_KEYCLOAK_REDIRECT_URI")
     .ifBlank { "$yokhanKeycloakRedirectScheme://auth/callback" }
 val yokhanAppApiBaseUrl = projectPropertyOrEnv("YOKHAN_APP_API_BASE_URL")
-    .ifBlank { "https://cloak.yokhanfitness.ru" }
+    .ifBlank { "https://app.yokhan.xyz/gates" }
+val yokhanUpdateSignerSha256 = projectPropertyOrEnv("YOKHAN_UPDATE_SIGNER_SHA256")
+    .ifBlank { "b174e202d24f73eb703265f3270c2784eba0ae80d6a1ad0979ad9b87f7d4a504" }
+val gatesAndroidKeystoreFile = projectPropertyOrEnv("GATES_ANDROID_KEYSTORE_FILE")
+val gatesAndroidKeystorePassword = projectPropertyOrEnv("GATES_ANDROID_KEYSTORE_PASSWORD")
+val gatesAndroidKeyAlias = projectPropertyOrEnv("GATES_ANDROID_KEY_ALIAS")
+val gatesAndroidKeyPassword = projectPropertyOrEnv("GATES_ANDROID_KEY_PASSWORD")
+val gatesAndroidSigningEnabled = gatesAndroidKeystoreFile.isNotBlank() &&
+    gatesAndroidKeystorePassword.isNotBlank() &&
+    gatesAndroidKeyAlias.isNotBlank() &&
+    gatesAndroidKeyPassword.isNotBlank()
 
 android {
     compileOptions {
@@ -69,6 +79,7 @@ android {
         buildConfigField("String", "YOKHAN_KEYCLOAK_CLIENT_ID", quotedBuildConfigString(yokhanKeycloakClientId))
         buildConfigField("String", "YOKHAN_KEYCLOAK_REDIRECT_URI", quotedBuildConfigString(yokhanKeycloakRedirectUri))
         buildConfigField("String", "YOKHAN_APP_API_BASE_URL", quotedBuildConfigString(yokhanAppApiBaseUrl))
+        buildConfigField("String", "YOKHAN_UPDATE_SIGNER_SHA256", quotedBuildConfigString(yokhanUpdateSignerSha256))
     }
     bundle {
         language {
@@ -80,6 +91,26 @@ android {
         viewBinding = true
         aidl = true
         compose = true
+    }
+    signingConfigs {
+        if (gatesAndroidSigningEnabled) {
+            create("gatesRelease") {
+                storeFile = file(gatesAndroidKeystoreFile)
+                storePassword = gatesAndroidKeystorePassword
+                keyAlias = gatesAndroidKeyAlias
+                keyPassword = gatesAndroidKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (gatesAndroidSigningEnabled) {
+                signingConfig = signingConfigs.getByName("gatesRelease")
+            }
+        }
     }
     namespace = "io.nekohasekai.sagernet"
     packaging {
@@ -96,6 +127,8 @@ dependencies {
 
     implementation(project(":shared-domain"))
     implementation(project(":shared-ui"))
+
+    testImplementation(kotlin("test"))
 
     implementation(fileTree("libs"))
 

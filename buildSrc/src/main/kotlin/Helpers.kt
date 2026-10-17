@@ -216,10 +216,10 @@ fun Project.setupApp() {
                 outputFileName = if (isPreview) {
                     outputFileName.replace(
                         project.name,
-                        "BUFF-IT-GATES-" + requireMetadata().getProperty("PRE_VERSION_NAME")
+                        "GATES-" + requireMetadata().getProperty("PRE_VERSION_NAME")
                     ).replace("-preview", "")
                 } else {
-                    outputFileName.replace(project.name, "BUFF-IT-GATES-$versionName")
+                    outputFileName.replace(project.name, "GATES-$versionName")
                         .replace("-release", "")
                         .replace("-oss", "")
                 }

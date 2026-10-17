@@ -26,6 +26,7 @@ object YokhanBugReporter {
     ): BugReportResult = withContext(Dispatchers.IO) {
         val appContext = context.applicationContext
         val diagnostics = parseDiagnostics(diagnosticsJson)
+        diagnostics.put("incident_reports", AndroidIncidentReports.summary(appContext))
         val fullPayload = buildPayload(message, diagnostics)
         val remotePayload = if (payloadSize(fullPayload) > MAX_REMOTE_PAYLOAD_BYTES) {
             buildPayload(message, compactDiagnostics(diagnostics))
@@ -34,6 +35,7 @@ object YokhanBugReporter {
         }
 
         val localFile = saveLocalCopy(appContext, fullPayload)
+        sendRouteTelemetry(appContext, YokhanRouteTelemetryPayload.fromDiagnostics(diagnostics))
         val failures = mutableListOf<String>()
         for (url in reportUrls()) {
             val result = try {
@@ -65,13 +67,16 @@ object YokhanBugReporter {
     }
 
     private fun buildPayload(message: String, diagnostics: JSONObject): JSONObject {
-        return JSONObject()
+        return YokhanRouteTelemetryPayload.attach(
+            JSONObject()
             .put("platform", "android")
             .put("package", BuildConfig.APPLICATION_ID)
             .put("version_name", BuildConfig.VERSION_NAME)
             .put("version_code", BuildConfig.VERSION_CODE)
             .put("message", message.take(MAX_MESSAGE_LENGTH))
-            .put("diagnostics", diagnostics)
+            .put("diagnostics", diagnostics),
+            diagnostics,
+        )
     }
 
     private fun parseDiagnostics(diagnosticsJson: String): JSONObject {
@@ -150,6 +155,7 @@ object YokhanBugReporter {
                     "detected_route_order",
                     "missing_route_families",
                     "duplicate_route_families",
+                    "route_set_ok",
                     "route_order_ok",
                 ),
             )
@@ -181,6 +187,9 @@ object YokhanBugReporter {
                     "cached_active_routes",
                     "policy_version",
                     "policy_route_order",
+                    "selection_mode",
+                    "selection_avoid_statuses",
+                    "selection_probe_before_connect",
                     "ru_direct_version",
                     "raw_compatibility_isolated",
                     "dns_policy_mode",
@@ -265,6 +274,60 @@ object YokhanBugReporter {
                 limit = 20,
             ),
         )
+        compact.put(
+            "incident_reports",
+            source.optJSONObject("incident_reports")?.let { summary ->
+                JSONObject()
+                    .put("schema", summary.optString("schema", "gates-incident-summary-v1"))
+                    .put("availability", summary.optString("availability", "unavailable"))
+                    .put("truncated", summary.optBoolean("truncated", true))
+                    .put("checkpoint_degraded", summary.optBoolean("checkpoint_degraded", true))
+                    .put("app_version", summary.optString("app_version", "unavailable"))
+                    .put("core_version", summary.optString("core_version", "unavailable"))
+                    .put(
+                        "archives",
+                        compactArray(
+                            summary.optJSONArray("archives"),
+                            listOf(
+                                "id",
+                                "triggered_at_millis",
+                                "status",
+                                "recovered",
+                                "confirmed",
+                                "truncated",
+                                "event_count",
+                                "recording",
+                            ),
+                            limit = 6,
+                        ),
+                    )
+                    .also { target ->
+                        summary.optJSONObject("active")?.let { active ->
+                            target.put(
+                                "active",
+                                copyObject(
+                                    active,
+                                    listOf(
+                                        "id",
+                                        "triggered_at_millis",
+                                        "status",
+                                        "recovered",
+                                        "confirmed",
+                                        "truncated",
+                                        "event_count",
+                                        "active",
+                                    ),
+                                ),
+                            )
+                        }
+                    }
+            } ?: JSONObject()
+                .put("schema", "gates-incident-summary-v1")
+                .put("availability", "unavailable")
+                .put("truncated", true)
+                .put("checkpoint_degraded", true)
+                .put("archives", JSONArray()),
+        )
         return compact
     }
 
@@ -319,6 +382,14 @@ object YokhanBugReporter {
         throw IllegalStateException(failures.joinToString("; ").ifBlank { "report upload failed" })
     }
 
+    private fun sendRouteTelemetry(context: Context, payload: JSONObject?) {
+        if (payload == null) return
+        val base = BuildConfig.YOKHAN_APP_API_BASE_URL.trimEnd('/')
+        runCatching {
+            postJson(context, "$base/api/app/route-telemetry", payload.toString())
+        }
+    }
+
     private fun executePost(connection: HttpURLConnection, bytes: ByteArray): HttpResult {
         try {
             connection.requestMethod = "POST"
@@ -371,7 +442,7 @@ object YokhanBugReporter {
         val base = BuildConfig.YOKHAN_APP_API_BASE_URL.trimEnd('/')
         return listOf(
             "$base/api/app/bug-report",
-            "https://yokhanfitness.ru/api/app/bug-report",
+            "https://app.yokhan.xyz/gates/api/app/bug-report",
         ).distinct()
     }
 

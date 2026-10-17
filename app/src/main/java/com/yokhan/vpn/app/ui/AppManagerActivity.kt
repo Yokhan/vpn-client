@@ -27,9 +27,9 @@ import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
-import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
-import com.yokhan.gates.app.ui.compose.YokhanCheckboxRow
-import com.yokhan.gates.app.ui.compose.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
+import com.yokhan.gates.shared.ui.route.YokhanCheckboxRow
+import com.yokhan.gates.shared.ui.route.YokhanRouteAction
 import com.yokhan.gates.app.ui.compose.YokhanSelectableApp
 import com.yokhan.gates.app.ui.compose.YokhanSelectableAppsScreen
 import com.yokhan.gates.app.ui.compose.YokhanSegmentedActions

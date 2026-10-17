@@ -17,11 +17,11 @@ import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.snackbar
-import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
+import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
 import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.gates.app.ui.compose.YokhanRouteAction
-import com.yokhan.gates.app.ui.compose.YokhanRouteCard
-import com.yokhan.gates.app.ui.compose.YokhanRouteFrame
+import com.yokhan.gates.shared.ui.route.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanRouteCard
+import com.yokhan.gates.shared.ui.route.YokhanRouteFrame
 import libcore.Libcore
 import moe.matsuri.nb4a.utils.SendLog
 

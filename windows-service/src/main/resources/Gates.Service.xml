@@ -1,0 +1,18 @@
+<service>
+  <id>GatesVpn</id>
+  <name>GATES Runtime</name>
+  <description>GATES machine-wide VPN runtime broker.</description>
+  <executable>%BASE%\..\..\..\runtime\bin\java.exe</executable>
+  <arguments>-cp "%BASE%\Gates.Service.jar" com.yokhan.gates.windows.service.GatesServiceMainKt</arguments>
+  <workingdirectory>%ProgramData%\GATES\Service</workingdirectory>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <stoptimeout>20 sec</stoptimeout>
+  <onfailure action="restart" delay="10 sec" />
+  <resetfailure>1 hour</resetfailure>
+  <logpath>%ProgramData%\GATES\Service\Logs</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>1048576</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+</service>

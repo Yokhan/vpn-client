@@ -34,6 +34,7 @@ import moe.matsuri.nb4a.utils.JavaUtil;
 public class KryoConverters {
 
     private static final byte[] NULL = new byte[0];
+    private static final ThreadLocal<Boolean> STRICT_IMPORT = new ThreadLocal<>();
 
     @TypeConverter
     public static byte[] serialize(Serializable bean) {
@@ -49,14 +50,36 @@ public class KryoConverters {
     public static <T extends Serializable> T deserialize(T bean, byte[] bytes) {
         if (bytes == null) return bean;
         ByteArrayInputStream input = new ByteArrayInputStream(bytes);
-        ByteBufferInput buffer = KryosKt.byteBuffer(input);
+        ByteBufferInput buffer = isStrictImport() ? new ByteBufferInput(bytes) : KryosKt.byteBuffer(input);
         try {
             bean.deserializeFromBuffer(buffer);
+            if (isStrictImport() && buffer.position() != bytes.length) {
+                throw new KryoException("Unexpected trailing backup data");
+            }
         } catch (KryoException e) {
+            if (isStrictImport()) throw e;
             Logs.INSTANCE.w(e);
         }
         bean.initializeDefaultValues();
         return bean;
+    }
+
+    public static <T extends Serializable> T deserializeStrict(T bean, byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            throw new KryoException("Missing backup data");
+        }
+        Boolean previous = STRICT_IMPORT.get();
+        STRICT_IMPORT.set(Boolean.TRUE);
+        try {
+            return deserialize(bean, bytes);
+        } finally {
+            if (previous == null) STRICT_IMPORT.remove();
+            else STRICT_IMPORT.set(previous);
+        }
+    }
+
+    private static boolean isStrictImport() {
+        return Boolean.TRUE.equals(STRICT_IMPORT.get());
     }
 
     @TypeConverter

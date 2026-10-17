@@ -1,6 +1,7 @@
 package io.nekohasekai.sagernet.fmt
 
 import android.widget.Toast
+import com.yokhan.gates.app.usb.UsbBridgeBinding
 import io.nekohasekai.sagernet.*
 import io.nekohasekai.sagernet.bg.VpnService
 import io.nekohasekai.sagernet.database.DataStore
@@ -40,6 +41,7 @@ import moe.matsuri.nb4a.utils.listByLineOrComma
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 const val TAG_MIXED = "mixed-in"
+const val TAG_USB_MIXED = "usb-mixed-in"
 
 const val TAG_PROXY = "proxy"
 const val TAG_DIRECT = "direct"
@@ -47,6 +49,13 @@ const val TAG_BYPASS = "bypass"
 const val TAG_BLOCK = "block"
 
 const val LOCALHOST = "127.0.0.1"
+
+internal fun buildRouteOptions(): RouteOptions = RouteOptions().apply {
+    // Keep the core bound to Android's current underlying network across Wi-Fi/LTE changes.
+    auto_detect_interface = true
+    rules = mutableListOf()
+    rule_set = mutableListOf()
+}
 
 class ConfigBuildResult(
     var config: String,
@@ -133,7 +142,15 @@ fun buildConfig(
     val domainListDNSDirectForce = mutableListOf<String>()
     val bypassDNSBeans = hashSetOf<AbstractBean>()
     val isVPN = DataStore.serviceMode == Key.MODE_VPN
-    val bind = if (!forTest && DataStore.allowAccess && !DataStore.stealthMode) "0.0.0.0" else LOCALHOST
+    val isUsbBridgeEnabled = !forTest && DataStore.enableUsbBridge
+    val usbBridgeAddress = if (isUsbBridgeEnabled) UsbBridgeBinding.detectUsbIpv4() else null
+    val bindAddresses = UsbBridgeBinding.resolveBindAddresses(
+        isUsbBridgeEnabled = isUsbBridgeEnabled,
+        usbIpv4 = usbBridgeAddress,
+        isLanAccessAllowed = !forTest && DataStore.allowAccess,
+        isStealthMode = DataStore.stealthMode,
+    )
+    val bind = bindAddresses.first()
     val remoteDns = DataStore.remoteDns.split("\n")
         .mapNotNull { dns -> dns.trim().takeIf { it.isNotBlank() && !it.startsWith("#") } }
     val directDNS = DataStore.directDns.split("\n")
@@ -224,7 +241,7 @@ fun buildConfig(
                     }
                 }
             })
-            if (!isVPN || (DataStore.enableLocalInbound && !DataStore.stealthMode)) {
+            if (!isVPN || isUsbBridgeEnabled || (DataStore.enableLocalInbound && !DataStore.stealthMode)) {
                 inbounds.add(Inbound_MixedOptions().apply {
                     type = "mixed"
                     tag = TAG_MIXED
@@ -234,17 +251,24 @@ fun buildConfig(
                     sniff = needSniff
                     sniff_override_destination = needSniffOverride
                 })
+                bindAddresses.drop(1).forEach { usbBindAddress ->
+                    inbounds.add(Inbound_MixedOptions().apply {
+                        type = "mixed"
+                        tag = TAG_USB_MIXED
+                        listen = usbBindAddress
+                        listen_port = DataStore.mixedPort
+                        domain_strategy = genDomainStrategy(DataStore.resolveDestination)
+                        sniff = needSniff
+                        sniff_override_destination = needSniffOverride
+                    })
+                }
             }
         }
 
         outbounds = mutableListOf()
 
         // init routing object
-        route = RouteOptions().apply {
-            auto_detect_interface = true
-            rules = mutableListOf()
-            rule_set = mutableListOf()
-        }
+        route = buildRouteOptions()
 
         // returns outbound tag
         fun buildChain(

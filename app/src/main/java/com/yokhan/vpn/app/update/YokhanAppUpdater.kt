@@ -2,9 +2,11 @@ package com.yokhan.gates.app.update
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import com.yokhan.gates.app.GATES_DOWNLOAD_PAGE_URL
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -23,8 +25,41 @@ import moe.matsuri.nb4a.utils.Util
 import org.json.JSONObject
 import java.io.File
 import java.net.URLEncoder
+import java.security.MessageDigest
+
+internal fun isTrustedApkIdentity(
+    expectedPackage: String,
+    actualPackage: String,
+    expectedSignerSha256: String,
+    actualSignerSha256: Collection<String>,
+): Boolean {
+    val expectedSigner = expectedSignerSha256.normalizeFingerprint()
+    return actualPackage == expectedPackage &&
+        expectedSigner.isNotBlank() &&
+        actualSignerSha256.any { it.normalizeFingerprint() == expectedSigner }
+}
+
+private fun String.normalizeFingerprint(): String =
+    replace(":", "").trim().lowercase()
 
 object YokhanAppUpdater {
+
+    fun resumePendingInstall(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !context.packageManager.canRequestPackageInstalls()
+        ) return
+        val preferences = SagerNet.bootstrapPreferences()
+        val path = preferences.getString(PENDING_INSTALL_PATH_KEY, null) ?: return
+        preferences.edit().remove(PENDING_INSTALL_PATH_KEY).apply()
+        val file = File(path).takeIf(File::isFile) ?: return
+        runCatching {
+            requireTrustedDownloadedApk(context, file)
+            installDownloadedApk(context, file)
+        }.onFailure { error ->
+            Logs.w(error)
+            Toast.makeText(context, error.readableMessage, Toast.LENGTH_LONG).show()
+        }
+    }
 
     fun checkManually(context: Context, checkPreview: Boolean) {
         checkUpdate(
@@ -66,12 +101,13 @@ object YokhanAppUpdater {
                     setURL(releaseApiUrl(checkPreview))
                 }.execute()
                 val release = JSONObject(Util.getStringBox(response.contentString))
-                val releaseName = release.optString("name")
-                    .ifBlank { release.optString("latest_version") }
+                val releaseName = release.optString("latest_version")
+                    .ifBlank { release.optString("name") }
+                    .ifBlank { release.optString("release_name") }
                 val releaseUrl = release.optString("html_url")
                     .ifBlank { release.optString("release_url") }
                     .ifBlank { GATES_DOWNLOAD_PAGE_URL }
-                val haveUpdate = hasUpdate(releaseName, checkPreview)
+                val haveUpdate = hasUpdate(release, releaseName, checkPreview)
 
                 runOnMainDispatcher {
                     if (haveUpdate) {
@@ -98,7 +134,10 @@ object YokhanAppUpdater {
         }
     }
 
-    private fun hasUpdate(releaseName: String, checkPreview: Boolean): Boolean {
+    private fun hasUpdate(release: JSONObject, releaseName: String, checkPreview: Boolean): Boolean {
+        if (release.has("update_available") && !release.isNull("update_available")) {
+            return release.optBoolean("update_available", false)
+        }
         if (releaseName.isBlank()) return false
         return if (isPreview) {
             if (checkPreview) {
@@ -198,6 +237,8 @@ object YokhanAppUpdater {
                     tempFile.delete()
                 }
 
+                requireTrustedDownloadedApk(appContext, outputFile)
+
                 runOnMainDispatcher {
                     installDownloadedApk(context, outputFile)
                 }
@@ -216,6 +257,9 @@ object YokhanAppUpdater {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !context.packageManager.canRequestPackageInstalls()
         ) {
+            SagerNet.bootstrapPreferences().edit()
+                .putString(PENDING_INSTALL_PATH_KEY, file.absolutePath)
+                .apply()
             Toast.makeText(context, R.string.update_unknown_sources_required, Toast.LENGTH_LONG).show()
             context.startActivity(
                 Intent(
@@ -225,6 +269,8 @@ object YokhanAppUpdater {
             )
             return
         }
+
+        SagerNet.bootstrapPreferences().edit().remove(PENDING_INSTALL_PATH_KEY).apply()
 
         val apkUri = FileProvider.getUriForFile(context, "${context.packageName}.cache", file)
         val installIntent = Intent(Intent.ACTION_VIEW).apply {
@@ -236,6 +282,38 @@ object YokhanAppUpdater {
         } catch (e: Exception) {
             Logs.w(e)
             Toast.makeText(context, e.readableMessage, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun requireTrustedDownloadedApk(context: Context, file: File) {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
+        val info = context.packageManager.getPackageArchiveInfo(file.absolutePath, flags)
+            ?: error("Downloaded update is not a valid Android package.")
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.signingInfo?.apkContentsSigners.orEmpty().toList()
+        } else {
+            @Suppress("DEPRECATION")
+            info.signatures.orEmpty().toList()
+        }
+        val signerFingerprints = signatures.map { signature ->
+            MessageDigest.getInstance("SHA-256")
+                .digest(signature.toByteArray())
+                .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+        }
+        val isTrusted = isTrustedApkIdentity(
+            expectedPackage = context.packageName,
+            actualPackage = info.packageName,
+            expectedSignerSha256 = BuildConfig.YOKHAN_UPDATE_SIGNER_SHA256,
+            actualSignerSha256 = signerFingerprints,
+        )
+        if (!isTrusted) {
+            file.delete()
+            error("Downloaded update has an unexpected package or signing certificate.")
         }
     }
 
@@ -258,11 +336,13 @@ object YokhanAppUpdater {
         }
         val version = if (checkPreview) BuildConfig.PRE_VERSION_NAME else BuildConfig.VERSION_NAME
         val encodedVersion = URLEncoder.encode(version, "UTF-8")
-        return "$base/api/app/release?platform=android&version=$encodedVersion"
+        val encodedPackage = URLEncoder.encode(BuildConfig.APPLICATION_ID, "UTF-8")
+        return "$base/api/app/release?platform=android&version=$encodedVersion" +
+            "&package_id=$encodedPackage&protocol=2"
     }
 
-    private const val GATES_DOWNLOAD_PAGE_URL = "https://yokhanfitness.ru/hub/gates"
     private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
     private const val LAST_AUTO_CHECK_KEY = "yokhan_last_auto_update_check"
+    private const val PENDING_INSTALL_PATH_KEY = "yokhan_pending_update_apk"
     private const val AUTO_CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L
 }

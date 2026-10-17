@@ -1,4 +1,4 @@
-﻿package com.yokhan.gates.app.diagnostics
+package com.yokhan.gates.app.diagnostics
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -88,6 +88,7 @@ object YokhanDiagnosticsCollector {
             stability = runStabilityProbes(appContext, network),
             sustained = runSustainedProbes(appContext, network),
             udpConnectivity = runUdpConnectivityProbes(network),
+            incidentReports = AndroidIncidentReports.summary(appContext),
         )
     }
 
@@ -99,7 +100,7 @@ object YokhanDiagnosticsCollector {
     ): RouteDiagnostics {
         val detectedFamilies = profiles.mapNotNull { it.routeFamily() }
         val distinctFamilies = detectedFamilies.distinct()
-        val expectedPresentOrder = EXPECTED_ROUTE_ORDER.filter { it in distinctFamilies }
+        val routeSetOk = EXPECTED_ROUTE_ORDER.all { it in distinctFamilies }
         return RouteDiagnostics(
             groupName = currentGroup.displayName(),
             groupType = if (currentGroup.type == GroupType.SUBSCRIPTION) "subscription" else "local",
@@ -122,7 +123,8 @@ object YokhanDiagnosticsCollector {
             missingRouteFamilies = EXPECTED_ROUTE_ORDER.filterNot { it in distinctFamilies },
             duplicateRouteFamilies = detectedFamilies.groupingBy { it }.eachCount()
                 .filterValues { it > 1 },
-            routeOrderOk = distinctFamilies == expectedPresentOrder,
+            routeSetOk = routeSetOk,
+            routeOrderOk = routeSetOk,
         )
     }
 
@@ -151,6 +153,18 @@ object YokhanDiagnosticsCollector {
                 .orEmpty(),
             policyVersion = parsed?.policy?.version ?: 0,
             policyRouteOrder = parsed?.policy?.routeOrder.orEmpty(),
+            selectionMode = parsed?.policy?.selection?.mode.orEmpty(),
+            selectionAvoidStatuses = parsed?.policy?.selection?.avoidStatuses.orEmpty(),
+            selectionProbeBeforeConnect = parsed?.policy?.selection?.probeBeforeConnect ?: false,
+            qualityEvaluationMode = parsed?.policy?.selection?.quality?.evaluationMode.orEmpty(),
+            qualityAutoSwitchEnabled = parsed?.policy?.selection?.quality?.autoSwitchEnabled ?: false,
+            qualityActiveProbeEnabled = parsed?.policy?.selection?.quality?.activeProbeEnabled ?: false,
+            qualityDegradedThroughputKbps = parsed?.policy?.selection?.quality
+                ?.degradedThroughputKbps ?: 256L,
+            qualityDegradedTtfbMs = parsed?.policy?.selection?.quality?.degradedTtfbMs ?: 3_000L,
+            qualityStallMaxBytes = parsed?.policy?.selection?.quality?.stallMaxBytes ?: 32_768L,
+            qualityStallMinDurationMs = parsed?.policy?.selection?.quality
+                ?.stallMinDurationMs ?: 5_000L,
             ruDirectVersion = parsed?.policy?.ruDirect?.version.orEmpty(),
             rawCompatibilityIsolated = parsed?.policy?.rawCompatibility?.isolated,
             dnsPolicyMode = parsed?.policy?.client?.dns?.mode.orEmpty(),
@@ -328,6 +342,7 @@ object YokhanDiagnosticsCollector {
                     p95FirstByteMs = 0,
                     statusCodes = emptyMap(),
                     errorSamples = listOf("VPN is not connected; skipped sustained probe"),
+                    sampleSizeBytes = it.maxBytes.toLong(),
                 )
             }
         }
@@ -342,6 +357,7 @@ object YokhanDiagnosticsCollector {
                 }
             }
             val successful = samples.filter { it.ok }
+            val measured = samples.filter { it.bytesRead > 0 }
             val statusCodes = samples
                 .filter { it.statusCode > 0 }
                 .groupingBy { it.statusCode.toString() }
@@ -359,14 +375,15 @@ object YokhanDiagnosticsCollector {
                 attempts = samples.size,
                 successes = successful.size,
                 failures = samples.size - successful.size,
-                bytesReadTotal = successful.sumOf { it.bytesRead },
-                minKbps = successful.minOfOrNull { it.kbps } ?: 0,
-                p50Kbps = percentile(successful.map { it.kbps }, 50),
-                maxKbps = successful.maxOfOrNull { it.kbps } ?: 0,
-                p95ElapsedMs = percentile(successful.map { it.elapsedMs }, 95),
-                p95FirstByteMs = percentile(successful.map { it.firstByteMs }, 95),
+                bytesReadTotal = samples.sumOf { it.bytesRead },
+                minKbps = measured.minOfOrNull { it.kbps } ?: 0,
+                p50Kbps = percentile(measured.map { it.kbps }, 50),
+                maxKbps = measured.maxOfOrNull { it.kbps } ?: 0,
+                p95ElapsedMs = percentile(samples.map { it.elapsedMs }, 95),
+                p95FirstByteMs = percentile(measured.map { it.firstByteMs }, 95),
                 statusCodes = statusCodes,
                 errorSamples = errors,
+                sampleSizeBytes = target.maxBytes.toLong(),
             )
         }
     }
@@ -506,6 +523,7 @@ object YokhanDiagnosticsCollector {
                         limitBytes = target.maxBytes,
                         startedNanos = started,
                         onFirstByte = { firstByteMs = it },
+                        onProgress = { bytesRead = it },
                     )
                 }
                 if (error.isBlank() && bytesRead == 0L) {
@@ -561,6 +579,7 @@ object YokhanDiagnosticsCollector {
         limitBytes: Int,
         startedNanos: Long,
         onFirstByte: (Long) -> Unit,
+        onProgress: (Long) -> Unit,
     ): Long = use { input ->
         val buffer = ByteArray(DOWNLOAD_BUFFER_BYTES)
         var total = 0L
@@ -574,6 +593,7 @@ object YokhanDiagnosticsCollector {
                 onFirstByte(elapsedMillis(startedNanos))
             }
             total += read
+            onProgress(total)
         }
         total
     }
@@ -805,6 +825,11 @@ data class YokhanDiagnosticsReport(
     val stability: List<StabilityDiagnostics> = emptyList(),
     val sustained: List<SustainedDiagnostics> = emptyList(),
     val udpConnectivity: List<UdpConnectivityDiagnostics> = emptyList(),
+    val incidentReports: JSONObject = JSONObject()
+        .put("schema", "gates-incident-summary-v1")
+        .put("availability", "unavailable")
+        .put("truncated", true)
+        .put("archives", JSONArray()),
 ) {
     fun summaryText(): String {
         val failedProbes = probes.count { !it.ok }
@@ -813,8 +838,8 @@ data class YokhanDiagnosticsReport(
         val failedUdp = udpConnectivity.count { !it.ok }
         val activeRoute = routes.activeRouteFamily.ifBlank { routes.activeProtocol.ifBlank { "unknown" } }
         val network = runtime.network.transports.joinToString("+").ifBlank { "unknown" }
-        val routeStatus = if (routes.routeOrderOk && routes.missingRouteFamilies.isEmpty()) {
-            "маршруты в порядке"
+        val routeStatus = if (routes.routeSetOk && routes.missingRouteFamilies.isEmpty()) {
+            "набор маршрутов полный"
         } else {
             "есть проблема с маршрутами"
         }
@@ -852,6 +877,7 @@ data class YokhanDiagnosticsReport(
             .put("stability", JSONArray(stability.map { it.toJson() }))
             .put("sustained", JSONArray(sustained.map { it.toJson() }))
             .put("udp_connectivity", JSONArray(udpConnectivity.map { it.toJson() }))
+            .put("incident_reports", incidentReports)
             .toString(2)
     }
 }
@@ -939,6 +965,7 @@ data class RouteDiagnostics(
     val detectedRouteOrder: List<String>,
     val missingRouteFamilies: List<String>,
     val duplicateRouteFamilies: Map<String, Int>,
+    val routeSetOk: Boolean,
     val routeOrderOk: Boolean,
 ) {
     fun toJson(): JSONObject = JSONObject()
@@ -953,6 +980,7 @@ data class RouteDiagnostics(
         .put("detected_route_order", JSONArray(detectedRouteOrder))
         .put("missing_route_families", JSONArray(missingRouteFamilies))
         .put("duplicate_route_families", JSONObject(duplicateRouteFamilies))
+        .put("route_set_ok", routeSetOk)
         .put("route_order_ok", routeOrderOk)
 }
 
@@ -991,6 +1019,16 @@ data class ManifestDiagnostics(
     val previousKnownGoodEnabled: Boolean,
     val cachedRouteEndpoints: List<ManifestRouteEndpointDiagnostics>,
     val policyRouteOrder: List<String>,
+    val selectionMode: String,
+    val selectionAvoidStatuses: List<String>,
+    val selectionProbeBeforeConnect: Boolean,
+    val qualityEvaluationMode: String,
+    val qualityAutoSwitchEnabled: Boolean,
+    val qualityActiveProbeEnabled: Boolean,
+    val qualityDegradedThroughputKbps: Long,
+    val qualityDegradedTtfbMs: Long,
+    val qualityStallMaxBytes: Long,
+    val qualityStallMinDurationMs: Long,
     val diagnosticsProbeTargets: List<String>,
     val dnsPolicyMode: String,
     val dnsForeignResolver: String,
@@ -1014,6 +1052,16 @@ data class ManifestDiagnostics(
         .put("cached_active_routes", JSONArray(cachedActiveRoutes))
         .put("policy_version", policyVersion)
         .put("policy_route_order", JSONArray(policyRouteOrder))
+        .put("selection_mode", selectionMode)
+        .put("selection_avoid_statuses", JSONArray(selectionAvoidStatuses))
+        .put("selection_probe_before_connect", selectionProbeBeforeConnect)
+        .put("quality_evaluation_mode", qualityEvaluationMode)
+        .put("quality_auto_switch_enabled", qualityAutoSwitchEnabled)
+        .put("quality_active_probe_enabled", qualityActiveProbeEnabled)
+        .put("quality_degraded_throughput_kbps", qualityDegradedThroughputKbps)
+        .put("quality_degraded_ttfb_ms", qualityDegradedTtfbMs)
+        .put("quality_stall_max_bytes", qualityStallMaxBytes)
+        .put("quality_stall_min_duration_ms", qualityStallMinDurationMs)
         .put("ru_direct_version", ruDirectVersion)
         .put("raw_compatibility_isolated", rawCompatibilityIsolated ?: JSONObject.NULL)
         .put("dns_policy_mode", dnsPolicyMode)
@@ -1121,6 +1169,7 @@ data class SustainedDiagnostics(
     val p95FirstByteMs: Long,
     val statusCodes: Map<String, Int>,
     val errorSamples: List<String>,
+    val sampleSizeBytes: Long = 0,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
@@ -1138,6 +1187,7 @@ data class SustainedDiagnostics(
         .put("p95_first_byte_ms", p95FirstByteMs)
         .put("status_codes", JSONObject(statusCodes))
         .put("error_samples", JSONArray(errorSamples))
+        .put("sample_size_bytes", sampleSizeBytes)
 }
 
 data class UdpConnectivityDiagnostics(

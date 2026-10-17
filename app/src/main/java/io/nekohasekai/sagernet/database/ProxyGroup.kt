@@ -41,7 +41,7 @@ data class ProxyGroup(
             subscription.serializeForShare(output)
 
         } else {
-            output.writeInt(0)
+            output.writeInt(1)
             output.writeLong(id)
             output.writeLong(userOrder)
             output.writeBoolean(ungrouped)
@@ -52,6 +52,9 @@ data class ProxyGroup(
                 subscription?.serializeToBuffer(output)
             }
             output.writeInt(order)
+            output.writeBoolean(isSelector)
+            output.writeLong(frontProxy)
+            output.writeLong(landingProxy)
         }
     }
 
@@ -67,6 +70,7 @@ data class ProxyGroup(
             subscription.deserializeFromShare(input)
         } else {
             val version = input.readInt()
+            require(version in 0..1) { "Unsupported group backup version" }
 
             id = input.readLong()
             userOrder = input.readLong()
@@ -81,6 +85,9 @@ data class ProxyGroup(
                 subscription.deserializeFromBuffer(input)
             }
             order = input.readInt()
+            isSelector = version >= 1 && input.readBoolean()
+            frontProxy = if (version >= 1) input.readLong() else -1L
+            landingProxy = if (version >= 1) input.readLong() else -1L
         }
     }
 

@@ -36,7 +36,7 @@ object CrashHandler : Thread.UncaughtExceptionHandler {
         }
 
         ProcessPhoenix.triggerRebirth(app, Intent(app, BlankActivity::class.java).apply {
-            putExtra("sendLog", "NB4A Crash")
+            putExtra("sendLog", "GATES Crash")
         })
     }
 
@@ -62,7 +62,7 @@ object CrashHandler : Thread.UncaughtExceptionHandler {
 
     fun buildReportHeader(): String {
         var report = ""
-        report += "NekoBox for Android ${SagerNet.appVersionNameForDisplay} (${BuildConfig.VERSION_CODE})\n"
+        report += "GATES for Android ${SagerNet.appVersionNameForDisplay} (${BuildConfig.VERSION_CODE})\n"
         report += "Date: ${getCurrentMilliSecondUTCTimeStamp()}\n\n"
         report += "OS_VERSION: ${getSystemPropertyWithAndroidAPI("os.version")}\n"
         report += "SDK_INT: ${Build.VERSION.SDK_INT}\n"
@@ -97,15 +97,11 @@ object CrashHandler : Thread.UncaughtExceptionHandler {
         }\n\n"
 
 
-        try {
-            report += "Settings: \n"
-            for (pair in DataStore.configurationStore.all().sortedBy { it.key }) {
-                report += "\n"
-                report += pair.key + ": " + pair.toString()
-            }
-        } catch (e: Exception) {
-            report += "Export settings failed: " + formatThrowable(e)
-        }
+        report += "SERVICE_MODE: ${DataStore.serviceMode}\n"
+        report += "STEALTH_MODE: ${DataStore.stealthMode}\n"
+        report += "USB_BRIDGE: ${DataStore.enableUsbBridge}\n"
+        report += "LOCAL_INBOUND: ${DataStore.enableLocalInbound}\n"
+        report += "LAN_ACCESS: ${DataStore.allowAccess}\n"
 
         report += "\n\n"
 

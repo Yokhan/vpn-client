@@ -1,6 +1,7 @@
 package com.yokhan.gates.app.ui
 
 import android.os.Bundle
+import com.yokhan.gates.app.GATES_DOWNLOAD_PAGE_URL
 import android.view.View
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -30,18 +31,18 @@ import io.nekohasekai.sagernet.ktx.launchCustomTab
 import io.nekohasekai.sagernet.ktx.needReload
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
-import com.yokhan.gates.app.ui.compose.YokhanBody
-import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
-import com.yokhan.gates.app.ui.compose.YokhanCaption
+import com.yokhan.gates.shared.ui.route.YokhanBody
+import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
+import com.yokhan.gates.shared.ui.route.YokhanCaption
 import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.gates.app.ui.compose.YokhanDivider
-import com.yokhan.gates.app.ui.compose.YokhanMonoValue
-import com.yokhan.gates.app.ui.compose.YokhanRouteAction
-import com.yokhan.gates.app.ui.compose.YokhanRouteCard
-import com.yokhan.gates.app.ui.compose.YokhanRouteLazyFrame
-import com.yokhan.gates.app.ui.compose.YokhanStatusPill
-import com.yokhan.gates.app.ui.compose.YokhanToggleRow
-import com.yokhan.gates.app.ui.compose.yokhanOutlinedSurface
+import com.yokhan.gates.shared.ui.route.YokhanDivider
+import com.yokhan.gates.shared.ui.route.YokhanMonoValue
+import com.yokhan.gates.shared.ui.route.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanRouteCard
+import com.yokhan.gates.shared.ui.route.YokhanRouteLazyFrame
+import com.yokhan.gates.shared.ui.route.YokhanStatusPill
+import com.yokhan.gates.shared.ui.route.YokhanToggleRow
+import com.yokhan.gates.shared.ui.route.yokhanOutlinedSurface
 import com.yokhan.gates.app.ui.shell.YokhanShellActivityRoute
 
 class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener {
@@ -165,7 +166,7 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
                 actions = listOf(
                     YokhanRouteAction(
                         title = "GitHub",
-                        onClick = { requireContext().launchCustomTab("https://yokhanfitness.ru/hub/gates") },
+                        onClick = { requireContext().launchCustomTab(GATES_DOWNLOAD_PAGE_URL) },
                     ),
                 ),
                 colors = colors,

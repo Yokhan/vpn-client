@@ -1,6 +1,7 @@
 ﻿package com.yokhan.gates.app.manifest
 
 import android.util.Base64
+import android.util.Log
 import io.nekohasekai.sagernet.BuildConfig
 import net.i2p.crypto.eddsa.EdDSAEngine
 import net.i2p.crypto.eddsa.EdDSAPublicKey
@@ -29,7 +30,16 @@ class YokhanRouteManifestVerifier(
             ?: error("Unknown manifest key id: ${signature.keyId}")
         val payload = YokhanRouteManifestParser.canonicalUnsignedPayload(rawJson)
         val signatureBytes = decodeBase64Url(signature.value)
-        require(verifyEd25519(payload, signatureBytes, decodeBase64Url(publicKey))) {
+        val publicKeyBytes = decodeBase64Url(publicKey)
+        if (BuildConfig.DEBUG) {
+            Log.i(
+                LOG_TAG,
+                "manifest_verify key_id=${signature.keyId} payload_len=${payload.size} " +
+                    "payload_sha256=${sha256Hex(payload)} public_key_len=${publicKeyBytes.size} " +
+                    "public_key_sha256=${sha256Hex(publicKeyBytes)} signature_len=${signatureBytes.size}",
+            )
+        }
+        require(verifyEd25519(payload, signatureBytes, publicKeyBytes)) {
             "Manifest signature is invalid"
         }
         return manifest
@@ -65,6 +75,13 @@ class YokhanRouteManifestVerifier(
 
         private const val DEFAULT_KEY_ID = "manifest-v1"
         private const val ED25519_PUBLIC_KEY_BYTES = 32
+        private const val LOG_TAG = "GatesManifest"
         private val SUPPORTED_MANIFEST_VERSIONS = setOf(1, 2)
+
+        private fun sha256Hex(value: ByteArray): String {
+            return MessageDigest.getInstance("SHA-256")
+                .digest(value)
+                .joinToString("") { byte -> "%02x".format(byte) }
+        }
     }
 }

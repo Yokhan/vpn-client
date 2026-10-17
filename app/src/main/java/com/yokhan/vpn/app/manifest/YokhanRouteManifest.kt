@@ -1,8 +1,13 @@
-﻿package com.yokhan.gates.app.manifest
+package com.yokhan.gates.app.manifest
 
 import android.net.Uri
+import com.yokhan.vpn.shared.domain.SmartRouteCandidate
+import com.yokhan.vpn.shared.domain.SmartRouteContext
+import com.yokhan.vpn.shared.domain.selectSmartRoute
+import com.yokhan.gates.app.routing.YokhanRouteLocalObservationState
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.MessageDigest
 
 data class YokhanRouteManifest(
     val version: Int,
@@ -20,37 +25,76 @@ data class YokhanRouteManifest(
 ) {
     fun isExpired(nowSeconds: Long): Boolean = expiresAt <= nowSeconds
 
-    fun activeRouteLinks(): List<String> {
+    fun activeRouteLinks(
+        localState: YokhanRouteLocalObservationState? = null,
+        nowSeconds: Long = issuedAt,
+    ): List<String> {
         val candidates = routes
             .filter { it.enabled && it.appPrimary && it.link.isNotBlank() }
-
-        val usable = candidates
-            .filterNot { it.healthStatus() in blockedHealthStatuses }
-            .ifEmpty { candidates }
-
-        return usable
-            .sortedWith(compareBy<YokhanRouteRecipe> { it.healthPenalty() }.thenBy { it.priority })
-            .map { it.link }
+        val routeOrder = policy?.routeOrder
+            ?.mapIndexed { index, routeId -> routeId.lowercase().trim() to index }
+            ?.toMap()
+            .orEmpty()
+        val fallbackOrder = routes
+            .mapIndexed { index, route -> route.id.lowercase().trim() to index }
+            .toMap()
+        val byId = candidates.associateBy { it.id.lowercase().trim() }
+        val smartCandidates = candidates.map { route ->
+                val routeId = route.id.lowercase().trim()
+                SmartRouteCandidate(
+                    routeId = routeId,
+                    declaredOrder = routeOrder[routeId] ?: fallbackOrder[routeId] ?: Int.MAX_VALUE,
+                    fleetScore = route.healthScore(),
+                    isEnabled = route.enabled,
+                )
+            }
+        val decision = selectSmartRoute(
+            localState?.toSmartRouteCandidates(smartCandidates, nowSeconds) ?: smartCandidates,
+            localState?.toSmartRouteContext(
+                nowEpochSeconds = nowSeconds,
+                switchCooldownSeconds = policy?.selection?.switchCooldownSeconds ?: 600L,
+                minimumSwitchImprovement = policy?.selection?.switchMargin ?: 15,
+            )
+                ?: SmartRouteContext(nowEpochSeconds = nowSeconds),
+        )
+        return decision.orderedRouteIds.mapNotNull { routeId -> byId[routeId]?.link }
     }
 
     fun toRawSubscriptionPayload(): String = activeRouteLinks().joinToString("\n")
+
+    fun routingFingerprint(): String {
+        val shape = routes.joinToString("|") { route ->
+            listOf(
+                route.id,
+                route.family,
+                route.policyVersion,
+                route.enabled,
+                route.ingress?.host.orEmpty(),
+                route.ingress?.port ?: 0,
+                route.ingress?.transport.orEmpty(),
+                route.ingress?.sni.orEmpty(),
+            ).joinToString(":")
+        }
+        return MessageDigest.getInstance("SHA-256")
+            .digest(shape.toByteArray(Charsets.UTF_8))
+            .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
+    }
 
     private fun YokhanRouteRecipe.healthStatus(): String {
         return health?.status?.lowercase()?.trim().orEmpty()
     }
 
-    private fun YokhanRouteRecipe.healthPenalty(): Int {
+    private fun YokhanRouteRecipe.healthScore(): Int {
+        health?.score?.let { return it.coerceIn(0, 100) }
         return when (healthStatus()) {
-            "healthy", "unknown", "" -> 0
-            "degraded" -> 1_000
-            "blocked", "down", "disabled" -> 10_000
-            else -> 0
+            "healthy" -> 100
+            "unknown", "" -> 50
+            "degraded" -> 35
+            "blocked", "down", "disabled" -> 0
+            else -> 50
         }
     }
 
-    private companion object {
-        val blockedHealthStatuses = setOf("blocked", "down", "disabled")
-    }
 }
 
 data class YokhanRouteManifestSubject(
@@ -88,10 +132,42 @@ data class YokhanPreviousKnownGood(
 data class YokhanManifestPolicy(
     val version: Int,
     val routeOrder: List<String>,
+    val selection: YokhanRouteSelectionPolicy?,
     val ruDirect: YokhanRuDirectPolicy?,
     val rawCompatibility: YokhanRawCompatibilityPolicy?,
     val client: YokhanClientPolicy?,
+    val preferredRoute: String,
     val labRoutes: List<YokhanLabRoutePolicy>,
+)
+
+data class YokhanRouteSelectionPolicy(
+    val mode: String,
+    val tieBreaker: String,
+    val avoidStatuses: List<String>,
+    val probeBeforeConnect: Boolean,
+    val localProbeLimit: Int,
+    val usePreviousKnownGood: Boolean,
+    val serverHealthRole: String,
+    val switchMargin: Int,
+    val switchCooldownSeconds: Long,
+    val challengerSuccessesRequired: Int,
+    val quarantineInitialSeconds: Long,
+    val quarantineMaxSeconds: Long,
+    val networkBuckets: List<String>,
+    val quality: YokhanRouteQualityPolicy?,
+)
+
+data class YokhanRouteQualityPolicy(
+    val telemetrySchema: Int,
+    val evaluationMode: String,
+    val autoSwitchEnabled: Boolean,
+    val activeProbeEnabled: Boolean,
+    val degradedThroughputKbps: Long,
+    val degradedTtfbMs: Long,
+    val stallMaxBytes: Long,
+    val stallMinDurationMs: Long,
+    val softFailuresRequired: Int,
+    val verifyAfterSwitch: Boolean,
 )
 
 data class YokhanRuDirectPolicy(
@@ -153,6 +229,7 @@ data class YokhanRouteEndpoint(
 data class YokhanRouteHealth(
     val status: String,
     val lastCheckedAt: Long,
+    val score: Int?,
 )
 
 data class YokhanRouteManifestSignature(
@@ -223,6 +300,7 @@ object YokhanRouteManifestParser {
                     YokhanRouteHealth(
                         status = health.optString("status"),
                         lastCheckedAt = health.optLong("last_checked_at"),
+                        score = health.takeIf { it.has("score") }?.optInt("score"),
                     )
                 },
             )
@@ -254,10 +332,48 @@ object YokhanRouteManifestParser {
         return YokhanManifestPolicy(
             version = policy.optInt("version"),
             routeOrder = parseStringArray(policy.optJSONArray("route_order")),
+            selection = parseSelectionPolicy(policy.optJSONObject("selection")),
             ruDirect = ruDirect,
             rawCompatibility = rawCompatibility,
             client = parseClientPolicy(policy.optJSONObject("client")),
+            preferredRoute = policy.optString("preferred_route"),
             labRoutes = parseLabRoutes(policy.optJSONArray("lab_routes")),
+        )
+    }
+
+    private fun parseSelectionPolicy(value: JSONObject?): YokhanRouteSelectionPolicy? {
+        if (value == null) return null
+        return YokhanRouteSelectionPolicy(
+            mode = value.optString("mode"),
+            tieBreaker = value.optString("tie_breaker"),
+            avoidStatuses = parseStringArray(value.optJSONArray("avoid_statuses")),
+            probeBeforeConnect = value.optBoolean("probe_before_connect"),
+            localProbeLimit = value.optInt("local_probe_limit", 2),
+            usePreviousKnownGood = value.optBoolean("use_previous_known_good"),
+            serverHealthRole = value.optString("server_health_role", "advisory"),
+            switchMargin = value.optInt("switch_margin", 15),
+            switchCooldownSeconds = value.optLong("switch_cooldown_seconds", 600L),
+            challengerSuccessesRequired = value.optInt("challenger_successes_required", 2),
+            quarantineInitialSeconds = value.optLong("quarantine_initial_seconds", 900L),
+            quarantineMaxSeconds = value.optLong("quarantine_max_seconds", 7200L),
+            networkBuckets = parseStringArray(value.optJSONArray("network_buckets")),
+            quality = parseQualityPolicy(value.optJSONObject("quality")),
+        )
+    }
+
+    private fun parseQualityPolicy(value: JSONObject?): YokhanRouteQualityPolicy? {
+        if (value == null) return null
+        return YokhanRouteQualityPolicy(
+            telemetrySchema = value.optInt("telemetry_schema", 2),
+            evaluationMode = value.optString("evaluation_mode", "advisory_only"),
+            autoSwitchEnabled = value.optBoolean("auto_switch_enabled", false),
+            activeProbeEnabled = value.optBoolean("active_probe_enabled", false),
+            degradedThroughputKbps = value.optLong("degraded_throughput_kbps", 256L),
+            degradedTtfbMs = value.optLong("degraded_ttfb_ms", 3_000L),
+            stallMaxBytes = value.optLong("stall_max_bytes", 32_768L),
+            stallMinDurationMs = value.optLong("stall_min_duration_ms", 5_000L),
+            softFailuresRequired = value.optInt("soft_failures_required", 2),
+            verifyAfterSwitch = value.optBoolean("verify_after_switch", true),
         )
     }
 
@@ -334,10 +450,10 @@ object YokhanRouteManifestParser {
             null, JSONObject.NULL -> "null"
             is JSONObject -> canonicalObject(value, skipSignature = false)
             is JSONArray -> canonicalArray(value)
-            is String -> JSONObject.quote(value)
+            is String -> canonicalString(value)
             is Number -> JSONObject.numberToString(value)
             is Boolean -> value.toString()
-            else -> JSONObject.quote(value.toString())
+            else -> canonicalString(value.toString())
         }
     }
 
@@ -365,8 +481,12 @@ object YokhanRouteManifestParser {
             prefix = "{",
             postfix = "}",
         ) { key ->
-            "${JSONObject.quote(key)}:${canonical(obj.get(key))}"
+            "${canonicalString(key)}:${canonical(obj.get(key))}"
         }
+    }
+
+    private fun canonicalString(value: String): String {
+        return JSONObject.quote(value).replace("\\/", "/")
     }
 }
 

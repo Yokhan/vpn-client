@@ -21,18 +21,35 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -49,41 +66,66 @@ import com.yokhan.gates.shared.ui.dashboard.DashboardUiActions
 import com.yokhan.gates.shared.ui.dashboard.DashboardUiLabels
 import com.yokhan.gates.shared.ui.dashboard.DashboardUiVisibility
 import com.yokhan.gates.shared.ui.dashboard.YokhanDashboardScreen
+import com.yokhan.gates.shared.ui.access.GatesAccessScreen
+import com.yokhan.gates.shared.ui.diagnostics.GatesIncidentHistoryItem
+import com.yokhan.gates.shared.ui.diagnostics.GatesIncidentHistoryScreen
+import com.yokhan.gates.shared.ui.route.YokhanRouteFrame
+import com.yokhan.gates.shared.ui.route.YokhanRouteCard
+import com.yokhan.gates.shared.ui.route.YokhanRouteButton
+import com.yokhan.gates.shared.ui.route.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
+import com.yokhan.gates.shared.ui.form.YokhanFormEvent
+import com.yokhan.gates.shared.ui.form.YokhanFormField
+import com.yokhan.gates.shared.ui.form.YokhanFormSection
+import com.yokhan.gates.shared.ui.form.YokhanFormSectionCard
 import com.yokhan.gates.shared.ui.design.YokhanLightPalette
 import com.yokhan.gates.shared.ui.design.YokhanPalette
 import com.yokhan.gates.shared.ui.design.YokhanRed
 import com.yokhan.gates.shared.ui.design.YokhanSpacing
 import com.yokhan.gates.shared.ui.design.YokhanStroke
 import com.yokhan.gates.shared.ui.design.yokhanPalette
+import com.yokhan.gates.shared.ui.design.yokhanTypography
+import com.yokhan.gates.shared.ui.navigation.GatesBottomNavigation
+import com.yokhan.gates.shared.ui.navigation.GatesNavigationItem
+import com.yokhan.gates.windows.qa.WindowsQaState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.awt.FileDialog
 import java.awt.Window as AwtWindow
 import java.io.File
-import kotlin.system.exitProcess
+import java.nio.file.Path
 
 private val AppWidth = 430.dp
 private val AppHeight = 820.dp
 private val ProductionDashboardVisibility = DashboardUiVisibility(
     showMenu = false,
     showConnectionTest = false,
+    showProfiles = false,
     showAddProfile = false,
     showProfileActions = false,
 )
 
 fun main(args: Array<String>) {
+    val qa = if (windowsQaRequested(args)) WindowsQaSession(realAccess = args.single() == "--qa-access") else null
     if (args.firstOrNull() == "--cli") {
         val exitCode = runCli(args.drop(1))
         System.out.flush()
         System.err.flush()
-        exitProcess(exitCode)
+        // jpackage's Windows launcher can keep the wrapper alive after a non-zero child exit.
+        // The CLI prints and persists the logical exit code, so automation should read `exit=...`.
+        Runtime.getRuntime().halt(0)
     }
 
     application {
+        DisposableEffect(qa) { onDispose { qa?.close() } }
         val windowState = rememberWindowState(size = DpSize(AppWidth, AppHeight))
-        val traySupported = remember { NativeTray.isSupported() }
+        val traySupported = remember { qa == null && NativeTray.isSupported() }
         var windowVisible by remember { mutableStateOf(true) }
         DisposableEffect(traySupported) {
             val tray = if (traySupported) {
@@ -106,10 +148,15 @@ fun main(args: Array<String>) {
                         exitApplication()
                     }
                 },
-                title = "GATES",
+                title = when { qa == null -> "GATES"; qa.realAccess -> "GATES QA - isolated access"; else -> "GATES QA - synthetic data" },
                 state = windowState,
+                icon = remember { BitmapPainter(WindowsBrandIcons.load(256).toComposeImageBitmap()) },
             ) {
-                WindowsApp(window)
+                DisposableEffect(window) {
+                    qa?.attachWindow(window)
+                    onDispose { }
+                }
+                WindowsApp(window, qa)
             }
         }
     }
@@ -121,8 +168,18 @@ private fun GatesWindowsTheme(
     spaceActive: Boolean,
     content: @Composable () -> Unit,
 ) {
+    val fonts = yokhanTypography()
+    val baseTypography = MaterialTheme.typography
     MaterialTheme(
         colorScheme = windowsColorScheme(palette, spaceActive),
+        typography = baseTypography.copy(
+            titleLarge = baseTypography.titleLarge.copy(fontFamily = fonts.text),
+            titleMedium = baseTypography.titleMedium.copy(fontFamily = fonts.text),
+            bodyLarge = baseTypography.bodyLarge.copy(fontFamily = fonts.text),
+            bodyMedium = baseTypography.bodyMedium.copy(fontFamily = fonts.text),
+            bodySmall = baseTypography.bodySmall.copy(fontFamily = fonts.text),
+            labelLarge = baseTypography.labelLarge.copy(fontFamily = fonts.mono),
+        ),
         content = content,
     )
 }
@@ -208,12 +265,16 @@ private fun runCli(args: List<String>): Int = runBlocking {
               GATES --cli disable-system-proxy
               GATES --cli enable-autostart
               GATES --cli disable-autostart
+              GATES --cli install-service
+              GATES --cli uninstall-service
+              GATES --cli service-status
               GATES --cli logs
               GATES --cli stop
 
             Safety:
-              CLI controls only local Windows runtime state. It does not change
-              TUN, Windows default route, DNS, NekoBox, phone, or server.
+              CLI controls only local Windows app/runtime state. TUN mode can
+              change local Windows routes while connected. It does not change
+              NekoBox, phone, server, or live VPN transports.
             """.trimIndent(),
         )
         return@runBlocking 0
@@ -223,7 +284,7 @@ private fun runCli(args: List<String>): Int = runBlocking {
     val argument = when (command) {
         "set-route", "set-runtime", "set-tun-routing", "adopt-state" -> args.getOrNull(1)
         "add-app-proxy", "add-app-direct", "remove-app-proxy", "remove-app-direct" -> args.drop(1).joinToString(" ")
-        "report-bug" -> args.drop(1).joinToString(" ")
+        "report-bug", "import-sub" -> args.drop(1).joinToString(" ")
         else -> null
     }
     val result = controller.run(command, argument)
@@ -236,22 +297,51 @@ private fun runCli(args: List<String>): Int = runBlocking {
 }
 
 @Composable
-private fun WindowsApp(ownerWindow: AwtWindow? = null) {
+private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = null) {
+    val compositionStart = if (qa?.profiling?.value == true) System.nanoTime() else 0L
     val scope = rememberCoroutineScope()
-    val controller = remember { WindowsRuntimeController() }
-    val initialConfig = remember { controller.readConfig() }
+    // QA must fail closed if a new callback accidentally tries to access runtime state.
+    val controller by remember(qa) { lazy {
+        check(qa == null || qa.realAccess) { "Runtime unavailable in UI QA mode" }
+        if (qa?.realAccess == true) windowsAccessAcceptanceController(qa.sessionDirectory.resolve("access-data").toFile())
+        else WindowsRuntimeController()
+    } }
+    val recoveryDeliveryReady = remember(qa) { CompletableDeferred<WindowsRecoveryDelivery?>() }
+    var qaRevision by remember { mutableStateOf(1L) }
+    val runtimeCommandGeneration = remember { WindowsRuntimeCommandGeneration() }
     var connectionStatus by remember { mutableStateOf(ConnectionStatus.Disconnected) }
-    var activeRoute by remember { mutableStateOf(initialConfig.activeRoute) }
-    var busy by remember { mutableStateOf(false) }
+    var activeRoute by remember { mutableStateOf(WindowsAppConfig().activeRoute) }
+    var busy by remember { mutableStateOf(true) }
     var lastMessage by remember { mutableStateOf("") }
     var roomNetMessage by remember { mutableStateOf("") }
     var showBugDialog by remember { mutableStateOf(false) }
     var showAppsDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
+    var historyFromSettings by remember { mutableStateOf(false) }
+    var historyLoading by remember { mutableStateOf(false) }
+    var historyMessage by remember { mutableStateOf("") }
+    var historyItems by remember { mutableStateOf(emptyList<GatesIncidentHistoryItem>()) }
     var bugMessage by remember { mutableStateOf("") }
-    var appRoutingState by remember { mutableStateOf(controller.appRoutingState()) }
+    var reportReturnTo by remember { mutableStateOf("dashboard") }
+    var runtimeMode by remember { mutableStateOf("tun") }
+    var autoUploadRecoveryReports by remember { mutableStateOf(true) }
+    var recoveryPreferenceLoaded by remember { mutableStateOf(false) }
+    var updateAvailable by remember { mutableStateOf(false) }
+    var qaDataSet by remember { mutableStateOf("default") }
+    var appRoutingState by remember {
+        mutableStateOf(AppRoutingState(false, emptyList(), emptyList(), emptyList(), emptyList()))
+    }
     var runningApps by remember { mutableStateOf(emptyList<WindowsProcessCandidate>()) }
-    var sessionState by remember { mutableStateOf(controller.sessionState()) }
+    var sessionState by remember { mutableStateOf(WindowsSessionState(false, false, false, "")) }
+    var showAccess by remember { mutableStateOf(false) }
+    var accessReturnTo by remember { mutableStateOf("dashboard") }
+    var manualSubscription by remember { mutableStateOf("") }
+    var authJob by remember { mutableStateOf<Job?>(null) }
+    val authorizationPrompt by if (qa == null || qa.realAccess) controller.authorizationPrompt.collectAsState()
+        else remember { mutableStateOf<WindowsAuthorizationPrompt?>(null) }
+    val authorizationPhase by if (qa == null || qa.realAccess) controller.authorizationPhase.collectAsState()
+        else remember { mutableStateOf(WindowsAuthorizationPhase.Idle) }
     val state = remember(connectionStatus, activeRoute, busy) {
         dashboardState(connectionStatus, activeRoute, busy)
     }
@@ -262,31 +352,212 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null) {
     } else {
         YokhanLightPalette
     }
+    val automationScreen = when {
+        showBugDialog -> "bug"
+        showAppsDialog -> "routing"
+        showHistory -> "history"
+        showSettingsDialog -> "settings"
+        !sessionState.ready || showAccess -> "access"
+        else -> "dashboard"
+    }
+    val automationScreenshotAllowed = authorizationPrompt == null && (automationScreen != "access" || manualSubscription.isBlank()) &&
+        (automationScreen != "bug" || bugMessage.isBlank())
+    val automationBusy = busy || historyLoading
+    val automationRevision = qa?.reserveRevision(qaRevision) ?: 0L
+
+    SideEffect {
+        if (qa != null) {
+            if (compositionStart != 0L) qa.timings.composition(System.nanoTime() - compositionStart, qa.timingLabel)
+            val screen = automationScreen
+            val actions = buildList {
+                addAll(listOf("nav.dashboard", "nav.settings", "nav.access", "nav.routing",
+                    "nav.history", "nav.bug", "nav.back", "fixture.disconnected",
+                    "fixture.connected", "fixture.connecting", "fixture.error"))
+                if (!qa.realAccess) addAll(listOf("fixture.loading", "fixture.empty", "fixture.long", "fixture.default", "fixture.signedout", "fixture.signedin", "fixture.update", "fixture.effects-off", "fixture.effects-on"))
+                if (screen == "history") add("history.refresh")
+            }
+            qa.publish(WindowsQaState(screen, automationRevision, automationBusy, actions,
+                fixture = !qa.realAccess, connectionStatus = connectionStatus.name,
+                signedIn = sessionState.signedIn, profileReady = sessionState.ready),
+                screenshotAllowed = automationScreenshotAllowed) { id ->
+                if (id.startsWith("nav.")) {
+                    showBugDialog = false
+                    showAppsDialog = false
+                    showHistory = false
+                    showSettingsDialog = false
+                    showAccess = false
+                    when (id) {
+                        "nav.settings" -> showSettingsDialog = true
+                        "nav.access" -> showAccess = true
+                        "nav.routing" -> showAppsDialog = true
+                        "nav.history" -> { historyFromSettings = true; showHistory = true }
+                        "nav.bug" -> showBugDialog = true
+                        "nav.back" -> when (screen) {
+                            "history", "routing", "bug" -> showSettingsDialog = true
+                            else -> Unit
+                        }
+                    }
+                } else if (id.startsWith("fixture.")) {
+                    busy = id == "fixture.loading"
+                    connectionStatus = when (id) {
+                        "fixture.connected" -> ConnectionStatus.Connected
+                        "fixture.connecting" -> ConnectionStatus.Connecting
+                        "fixture.effects-off", "fixture.effects-on" -> connectionStatus
+                        else -> ConnectionStatus.Disconnected
+                    }
+                    lastMessage = if (id == "fixture.error") WINDOWS_UI_FAILURE_MESSAGE else ""
+                    when (id) {
+                        "fixture.empty" -> {
+                            qaDataSet = "empty"
+                            runningApps = emptyList()
+                            historyItems = emptyList()
+                            appRoutingState = AppRoutingState(true, emptyList(), emptyList(), emptyList(), emptyList())
+                        }
+                        "fixture.long" -> {
+                            qaDataSet = "long"
+                            runningApps = List(40) { WindowsProcessCandidate(it.toLong(), "process-$it.exe",
+                                "C:\\QA\\${"Long folder name ".repeat(8).trimEnd()}\\process-$it.exe") }
+                            appRoutingState = appRoutingState.copy(proxyProcessPaths = listOf(runningApps.first().path))
+                        }
+                        "fixture.default" -> {
+                            updateAvailable = false
+                            qaDataSet = "default"
+                            runningApps = listOf(WindowsProcessCandidate(0, "game.exe", "C:\\QA\\game.exe"))
+                            appRoutingState = AppRoutingState(true, listOf("game.exe"), emptyList(), listOf("browser.exe"), emptyList())
+                        }
+                        "fixture.signedout" -> { sessionState = WindowsSessionState(false, false, false, ""); showAccess = true }
+                        "fixture.signedin" -> { sessionState = WindowsSessionState(true, true, true, ""); showAccess = true }
+                        "fixture.update" -> { updateAvailable = true; lastMessage = "Доступно обновление." }
+                        "fixture.effects-off" -> qa.backgroundEffects.value = false
+                        "fixture.effects-on" -> qa.backgroundEffects.value = true
+                    }
+                } else if (id == "history.refresh") {
+                    historyItems = windowsQaIncidentItems()
+                }
+                qaRevision += 1
+            }
+        }
+    }
+
+    val profiling = qa?.profiling?.value == true
+    LaunchedEffect(profiling) {
+        val durationScale = kotlin.coroutines.coroutineContext[MotionDurationScale]
+        if (profiling && qa != null) while (true) {
+            withFrameNanos {
+                qa.motionDurationScale = durationScale?.scaleFactor ?: 1f
+                qa.timings.frame(it, qa.timingLabel)
+            }
+        }
+    }
+
+    LaunchedEffect(qa) {
+        val delivery = if (qa == null) {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val programData = System.getenv("ProgramData")?.takeIf(String::isNotBlank)
+                        ?.let { Path.of(it, "GATES", "Service", "connectivity") }
+                    WindowsRecoveryDelivery(
+                        windowsGatesAppDir(),
+                        programData,
+                        coreVersion = controller.recoveryCoreVersion(),
+                        standaloneSnapshot = controller::standaloneProxyDiagnosticSnapshot,
+                    )
+                }.getOrNull()
+            }
+        } else null
+        recoveryDeliveryReady.complete(delivery)
+    }
 
     LaunchedEffect(Unit) {
-        busy = true
-        sessionState = controller.sessionState()
-        val result = withContext(Dispatchers.IO) {
-            controller.run("status")
+        if (qa != null && !qa.realAccess) {
+            sessionState = WindowsSessionState(false, true, true, "")
+            appRoutingState = AppRoutingState(true, listOf("game.exe"), emptyList(),
+                listOf("browser.exe"), emptyList())
+            runningApps = listOf(WindowsProcessCandidate(0, "game.exe", "C:\\QA\\game.exe"))
+            busy = false
+            return@LaunchedEffect
         }
-        if (result.exitCode == 0 && result.output.contains("Process: running")) {
-            connectionStatus = ConnectionStatus.Connected
-            roomNetMessage = roomNetUiMessage(
-                withContext(Dispatchers.IO) {
-                    controller.run("roomnet-info")
-                },
+        var snapshotLoaded = false
+        var autoCheckUpdates = false
+        runWindowsUiAction(
+            setBusy = { busy = it },
+            onFailure = { lastMessage = it },
+        ) {
+            val snapshot = loadWindowsUiSnapshot(
+                readConfig = controller::readConfig,
+                readSession = controller::sessionState,
+                readAppRouting = controller::appRoutingState,
             )
+            sessionState = snapshot.session
+            activeRoute = snapshot.config.activeRoute
+            appRoutingState = snapshot.appRouting
+            runtimeMode = snapshot.config.runtimeMode
+            autoUploadRecoveryReports = snapshot.config.autoUploadRecoveryReports
+            recoveryPreferenceLoaded = true
+            autoCheckUpdates = snapshot.config.autoCheckUpdates
+            snapshotLoaded = true
         }
-        activeRoute = controller.readConfig().activeRoute
-        if (controller.readConfig().autoCheckUpdates) {
-            val update = withContext(Dispatchers.IO) {
-                controller.run("check-update")
+        if (!snapshotLoaded) {
+            return@LaunchedEffect
+        }
+        if (qa?.realAccess == true) return@LaunchedEffect
+
+        val startupGeneration = runtimeCommandGeneration.capture()
+        try {
+            val result = withContext(Dispatchers.IO) { controller.run("status") }
+            if (runtimeCommandGeneration.isUnchanged(startupGeneration) &&
+                result.exitCode == 0 && result.output.contains("Process: running")
+            ) {
+                connectionStatus = ConnectionStatus.Connected
+                try {
+                    val roomNetResult = withContext(Dispatchers.IO) { controller.run("roomnet-info") }
+                    if (runtimeCommandGeneration.isUnchanged(startupGeneration)) {
+                        roomNetMessage = roomNetUiMessage(roomNetResult)
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (!busy && lastMessage.isBlank()) lastMessage = WINDOWS_UI_FAILURE_MESSAGE
+                }
             }
-            if (update.exitCode == 0 && update.output.contains("Update available: true")) {
-                lastMessage = "Доступно обновление приложения."
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            if (!busy && lastMessage.isBlank()) lastMessage = WINDOWS_UI_FAILURE_MESSAGE
+        }
+
+        if (autoCheckUpdates) {
+            try {
+                val update = withContext(Dispatchers.IO) { controller.run("check-update") }
+                if (update.exitCode == 0 && update.output.contains("Update available: true")) {
+                    updateAvailable = true
+                    if (!busy && lastMessage.isBlank()) {
+                        lastMessage = "Доступно обновление приложения."
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                if (!busy && lastMessage.isBlank()) lastMessage = WINDOWS_UI_FAILURE_MESSAGE
             }
         }
-        busy = false
+    }
+
+    LaunchedEffect(recoveryDeliveryReady, recoveryPreferenceLoaded, autoUploadRecoveryReports) {
+        val delivery = recoveryDeliveryReady.await() ?: return@LaunchedEffect
+        if (!recoveryPreferenceLoaded) return@LaunchedEffect
+        while (true) {
+            withContext(Dispatchers.IO) { runCatching { delivery.runOnce(autoUploadRecoveryReports) } }
+            delay(60_000)
+        }
+    }
+
+    LaunchedEffect(recoveryDeliveryReady) {
+        val delivery = recoveryDeliveryReady.await() ?: return@LaunchedEffect
+        while (true) {
+            delay(120_000)
+            withContext(Dispatchers.IO) { runCatching { delivery.sampleStandaloneProxy() } }
+        }
     }
 
     val profiles = remember(activeRoute) {
@@ -305,74 +576,148 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null) {
         route: String? = null,
         argument: String? = null,
         nextStatus: ConnectionStatus? = null,
+        onSuccess: (() -> Unit)? = null,
     ) {
+        if (qa != null) {
+            if (command == "set-runtime") runtimeMode = argument ?: "tun"
+            else lastMessage = "Операция недоступна в тестовом режиме."
+            return
+        }
         scope.launch {
-            busy = true
-            val result = withContext(Dispatchers.IO) {
-                controller.run(command, argument ?: route)
+            if (busy) return@launch
+            runtimeCommandGeneration.commandStarted()
+            runWindowsUiAction(
+                setBusy = { busy = it },
+                onFailure = { lastMessage = it },
+            ) {
+                val result = withContext(Dispatchers.IO) { controller.run(command, argument ?: route) }
+                val failureStage = windowsRecoveryFailureStage(command, result)
+                if (failureStage != null) {
+                    val delivery = recoveryDeliveryReady.await()
+                    withContext(Dispatchers.IO) { runCatching { delivery?.recordFailure(failureStage) } }
+                }
+                connectionStatus = windowsUiStatusAfterCommand(connectionStatus, nextStatus, result.exitCode)
+                sessionState = withContext(Dispatchers.IO) { controller.sessionState() }
+                if (command == "set-route" && result.exitCode == 0 && route != null) {
+                    activeRoute = route
+                }
+                if (command == "connect" && result.exitCode == 0) {
+                    roomNetMessage = roomNetUiMessage(
+                        withContext(Dispatchers.IO) { controller.run("roomnet-info") },
+                    )
+                }
+                if (command == "stop" && result.exitCode == 0) {
+                    roomNetMessage = ""
+                }
+                if (command == "set-runtime" && result.exitCode == 0) runtimeMode = argument ?: "tun"
+                if (command == "check-update" && result.exitCode == 0) {
+                    updateAvailable = result.output.contains("Update available: true")
+                }
+                lastMessage = windowsUiResultMessage(command, result)
+                if (result.exitCode == 0) onSuccess?.invoke()
             }
-            sessionState = controller.sessionState()
-            if (result.exitCode == 0 && nextStatus != null) {
-                connectionStatus = nextStatus
-            } else if (result.exitCode != 0) {
-                connectionStatus = ConnectionStatus.Disconnected
-            }
-            if (command == "set-route" && result.exitCode == 0 && route != null) {
-                activeRoute = route
-            }
-            if (command == "connect" && result.exitCode == 0) {
-                roomNetMessage = roomNetUiMessage(
-                    withContext(Dispatchers.IO) {
-                        controller.run("roomnet-info")
-                    },
-                )
-            }
-            if (command == "stop" && result.exitCode == 0) {
-                roomNetMessage = ""
-            }
-            lastMessage = resultMessage(label, result)
-            busy = false
         }
     }
 
     fun launchAppRouting(label: String, command: String, argument: String = "") {
+        if (qa != null) {
+            appRoutingState = windowsQaRoutingChange(appRoutingState, command, argument)
+            return
+        }
         scope.launch {
-            busy = true
-            val result = withContext(Dispatchers.IO) {
-                controller.run(command, argument)
+            if (busy) return@launch
+            runWindowsUiAction(
+                setBusy = { busy = it },
+                onFailure = { lastMessage = it },
+            ) {
+                val result = withContext(Dispatchers.IO) { controller.run(command, argument) }
+                appRoutingState = withContext(Dispatchers.IO) { controller.appRoutingState() }
+                lastMessage = windowsUiResultMessage(command, result)
             }
-            appRoutingState = controller.appRoutingState()
-            lastMessage = resultMessage(label, result)
-            busy = false
         }
     }
 
     fun refreshRunningApps() {
+        if (qa != null) return
         scope.launch {
-            runningApps = withContext(Dispatchers.IO) {
-                controller.listRunningApps()
+            if (busy) return@launch
+            runWindowsUiAction(
+                setBusy = { busy = it },
+                onFailure = { lastMessage = it },
+            ) {
+                runningApps = withContext(Dispatchers.IO) { controller.listRunningApps() }
             }
         }
     }
 
-    fun launchAuthSetup() {
+    fun launchLoadAppRouting() {
+        if (qa != null) { showAppsDialog = true; return }
         scope.launch {
-            busy = true
-            val currentSession = controller.sessionState()
-            val command = if (currentSession.signedIn) "import-app" else "login"
-            val label = if (currentSession.signedIn) "Доступ" else "Вход"
-            lastMessage = if (command == "login") {
-                "Открываю браузер для входа."
-            } else {
-                "Получаю личную конфигурацию."
+            if (busy) return@launch
+            runWindowsUiAction(
+                setBusy = { busy = it },
+                onFailure = { lastMessage = it },
+            ) {
+                appRoutingState = withContext(Dispatchers.IO) { controller.appRoutingState() }
+                showAppsDialog = true
             }
-            val result = withContext(Dispatchers.IO) {
-                controller.run(command)
+            refreshRunningApps()
+        }
+    }
+
+    fun launchAuthSetup() {
+        if (qa != null && !qa.realAccess) { lastMessage = "Операция недоступна в тестовом режиме."; return }
+        authJob = scope.launch {
+            if (busy) return@launch
+            runWindowsUiAction(
+                setBusy = { busy = it },
+                onFailure = { lastMessage = it },
+            ) {
+                val currentSession = withContext(Dispatchers.IO) { controller.sessionState() }
+                val command = if (currentSession.signedIn) "import-app" else "login"
+                val label = if (currentSession.signedIn) "Доступ" else "Вход"
+                lastMessage = if (command == "login") {
+                    "Открываю браузер для входа."
+                } else {
+                    "Получаю личную конфигурацию."
+                }
+                val result = withContext(Dispatchers.IO) { controller.run(command) }
+                val snapshot = loadWindowsUiSnapshot(
+                    readConfig = controller::readConfig,
+                    readSession = controller::sessionState,
+                    readAppRouting = controller::appRoutingState,
+                )
+                sessionState = snapshot.session
+                activeRoute = snapshot.config.activeRoute
+                appRoutingState = snapshot.appRouting
+                lastMessage = windowsUiResultMessage(command, result)
+                if (result.exitCode == 0 && sessionState.ready) showAccess = false
             }
-            sessionState = controller.sessionState()
-            activeRoute = controller.readConfig().activeRoute
-            lastMessage = resultMessage(label, result)
-            busy = false
+        }
+    }
+
+    fun launchManualImport() {
+        if (qa != null && !qa.realAccess) { lastMessage = "Операция недоступна в тестовом режиме."; return }
+        if (busy || manualSubscription.isBlank()) return
+        val input = manualSubscription
+        scope.launch {
+            if (busy || input.isBlank()) return@launch
+            runWindowsUiAction(
+                setBusy = { busy = it },
+                onFailure = { lastMessage = it },
+            ) {
+                val result = withContext(Dispatchers.IO) { controller.run("import-sub", input) }
+                val snapshot = loadWindowsUiSnapshot(readConfig = controller::readConfig,
+                    readSession = controller::sessionState, readAppRouting = controller::appRoutingState)
+                sessionState = snapshot.session
+                activeRoute = snapshot.config.activeRoute
+                appRoutingState = snapshot.appRouting
+                lastMessage = windowsUiResultMessage("import-sub", result)
+                if (result.exitCode == 0) {
+                    manualSubscription = ""
+                    showAccess = false
+                }
+            }
         }
     }
 
@@ -387,129 +732,311 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null) {
         onDispose { dropTarget?.uninstall() }
     }
 
-    if (showBugDialog) {
-        GatesWindowsTheme(windowPalette, windowSpaceActive) {
-            BugReportDialog(
-                message = bugMessage,
-                onMessageChange = { bugMessage = it },
-                onDismiss = { showBugDialog = false },
-                onSend = {
-                    val text = bugMessage
-                    bugMessage = ""
-                    showBugDialog = false
-                    launchRuntime("Отчёт", "report-bug", argument = text)
-                },
-            )
-        }
-    }
+    Column(Modifier.fillMaxSize().background(windowPalette.background).onPreviewKeyEvent {
+            if (it.type == KeyEventType.KeyDown && it.key == Key.Escape && !busy && automationScreen != "access") {
+                when {
+                    showBugDialog -> { showBugDialog = false; showSettingsDialog = reportReturnTo == "settings" }
+                    showAppsDialog -> { showAppsDialog = false; showSettingsDialog = true }
+                    showHistory -> { showHistory = false; showSettingsDialog = historyFromSettings }
+                    showSettingsDialog -> showSettingsDialog = false
+                }
+                true
+            } else false
+        }) {
+        Box(Modifier.fillMaxWidth().weight(1f).drawWithContent {
+            val start = if (qa?.profiling?.value == true) System.nanoTime() else 0L
+            drawContent()
+            if (start != 0L) qa?.timings?.draw(System.nanoTime() - start, qa.timingLabel)
+            qa?.frameDrawn(automationRevision)
+        }) {
+            if (showBugDialog) {
+                GatesWindowsTheme(windowPalette, windowSpaceActive) {
+                    WindowsBugReportScreen(
+                        modifier = if (qa == null) Modifier else Modifier.drawWithContent {
+                            drawContent()
+                            qa.frameDrawn(automationRevision, WindowsQaSurface.BUG)
+                        },
+                        message = bugMessage,
+                        spaceActive = windowSpaceActive,
+                        busy = busy,
+                        statusMessage = lastMessage,
+                        onMessageChange = { bugMessage = it },
+                        onDismiss = {
+                            showBugDialog = false
+                            if (reportReturnTo == "settings") showSettingsDialog = true
+                            if (reportReturnTo == "access") showAccess = true
+                        },
+                        onSend = {
+                            launchRuntime("Отчёт", "report-bug", argument = bugMessage, onSuccess = {
+                                bugMessage = ""
+                                showBugDialog = false
+                                if (reportReturnTo == "settings") showSettingsDialog = true
+                            })
+                        },
+                    )
+                }
+                return@Box
+            }
 
-    if (showAppsDialog) {
-        GatesWindowsTheme(windowPalette, windowSpaceActive) {
-            AppRoutingDialog(
-                state = appRoutingState,
-                runningApps = runningApps,
-                busy = busy,
-                palette = windowPalette,
-                onDismiss = { showAppsDialog = false },
-                onRefreshProcesses = { refreshRunningApps() },
-                onPickExe = {
-                    chooseExeFile(ownerWindow)?.let { path ->
-                        launchAppRouting("Приложение", "add-app-proxy", path)
+            if (showAppsDialog) {
+                GatesWindowsTheme(windowPalette, windowSpaceActive) {
+                    WindowsAppRoutingScreen(
+                        state = appRoutingState,
+                        runningApps = runningApps,
+                        busy = busy,
+                        palette = windowPalette,
+                        spaceActive = windowSpaceActive,
+                        message = lastMessage,
+                        onDismiss = { showAppsDialog = false; showSettingsDialog = true },
+                        onRefreshProcesses = { refreshRunningApps() },
+                        onPickExe = {
+                            if (qa == null) chooseExeFile(ownerWindow)?.let { path ->
+                                launchAppRouting("Приложение", "add-app-proxy", path)
+                            }
+                        },
+                        onRouteAll = { launchAppRouting("Режим", "set-tun-routing", "all") },
+                        onRouteSelected = { launchAppRouting("Режим", "set-tun-routing", "selected") },
+                        onAddProxy = { path -> launchAppRouting("Приложение", "add-app-proxy", path) },
+                        onAddDirect = { path -> launchAppRouting("Исключение", "add-app-direct", path) },
+                        onRemoveProxy = { value -> launchAppRouting("Приложение", "remove-app-proxy", value) },
+                        onRemoveDirect = { value -> launchAppRouting("Исключение", "remove-app-direct", value) },
+                    )
+                }
+                return@Box
+            }
+
+            fun refreshIncidentHistory() {
+                if (qa != null) {
+                    historyItems = if (qaDataSet == "empty") emptyList() else windowsQaIncidentItems()
+                    historyMessage = ""
+                    return
+                }
+                scope.launch {
+                    if (historyLoading) return@launch
+                    historyLoading = true
+                    try {
+                        val summary = withContext(Dispatchers.IO) { windowsIncidentReports() }
+                        historyItems = windowsIncidentHistoryItems(summary)
+                        historyMessage = windowsIncidentHistoryMessage(summary)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        historyMessage = "Не удалось прочитать историю."
+                    } finally {
+                        historyLoading = false
+                    }
+                }
+            }
+
+            if (showHistory) {
+                LaunchedEffect(Unit) { refreshIncidentHistory() }
+                GatesWindowsTheme(windowPalette, windowSpaceActive) {
+                    GatesIncidentHistoryScreen(
+                        items = historyItems,
+                        loading = historyLoading,
+                        message = historyMessage,
+                        palette = windowPalette,
+                        onBack = { showHistory = false; showSettingsDialog = historyFromSettings },
+                        spaceActive = windowSpaceActive,
+                        onRefresh = ::refreshIncidentHistory,
+                        onExport = { id ->
+                            if (qa != null) return@GatesIncidentHistoryScreen
+                            val dialog = when (ownerWindow) {
+                                is java.awt.Frame -> FileDialog(ownerWindow, "Сохранить отчёт", FileDialog.SAVE)
+                                is java.awt.Dialog -> FileDialog(ownerWindow, "Сохранить отчёт", FileDialog.SAVE)
+                                else -> FileDialog(null as java.awt.Frame?, "Сохранить отчёт", FileDialog.SAVE)
+                            }.apply {
+                                file = "gates-incident-${id.take(12)}.json"
+                                isVisible = true
+                            }
+                            val destination = dialog.file?.let { File(dialog.directory, it) }
+                            dialog.dispose()
+                            if (destination != null) scope.launch {
+                                historyLoading = true
+                                try {
+                                    withContext(Dispatchers.IO) {
+                                        val report = windowsIncidentArchiveExport(id)
+                                        check(report.get("availability")?.asString == "available")
+                                        destination.writeText(report.toString(), Charsets.UTF_8)
+                                    }
+                                    historyMessage = "Отчёт сохранён."
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (_: Exception) {
+                                    historyMessage = "Не удалось сохранить отчёт."
+                                } finally {
+                                    historyLoading = false
+                                }
+                            }
+                        },
+                    )
+                }
+                return@Box
+            }
+
+            if (showSettingsDialog) {
+                GatesWindowsTheme(windowPalette, windowSpaceActive) {
+                    WindowsSettingsScreen(
+                        busy = busy,
+                        palette = windowPalette,
+                        spaceActive = windowSpaceActive,
+                        runtimeMode = runtimeMode,
+                        autoUploadRecoveryReports = autoUploadRecoveryReports,
+                        onAutoUploadRecoveryReportsChange = if (qa == null) { enabled ->
+                            scope.launch {
+                                runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        controller.writeConfig(controller.readConfig().copy(autoUploadRecoveryReports = enabled))
+                                    }
+                                }.onSuccess {
+                                    autoUploadRecoveryReports = enabled
+                                    lastMessage = ""
+                                }.onFailure {
+                                    lastMessage = "Не удалось сохранить настройку отчётов."
+                                }
+                            }
+                        } else null,
+                        appVersion = windowsAppVersionForDisplay(),
+                        onInstallUpdate = if (updateAvailable) ({ launchRuntime("Обновление", "update") }) else null,
+                        statusMessage = lastMessage,
+                        onRuntimeModeChange = { launchRuntime("Режим", "set-runtime", argument = it) },
+                        onDismiss = { showSettingsDialog = false },
+                        onAccess = {
+                            showSettingsDialog = false
+                            accessReturnTo = "settings"
+                            lastMessage = ""
+                            showAccess = true
+                        },
+                        onApps = {
+                            showSettingsDialog = false
+                            launchLoadAppRouting()
+                        },
+                        onUpdate = {
+                            launchRuntime("Обновление", "check-update")
+                        },
+                        onBugReport = {
+                            showSettingsDialog = false
+                            reportReturnTo = "settings"
+                            lastMessage = ""
+                            showBugDialog = true
+                        },
+                        onHistory = {
+                            showSettingsDialog = false
+                            historyFromSettings = true
+                            showHistory = true
+                        },
+                    )
+                }
+                return@Box
+            }
+
+            if (!sessionState.ready || showAccess) {
+                GatesWindowsTheme(windowPalette, windowSpaceActive) {
+                    GatesAccessScreen(
+                        signedIn = sessionState.signedIn,
+                        busy = busy,
+                        message = when (authorizationPhase) {
+                            WindowsAuthorizationPhase.Waiting -> "Подтвердите вход в браузере."
+                            WindowsAuthorizationPhase.ReceivingProfile -> "Получаю личную конфигурацию."
+                            else -> lastMessage
+                        },
+                        manualInput = manualSubscription,
+                        onManualInputChanged = { manualSubscription = it },
+                        onImport = { launchManualImport() },
+                        onLogin = { launchAuthSetup() },
+                        onCancel = {
+                            showAccess = false; manualSubscription = ""
+                            if (accessReturnTo == "settings") showSettingsDialog = true
+                            if (accessReturnTo == "routing") showAppsDialog = true
+                        if (accessReturnTo == "history") showHistory = true
+                        },
+                        canCancel = sessionState.ready,
+                        onBugReport = { reportReturnTo = "access"; lastMessage = ""; showBugDialog = true },
+                        onHistory = { historyFromSettings = false; showHistory = true },
+                        colors = YokhanLightPalette,
+                        authorizationCode = authorizationPrompt?.userCode.orEmpty(),
+                        authorizationPending = authorizationPrompt != null,
+                        onOpenAuthorization = { scope.launch(Dispatchers.IO) { controller.reopenAuthorization() } },
+                        onCancelAuthorization = {
+                            if (controller.cancelPendingAuthorization { authJob?.cancel() }) lastMessage = "Вход отменён."
+                        },
+                    )
+                }
+                return@Box
+            }
+
+            GatesWindowsTheme(windowPalette, windowSpaceActive) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(windowPalette.background),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    ) {
+                        YokhanDashboardScreen(
+                            state = state,
+                            drawBackgroundEffects = qa?.backgroundEffects?.value ?: true,
+                            profiles = profiles,
+                            labels = DashboardUiLabels.Russian,
+                            actions = DashboardUiActions(
+                                onToggleConnection = {
+                                    if (qa != null) {
+                                        lastMessage = "Операция недоступна в тестовом режиме."
+                                    } else if (!busy) {
+                                        if (connectionStatus == ConnectionStatus.Connected) {
+                                            connectionStatus = ConnectionStatus.Disconnecting
+                                            launchRuntime("Отключение", "stop", nextStatus = ConnectionStatus.Disconnected)
+                                        } else {
+                                            connectionStatus = ConnectionStatus.Connecting
+                                            launchRuntime("Подключение", "connect", nextStatus = ConnectionStatus.Connected)
+                                        }
+                                    }
+                                },
+                                onSelectProfile = { id ->
+                                    val route = when (id) {
+                                        1L -> "auto"
+                                        2L -> "bridge"
+                                        3L -> "relay"
+                                        4L -> "naive"
+                                        5L -> "hy2"
+                                        else -> "auto"
+                                    }
+                                    launchRuntime("Маршрут $route", "set-route", route = route)
+                                },
+                            ),
+                            modifier = Modifier.fillMaxSize(),
+                            visibility = ProductionDashboardVisibility,
+                        )
+                    }
+                    RoomNetPanel(roomNetMessage, windowPalette)
+                    WindowsStatusBar(
+                        message = lastMessage,
+                        palette = windowPalette,
+                    )
+                }
+            }
+        }
+        if (sessionState.ready && automationScreen !in listOf("access", "bug")) {
+            GatesBottomNavigation(
+                selectedKey = when (automationScreen) { "history" -> "settings"; else -> automationScreen },
+                items = listOf(GatesNavigationItem("dashboard", "Главная", "01"),
+                    GatesNavigationItem("access", "Доступ", "02"), GatesNavigationItem("routing", "Приложения", "03"),
+                    GatesNavigationItem("settings", "Настройки", "04")),
+                colors = windowPalette,
+                enabled = !busy,
+                onSelect = { destination ->
+                    if (destination == "access") accessReturnTo = automationScreen
+                    showSettingsDialog = false; showAppsDialog = false; showHistory = false; showAccess = false
+                    lastMessage = ""
+                    when (destination) {
+                        "settings" -> showSettingsDialog = true
+                        "access" -> showAccess = true
+                        "routing" -> launchLoadAppRouting()
                     }
                 },
-                onRouteAll = { launchAppRouting("Режим", "set-tun-routing", "all") },
-                onRouteSelected = { launchAppRouting("Режим", "set-tun-routing", "selected") },
-                onAddProxy = { path -> launchAppRouting("Приложение", "add-app-proxy", path) },
-                onAddDirect = { path -> launchAppRouting("Исключение", "add-app-direct", path) },
-                onRemoveProxy = { value -> launchAppRouting("Приложение", "remove-app-proxy", value) },
-                onRemoveDirect = { value -> launchAppRouting("Исключение", "remove-app-direct", value) },
-            )
-        }
-    }
-
-    if (showSettingsDialog) {
-        GatesWindowsTheme(windowPalette, windowSpaceActive) {
-            SettingsDialog(
-                busy = busy,
-                onDismiss = { showSettingsDialog = false },
-                onApps = {
-                    showSettingsDialog = false
-                    appRoutingState = controller.appRoutingState()
-                    showAppsDialog = true
-                    refreshRunningApps()
-                },
-                onUpdate = {
-                    showSettingsDialog = false
-                    launchRuntime("Обновление", "update")
-                },
-                onBugReport = {
-                    showSettingsDialog = false
-                    showBugDialog = true
-                },
-            )
-        }
-    }
-
-    if (!sessionState.ready) {
-        GatesWindowsTheme(windowPalette, windowSpaceActive) {
-            AuthGateScreen(
-                sessionState = sessionState,
-                busy = busy,
-                message = lastMessage,
-                palette = windowPalette,
-                onLogin = { launchAuthSetup() },
-                onBugReport = { showBugDialog = true },
-            )
-        }
-        return
-    }
-
-    GatesWindowsTheme(windowPalette, windowSpaceActive) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(windowPalette.background),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-            ) {
-                YokhanDashboardScreen(
-                    state = state,
-                    profiles = profiles,
-                    labels = DashboardUiLabels.Russian,
-                    actions = DashboardUiActions(
-                        onToggleConnection = {
-                            if (connectionStatus == ConnectionStatus.Connected) {
-                                connectionStatus = ConnectionStatus.Disconnecting
-                                launchRuntime("Отключение", "stop", nextStatus = ConnectionStatus.Disconnected)
-                            } else {
-                                connectionStatus = ConnectionStatus.Connecting
-                                launchRuntime("Подключение", "connect", nextStatus = ConnectionStatus.Connected)
-                            }
-                        },
-                        onSelectProfile = { id ->
-                            val route = when (id) {
-                                1L -> "auto"
-                                2L -> "bridge"
-                                3L -> "relay"
-                                4L -> "naive"
-                                5L -> "hy2"
-                                else -> "auto"
-                            }
-                            launchRuntime("Маршрут $route", "set-route", route = route)
-                        },
-                    ),
-                    modifier = Modifier.fillMaxSize(),
-                    visibility = ProductionDashboardVisibility,
-                )
-            }
-            RoomNetPanel(roomNetMessage, windowPalette)
-            WindowsStatusBar(
-                message = lastMessage,
-                palette = windowPalette,
-                onSettings = { showSettingsDialog = true },
             )
         }
     }
@@ -544,71 +1071,11 @@ private fun RoomNetPanel(
 }
 
 @Composable
-private fun AuthGateScreen(
-    sessionState: WindowsSessionState,
-    busy: Boolean,
-    message: String,
-    palette: YokhanPalette,
-    onLogin: () -> Unit,
-    onBugReport: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(palette.background)
-            .padding(horizontal = 24.dp, vertical = 28.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.Start,
-    ) {
-        Text(
-            text = "GATES",
-            color = palette.primary,
-            style = MaterialTheme.typography.headlineLarge,
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = if (sessionState.signedIn) {
-                "Получаем личную конфигурацию."
-            } else {
-                "Войдите через браузер, чтобы получить личный доступ."
-            },
-            color = palette.secondary,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Spacer(Modifier.height(22.dp))
-        Button(
-            onClick = onLogin,
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(if (sessionState.signedIn) "Получить доступ" else "Войти через браузер")
-        }
-        TextButton(
-            onClick = onBugReport,
-            enabled = !busy,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Сообщить об ошибке")
-        }
-        if (message.isNotBlank()) {
-            Spacer(Modifier.height(14.dp))
-            Text(
-                text = message,
-                color = palette.primary,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
 private fun WindowsStatusBar(
     message: String,
     palette: YokhanPalette,
-    onSettings: () -> Unit,
 ) {
+    if (message.isBlank() || message in listOf("Подключено.", "Отключено.")) return
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -621,327 +1088,17 @@ private fun WindowsStatusBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = message.ifBlank { "Готово" },
+                text = message,
                 color = palette.primary,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onSettings) {
-                Text("Настройки")
-            }
         }
     }
 }
 
-@Composable
-private fun SettingsDialog(
-    busy: Boolean,
-    onDismiss: () -> Unit,
-    onApps: () -> Unit,
-    onUpdate: () -> Unit,
-    onBugReport: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Настройки") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = onApps,
-                    enabled = !busy,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Маршрутизация приложений")
-                }
-                OutlinedButton(
-                    onClick = onUpdate,
-                    enabled = !busy,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Обновить приложение")
-                }
-                OutlinedButton(
-                    onClick = onBugReport,
-                    enabled = !busy,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Отправить отчёт")
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Готово")
-            }
-        },
-    )
-}
-
-@Composable
-private fun BugReportDialog(
-    message: String,
-    onMessageChange: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onSend: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Сообщить об ошибке") },
-        text = {
-            OutlinedTextField(
-                value = message,
-                onValueChange = onMessageChange,
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 3,
-                maxLines = 5,
-                label = { Text("Что не работает") },
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onSend) {
-                Text("Отправить")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Отмена")
-            }
-        },
-    )
-}
-
-@Composable
-private fun AppRoutingDialog(
-    state: AppRoutingState,
-    runningApps: List<WindowsProcessCandidate>,
-    busy: Boolean,
-    palette: YokhanPalette,
-    onDismiss: () -> Unit,
-    onRefreshProcesses: () -> Unit,
-    onPickExe: () -> Unit,
-    onRouteAll: () -> Unit,
-    onRouteSelected: () -> Unit,
-    onAddProxy: (String) -> Unit,
-    onAddDirect: (String) -> Unit,
-    onRemoveProxy: (String) -> Unit,
-    onRemoveDirect: (String) -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Приложения") },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 540.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(
-                    text = "Перетащи .exe в окно GATES или выбери приложение ниже.",
-                    color = palette.primary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text(
-                    text = "Режим",
-                    color = palette.secondary,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (state.routeAll) {
-                        Button(
-                            onClick = onRouteAll,
-                            enabled = !busy,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Все")
-                        }
-                    } else {
-                        OutlinedButton(
-                            onClick = onRouteAll,
-                            enabled = !busy,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Все")
-                        }
-                    }
-                    if (!state.routeAll) {
-                        Button(
-                            onClick = onRouteSelected,
-                            enabled = !busy,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Выбранные")
-                        }
-                    } else {
-                        OutlinedButton(
-                            onClick = onRouteSelected,
-                            enabled = !busy,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Выбранные")
-                        }
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = onPickExe,
-                        enabled = !busy,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text("Выбрать .exe")
-                    }
-                    OutlinedButton(
-                        onClick = onRefreshProcesses,
-                        enabled = !busy,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text("Процессы")
-                    }
-                }
-                AppRouteSection(
-                    title = "Через GATES",
-                    names = state.proxyProcessNames,
-                    paths = state.proxyProcessPaths,
-                    palette = palette,
-                    onRemove = onRemoveProxy,
-                )
-                AppRouteSection(
-                    title = "Напрямую",
-                    names = state.directProcessNames,
-                    paths = state.directProcessPaths,
-                    palette = palette,
-                    onRemove = onRemoveDirect,
-                )
-                Spacer(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(YokhanStroke.Thin)
-                        .background(palette.divider),
-                )
-                Text(
-                    text = "Запущенные",
-                    color = palette.secondary,
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                runningApps.take(24).forEach { app ->
-                    RunningAppRow(
-                        app = app,
-                        busy = busy,
-                        palette = palette,
-                        onAddProxy = { onAddProxy(app.path) },
-                        onAddDirect = { onAddDirect(app.path) },
-                    )
-                }
-                if (runningApps.isEmpty()) {
-                    Text(
-                        text = "Нажми «Процессы».",
-                        color = palette.secondary,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Готово")
-            }
-        },
-    )
-}
-
-@Composable
-private fun AppRouteSection(
-    title: String,
-    names: List<String>,
-    paths: List<String>,
-    palette: YokhanPalette,
-    onRemove: (String) -> Unit,
-) {
-    Text(
-        text = title,
-        color = palette.secondary,
-        style = MaterialTheme.typography.labelMedium,
-    )
-    val entries = paths.map { "path" to it } + names.map { "name" to it }
-    if (entries.isEmpty()) {
-        Text(
-            text = "Пусто",
-            color = palette.tertiary,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        return
-    }
-    entries.forEach { (_, value) ->
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = value,
-                color = palette.primary,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = { onRemove(value) }) {
-                Text("Убрать")
-            }
-        }
-    }
-}
-
-@Composable
-private fun RunningAppRow(
-    app: WindowsProcessCandidate,
-    busy: Boolean,
-    palette: YokhanPalette,
-    onAddProxy: () -> Unit,
-    onAddDirect: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(palette.orbCenter)
-            .padding(horizontal = YokhanSpacing.CompactGap, vertical = YokhanSpacing.CompactGap),
-    ) {
-        Text(
-            text = app.name,
-            color = palette.primary,
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = app.path,
-            color = palette.secondary,
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = onAddProxy,
-                enabled = !busy,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("GATES")
-            }
-            OutlinedButton(
-                onClick = onAddDirect,
-                enabled = !busy,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Мимо")
-            }
-        }
-    }
-}
 
 private fun chooseExeFile(owner: AwtWindow?): String? {
     val dialog = when (owner) {
@@ -959,18 +1116,6 @@ private fun chooseExeFile(owner: AwtWindow?): String? {
     return File(directory, file).absolutePath
 }
 
-private fun resultMessage(label: String, result: RuntimeCommandResult): String {
-    val firstLine = result.output
-        .lineSequence()
-        .firstOrNull { it.isNotBlank() }
-        .orEmpty()
-    val text = firstLine.ifBlank { "Готово" }
-    return if (result.exitCode == 0) {
-        "$label: $text"
-    } else {
-        "$label: ошибка. $text"
-    }.take(220)
-}
 
 private fun roomNetUiMessage(result: RuntimeCommandResult): String {
     if (result.exitCode != 0) return ""
@@ -1014,36 +1159,36 @@ private fun roomNetUiMessage(result: RuntimeCommandResult): String {
     }.take(260)
 }
 
-private fun dashboardState(
+internal fun dashboardState(
     status: ConnectionStatus,
     activeRoute: String,
     busy: Boolean,
 ): DashboardState {
     val connected = status == ConnectionStatus.Connected
-    val running = status == ConnectionStatus.Connecting || connected || busy
+    val running = status == ConnectionStatus.Connecting || connected || status == ConnectionStatus.Disconnecting
     return DashboardState(
         connectionStatus = status,
         activeProfileName = activeRouteLabel(activeRoute),
         activeProfileProtocol = routeProtocol(activeRoute),
         activeProfileProtocolLabel = routeProtocolLabel(activeRoute),
-        activeProfileSubtitle = "Windows runtime adapter",
-        uploadRate = RateDisplay(if (connected) 12_000 else 0),
-        downloadRate = RateDisplay(if (connected) 42_000 else 0),
-        latency = LatencyDisplay(if (connected) 98 else null),
-        uploadLabel = if (connected) "12 KB/s" else "0 B/s",
-        downloadLabel = if (connected) "42 KB/s" else "0 B/s",
-        latencyLabel = if (connected) "98 ms" else "--",
-        timerLabel = if (connected) "00:00:42" else "00:00:00",
+        activeProfileSubtitle = if (activeRoute == "auto") "Автоматический выбор маршрута" else "",
+        uploadRate = RateDisplay(0),
+        downloadRate = RateDisplay(0),
+        latency = LatencyDisplay(null),
+        uploadLabel = if (connected) "--" else "0 B/s",
+        downloadLabel = if (connected) "--" else "0 B/s",
+        latencyLabel = "--",
+        timerLabel = if (connected) "--:--:--" else "00:00:00",
         shouldAnimateSpace = running,
         canRunConnectionTest = connected,
-        isConnectionTestRunning = busy,
+        isConnectionTestRunning = false,
         errorMessage = null,
     )
 }
 
 private fun activeRouteLabel(route: String): String =
     when (route) {
-        "auto" -> "Auto route"
+        "auto" -> "Автоматически"
         "bridge" -> "Bridge"
         "relay" -> "Relay"
         "naive" -> "Naive"

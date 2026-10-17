@@ -9,6 +9,8 @@ import android.provider.OpenableColumns
 import android.view.View
 import android.widget.EditText
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.BackHandler
+import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
@@ -25,8 +28,21 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.yokhan.gates.app.diagnostics.YokhanDiagnosticsCollector
 import com.yokhan.gates.app.diagnostics.YokhanBugReporter
+import com.yokhan.gates.app.diagnostics.AndroidIncidentReports
+import com.yokhan.gates.shared.ui.diagnostics.GatesIncidentHistoryItem
+import com.yokhan.gates.shared.ui.diagnostics.GatesIncidentHistoryScreen
+import com.yokhan.gates.shared.ui.diagnostics.gatesIncidentOutcome
+import com.yokhan.gates.app.backup.BackupImportCoordinator
+import com.yokhan.gates.app.backup.BackupImportFailure
+import com.yokhan.gates.app.backup.BackupImportValidator
+import com.yokhan.gates.app.backup.InvalidBackupException
+import com.yokhan.gates.app.backup.ProfileMutations
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.yokhan.gates.shared.ui.design.YokhanPalette
 import com.yokhan.gates.shared.ui.design.YokhanSpacing
@@ -34,6 +50,7 @@ import com.yokhan.gates.shared.ui.design.YokhanTypography
 import com.yokhan.gates.shared.ui.design.yokhanPalette
 import com.yokhan.gates.shared.ui.design.yokhanTypography
 import io.nekohasekai.sagernet.BuildConfig
+import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
@@ -44,6 +61,8 @@ import io.nekohasekai.sagernet.database.RuleEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.database.preference.KeyValuePair
 import io.nekohasekai.sagernet.database.preference.PublicDatabase
+import io.nekohasekai.sagernet.fmt.KryoConverters
+import io.nekohasekai.sagernet.fmt.Serializable as KryoSerializable
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.alert
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
@@ -54,31 +73,73 @@ import io.nekohasekai.sagernet.ktx.startFilesForResult
 import io.nekohasekai.sagernet.ktx.toStringPretty
 import io.nekohasekai.sagernet.ktx.triggerFullRestart
 import io.nekohasekai.sagernet.ktx.tryToShow
-import com.yokhan.gates.app.ui.compose.YokhanBody
-import com.yokhan.gates.app.ui.compose.YokhanButtonGrid
-import com.yokhan.gates.app.ui.compose.YokhanCheckboxRow
+import com.yokhan.gates.shared.ui.route.YokhanBody
+import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
+import com.yokhan.gates.shared.ui.route.YokhanCheckboxRow
 import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
-import com.yokhan.gates.app.ui.compose.YokhanDivider
-import com.yokhan.gates.app.ui.compose.YokhanHeadline
-import com.yokhan.gates.app.ui.compose.YokhanMonoValue
-import com.yokhan.gates.app.ui.compose.YokhanRouteAction
-import com.yokhan.gates.app.ui.compose.YokhanRouteCard
-import com.yokhan.gates.app.ui.compose.YokhanRouteFrame
+import com.yokhan.gates.shared.ui.route.YokhanDivider
+import com.yokhan.gates.shared.ui.route.YokhanHeadline
+import com.yokhan.gates.shared.ui.route.YokhanMonoValue
+import com.yokhan.gates.shared.ui.route.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanRouteCard
+import com.yokhan.gates.shared.ui.route.YokhanRouteFrame
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import moe.matsuri.nb4a.utils.Util
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class ToolsFragment : YokhanComposeRouteFragment() {
 
+    companion object {
+        private const val HISTORY_ROUTE = "incident-history"
+        fun incidentHistory() = ToolsFragment().apply {
+            arguments = Bundle().apply { putBoolean(HISTORY_ROUTE, true) }
+        }
+    }
+
     private var content = ""
     private var diagnosticsContent = ""
     private val diagnosticsState = mutableStateOf(DiagnosticsUiState())
     private val backupSelection = mutableStateOf(BackupSelection())
+    private val showIncidentHistory = mutableStateOf(false)
+    private val incidentLoading = mutableStateOf(false)
+    private val incidentMessage = mutableStateOf("")
+    private val incidentItems = mutableStateOf(emptyList<GatesIncidentHistoryItem>())
+    private var pendingIncidentExport = ""
+
+    private val exportIncident =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+            val payload = pendingIncidentExport
+            pendingIncidentExport = ""
+            if (uri != null && payload.isNotEmpty()) {
+                val resolver = requireContext().applicationContext.contentResolver
+                lifecycleScope.launch {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            checkNotNull(resolver.openOutputStream(uri)).bufferedWriter(Charsets.UTF_8).use {
+                                it.write(payload)
+                            }
+                        }
+                        incidentMessage.value = "Отчёт сохранён."
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        incidentMessage.value = "Не удалось сохранить отчёт."
+                    }
+                }
+            }
+        }
 
     private val exportSettings =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { data ->
@@ -112,10 +173,40 @@ class ToolsFragment : YokhanComposeRouteFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        showIncidentHistory.value = savedInstanceState?.getBoolean(HISTORY_ROUTE)
+            ?: arguments?.getBoolean(HISTORY_ROUTE, false) ?: false
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(HISTORY_ROUTE, showIncidentHistory.value)
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun closeIncidentHistory() {
+        if (arguments?.getBoolean(HISTORY_ROUTE, false) == true) {
+            parentFragmentManager.popBackStack()
+        } else {
+            showIncidentHistory.value = false
+        }
     }
 
     @Composable
     override fun Content(spaceActive: Boolean) {
+        if (showIncidentHistory.value) {
+            BackHandler { closeIncidentHistory() }
+            LaunchedEffect(Unit) { loadIncidentHistory() }
+            GatesIncidentHistoryScreen(
+                items = incidentItems.value,
+                loading = incidentLoading.value,
+                message = incidentMessage.value,
+                palette = yokhanPalette(spaceActive),
+                spaceActive = spaceActive,
+                onBack = ::closeIncidentHistory,
+                onRefresh = { viewLifecycleOwner.lifecycleScope.launch { loadIncidentHistory() } },
+                onExport = ::prepareIncidentExport,
+            )
+            return
+        }
         val selection = backupSelection.value
         YokhanRouteFrame(
             title = stringResource(R.string.menu_tools),
@@ -123,6 +214,14 @@ class ToolsFragment : YokhanComposeRouteFragment() {
             spaceActive = spaceActive,
             onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
         ) { colors, typography ->
+            YokhanButtonGrid(
+                actions = listOf(YokhanRouteAction(
+                    title = "История соединения",
+                    onClick = { showIncidentHistory.value = true },
+                )),
+                colors = colors,
+                typography = typography,
+            )
             YokhanRouteCard(
                 title = stringResource(R.string.tools_network),
                 colors = colors,
@@ -267,6 +366,71 @@ class ToolsFragment : YokhanComposeRouteFragment() {
         }
     }
 
+
+    private suspend fun loadIncidentHistory() {
+        if (incidentLoading.value) return
+        incidentLoading.value = true
+        val context = requireContext().applicationContext
+        try {
+            val result = withContext(Dispatchers.IO) {
+                val summary = AndroidIncidentReports.summary(context)
+                val rows = summary.optJSONArray("archives") ?: JSONArray()
+                val dateFormat = SimpleDateFormat("dd.MM HH:mm:ss", Locale.getDefault())
+                val items = (0 until minOf(rows.length(), 8)).mapNotNull { index ->
+                    runCatching {
+                        val row = rows.getJSONObject(index)
+                        val id = row.getString("id")
+                        require(id.matches(Regex("[a-f0-9]{32,64}")))
+                        val status = row.getString("status").uppercase(Locale.ROOT)
+                        GatesIncidentHistoryItem(
+                            id = id,
+                            capturedAt = dateFormat.format(Date(row.getLong("triggered_at_millis"))),
+                            outcome = gatesIncidentOutcome(status, row.optBoolean("recovered"),
+                                row.optBoolean("recording")),
+                            eventCount = row.optInt("event_count").coerceIn(0, 2048),
+                            incomplete = row.optBoolean("truncated") || status == "INTERRUPTED",
+                        )
+                    }.getOrNull()
+                }
+                val message = when (summary.optString("availability")) {
+                    "unavailable" -> "Не удалось прочитать историю."
+                    "not-recorded" -> "Истории GATES пока нет."
+                    else -> if (summary.optBoolean("truncated")) "Часть истории недоступна." else ""
+                }
+                items to message
+            }
+            incidentItems.value = result.first
+            incidentMessage.value = result.second
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            incidentMessage.value = "Не удалось прочитать историю."
+        } finally {
+            incidentLoading.value = false
+        }
+    }
+
+    private fun prepareIncidentExport(id: String) {
+        if (incidentLoading.value) return
+        val context = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch {
+            incidentLoading.value = true
+            try {
+                pendingIncidentExport = withContext(Dispatchers.IO) {
+                    AndroidIncidentReports.export(context, id).also {
+                        check(JSONObject(it).optString("availability") == "available")
+                    }
+                }
+                exportIncident.launch("gates-incident-${id.take(12)}.json")
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                incidentMessage.value = "Не удалось открыть отчёт."
+            } finally {
+                incidentLoading.value = false
+            }
+        }
+    }
 
     private fun runDiagnostics(
         shareWhenReady: Boolean = false,
@@ -555,27 +719,28 @@ class ToolsFragment : YokhanComposeRouteFragment() {
             MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.backup_import)
                 .setView(createImportDialogView(available, importSelection))
                 .setPositiveButton(R.string.backup_import) { _, _ ->
-                    SagerNet.stopService()
-
                     val selection = importSelection.value
                     val dialog = MaterialAlertDialogBuilder(requireContext())
                         .setView(createProgressDialogView(getString(R.string.backup_importing)))
                         .setCancelable(false)
-                        .show()
+                        .showComposeDialog()
                     runOnDefaultDispatcher {
-                        runCatching {
-                            finishImport(
-                                imported,
-                                selection.profile,
-                                selection.rule,
-                                selection.setting
-                            )
+                        try {
+                            runBackupImport(imported, selection)
                             delay(500L)
                             triggerFullRestart(requireContext())
-                        }.onFailure {
-                            Logs.w(it)
+                        } catch (failure: Exception) {
+                            Logs.w(failure)
+                            if (failure is BackupImportFailure && failure.rollbackComplete) {
+                                triggerFullRestart(requireContext())
+                            }
                             onMainDispatcher {
-                                alert(it.readableMessage).tryToShow()
+                                val message = when (failure) {
+                                    is BackupImportFailure -> failure.message
+                                    is InvalidBackupException -> getString(R.string.invalid_backup_file)
+                                    else -> failure.readableMessage
+                                }
+                                alert(message ?: getString(R.string.invalid_backup_file)).tryToShow()
                             }
                         }
 
@@ -585,7 +750,7 @@ class ToolsFragment : YokhanComposeRouteFragment() {
                     }
                 }
                 .setNegativeButton(android.R.string.cancel, null)
-                .show()
+                .showComposeDialog()
         }
     }
 
@@ -593,8 +758,7 @@ class ToolsFragment : YokhanComposeRouteFragment() {
         available: BackupSelection,
         selection: MutableState<BackupSelection>,
     ): ComposeView {
-        return ComposeView(requireContext()).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+        return createDialogComposeView().apply {
             setContent {
                 val colors = yokhanPalette(spaceActive = true)
                 val typography = yokhanTypography()
@@ -649,8 +813,7 @@ class ToolsFragment : YokhanComposeRouteFragment() {
     }
 
     private fun createProgressDialogView(message: String): ComposeView {
-        return ComposeView(requireContext()).apply {
-            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+        return createDialogComposeView().apply {
             setContent {
                 val colors = yokhanPalette(spaceActive = true)
                 val typography = yokhanTypography()
@@ -673,67 +836,318 @@ class ToolsFragment : YokhanComposeRouteFragment() {
         }
     }
 
-    private fun finishImport(
-        content: JSONObject,
-        profile: Boolean,
-        rule: Boolean,
-        setting: Boolean,
-    ) {
-        if (profile && content.has("profiles")) {
-            val profiles = mutableListOf<ProxyEntity>()
-            val jsonProfiles = content.getJSONArray("profiles")
-            for (i in 0 until jsonProfiles.length()) {
-                val data = Util.b64Decode(jsonProfiles[i] as String)
-                val parcel = Parcel.obtain()
-                parcel.unmarshall(data, 0, data.size)
-                parcel.setDataPosition(0)
-                profiles.add(ProxyEntity.CREATOR.createFromParcel(parcel))
-                parcel.recycle()
-            }
-            SagerDatabase.proxyDao.reset()
-            SagerDatabase.proxyDao.insert(profiles)
+    private fun createDialogComposeView(): ComposeView = ComposeView(requireContext()).apply {
+        id = View.generateViewId()
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
 
-            val groups = mutableListOf<ProxyGroup>()
-            val jsonGroups = content.getJSONArray("groups")
-            for (i in 0 until jsonGroups.length()) {
-                val data = Util.b64Decode(jsonGroups[i] as String)
-                val parcel = Parcel.obtain()
-                parcel.unmarshall(data, 0, data.size)
-                parcel.setDataPosition(0)
-                groups.add(ProxyGroup.CREATOR.createFromParcel(parcel))
-                parcel.recycle()
-            }
-            SagerDatabase.groupDao.reset()
-            SagerDatabase.groupDao.insert(groups)
-            DataStore.cacheGroups(groups)
+    private fun MaterialAlertDialogBuilder.showComposeDialog(): AlertDialog = create().apply {
+        create()
+        // Compose's window recomposer resolves owners from the dialog root, not its content.
+        requireNotNull(window).decorView.apply {
+            setViewTreeLifecycleOwner(viewLifecycleOwner)
+            setViewTreeViewModelStoreOwner(this@ToolsFragment)
+            setViewTreeSavedStateRegistryOwner(this@ToolsFragment)
         }
-        if (rule && content.has("rules")) {
-            val rules = mutableListOf<RuleEntity>()
-            val jsonRules = content.getJSONArray("rules")
-            for (i in 0 until jsonRules.length()) {
-                val data = Util.b64Decode(jsonRules[i] as String)
-                val parcel = Parcel.obtain()
-                parcel.unmarshall(data, 0, data.size)
-                parcel.setDataPosition(0)
-                rules.add(ParcelizeBridge.createRule(parcel))
-                parcel.recycle()
+        show()
+    }
+
+    private fun runBackupImport(content: JSONObject, selection: BackupSelection) {
+        var previousCacheGroups: List<ProxyGroup>? = null
+        val coordinator = BackupImportCoordinator(
+            prepare = { decodeBackup(content, selection) },
+            capture = {
+                DataStore.flushConfiguration()
+                DataStore.refreshConfiguration()
+                captureBackupSnapshot(selection).also { previousCacheGroups = it.cachedGroups }
+            },
+            stopService = {
+                SagerNet.stopService()
+                runBlocking {
+                    withTimeout(10_000L) {
+                        while (DataStore.serviceState != io.nekohasekai.sagernet.bg.BaseService.State.Idle &&
+                            DataStore.serviceState != io.nekohasekai.sagernet.bg.BaseService.State.Stopped
+                        ) delay(50L)
+                    }
+                }
+            },
+            persist = { persistBackup(it, selection) },
+            rollback = { restoreBackupSnapshot(it, selection) },
+            publish = { prepared ->
+                DataStore.refreshConfiguration()
+                prepared.groups?.let(DataStore::cacheGroups)
+                DataStore.flushConfiguration()
+            },
+            restorePublished = {
+                DataStore.refreshConfiguration()
+                if (selection.profile) DataStore.cacheGroups(requireNotNull(previousCacheGroups))
+                DataStore.flushConfiguration()
+            },
+        )
+        runBlocking { ProfileMutations.withLock { coordinator.execute() } }
+    }
+
+    private fun decodeBackup(content: JSONObject, selection: BackupSelection): PreparedBackup {
+        val version = content.opt("version") as? Number
+        if (version == null || version.toDouble() != 1.0) throw InvalidBackupException()
+        BackupImportValidator.requireSelectedSection(selection.profile, selection.rule, selection.setting)
+
+        val profiles = if (selection.profile) {
+            decodeRecords(content, "profiles", ::decodeProxyEntity)
+        } else null
+        val groups = if (selection.profile) {
+            decodeRecords(content, "groups", ::decodeProxyGroup)
+        } else null
+        val rules = if (selection.rule) decodeRecords(content, "rules", ::decodeRule) else null
+        val settings = if (selection.setting) {
+            decodeRecords(content, "settings", ::decodeSetting)
+        } else null
+
+        profiles?.let { rows ->
+            val importedGroups = requireNotNull(groups)
+            BackupImportValidator.requireUniquePositiveIds(rows) { it.id }
+            BackupImportValidator.requireUniquePositiveIds(importedGroups) { it.id }
+            BackupImportValidator.requireGroupReferences(rows, importedGroups, { it.groupId }, { it.id })
+            rows.forEach {
+                try {
+                    it.requireBean()
+                } catch (_: Exception) {
+                    throw InvalidBackupException()
+                }
             }
-            SagerDatabase.rulesDao.reset()
-            SagerDatabase.rulesDao.insert(rules)
+            importedGroups.forEach {
+                if (it.type != GroupType.BASIC && it.type != GroupType.SUBSCRIPTION) {
+                    throw InvalidBackupException()
+                }
+                if (it.type == GroupType.SUBSCRIPTION && it.subscription == null) {
+                    throw InvalidBackupException()
+                }
+            }
         }
-        if (setting && content.has("settings")) {
-            val settings = mutableListOf<KeyValuePair>()
-            val jsonSettings = content.getJSONArray("settings")
-            for (i in 0 until jsonSettings.length()) {
-                val data = Util.b64Decode(jsonSettings[i] as String)
-                val parcel = Parcel.obtain()
-                parcel.unmarshall(data, 0, data.size)
-                parcel.setDataPosition(0)
-                settings.add(KeyValuePair.CREATOR.createFromParcel(parcel))
-                parcel.recycle()
+        rules?.let { BackupImportValidator.requireUniquePositiveIds(it) { row -> row.id } }
+        settings?.let { rows ->
+            BackupImportValidator.requireUniqueNonBlankKeys(rows) { it.key }
+            rows.forEach(::validateSetting)
+        }
+
+        val effectiveProfiles = profiles ?: SagerDatabase.proxyDao.getAll()
+        val profileIds = effectiveProfiles.mapTo(HashSet(effectiveProfiles.size)) { it.id }
+        groups?.forEach { group ->
+            BackupImportValidator.requireProfileReferences(
+                listOf(group.frontProxy, group.landingProxy).filter { it >= 0L }, profileIds,
+            )
+        }
+        profiles?.forEach { profile ->
+            profile.chainBean?.let { chain ->
+                BackupImportValidator.requireProfileReferences(chain.proxies, profileIds)
             }
-            PublicDatabase.kvPairDao.reset()
-            PublicDatabase.kvPairDao.insert(settings)
+        }
+        val effectiveRules = rules ?: if (profiles != null) SagerDatabase.rulesDao.allRules() else emptyList()
+        BackupImportValidator.requireProfileReferences(
+            effectiveRules.filter { it.enabled && it.outbound > 0L }.map { it.outbound }, profileIds,
+        )
+
+        return PreparedBackup(profiles, groups, rules, settings)
+    }
+
+    private fun <T> decodeRecords(
+        content: JSONObject,
+        key: String,
+        decode: (String) -> T,
+    ): List<T> {
+        val records = content.optJSONArray(key) ?: throw InvalidBackupException()
+        return buildList(records.length()) {
+            for (index in 0 until records.length()) {
+                val encoded = records.opt(index) as? String ?: throw InvalidBackupException()
+                if (encoded.isBlank()) throw InvalidBackupException()
+                add(decode(encoded))
+            }
+        }
+    }
+
+    private fun decodeProxyEntity(encoded: String): ProxyEntity = decodeKryoEntity(encoded, ::ProxyEntity)
+
+    private fun decodeProxyGroup(encoded: String): ProxyGroup = decodeKryoEntity(encoded, ::ProxyGroup)
+
+    private fun <T : KryoSerializable> decodeKryoEntity(encoded: String, create: () -> T): T {
+        val parcel = decodeParcel(encoded)
+        try {
+            val bytes = parcel.createByteArray() ?: throw InvalidBackupException()
+            if (parcel.dataAvail() != 0) throw InvalidBackupException()
+            return try {
+                KryoConverters.deserializeStrict(create(), bytes)
+            } catch (_: Exception) {
+                throw InvalidBackupException()
+            }
+        } finally {
+            parcel.recycle()
+        }
+    }
+
+    private fun decodeRule(encoded: String): RuleEntity {
+        val parcel = decodeParcel(encoded)
+        try {
+            val rule = ParcelizeBridge.createRule(parcel)
+            if (parcel.dataAvail() != 0) throw InvalidBackupException()
+            return rule
+        } catch (_: Exception) {
+            throw InvalidBackupException()
+        } finally {
+            parcel.recycle()
+        }
+    }
+
+    private fun decodeSetting(encoded: String): KeyValuePair {
+        val parcel = decodeParcel(encoded)
+        try {
+            val setting = KeyValuePair.CREATOR.createFromParcel(parcel)
+            if (parcel.dataAvail() != 0) throw InvalidBackupException()
+            return setting
+        } catch (_: Exception) {
+            throw InvalidBackupException()
+        } finally {
+            parcel.recycle()
+        }
+    }
+
+    private fun decodeParcel(encoded: String): Parcel {
+        val bytes = try {
+            Util.b64Decode(encoded)
+        } catch (_: Exception) {
+            throw InvalidBackupException()
+        }
+        if (bytes.isEmpty()) throw InvalidBackupException()
+        return Parcel.obtain().apply {
+            try {
+                unmarshall(bytes, 0, bytes.size)
+                setDataPosition(0)
+            } catch (_: Exception) {
+                recycle()
+                throw InvalidBackupException()
+            }
+        }
+    }
+
+    private fun validateSetting(setting: KeyValuePair) {
+        val value = setting.value
+        val valid = when (setting.valueType) {
+            KeyValuePair.TYPE_BOOLEAN -> value.size == 1 && value[0].toInt() in 0..1
+            KeyValuePair.TYPE_FLOAT, KeyValuePair.TYPE_INT -> value.size == 4
+            KeyValuePair.TYPE_LONG -> value.size == 8
+            KeyValuePair.TYPE_STRING -> true
+            KeyValuePair.TYPE_STRING_SET -> isValidStringSet(value)
+            else -> false
+        }
+        if (!valid) throw InvalidBackupException()
+    }
+
+    private fun isValidStringSet(value: ByteArray): Boolean {
+        val buffer = ByteBuffer.wrap(value)
+        val seen = HashSet<String>()
+        while (buffer.hasRemaining()) {
+            if (buffer.remaining() < Int.SIZE_BYTES) return false
+            val charCount = buffer.int
+            if (charCount < 0) return false
+            val start = buffer.position()
+            val maxBytes = minOf(buffer.remaining().toLong(), charCount.toLong() * 4L).toInt()
+            var decoded: String? = null
+            for (length in charCount..maxBytes) {
+                val candidate = ByteArray(length)
+                val duplicate = buffer.duplicate()
+                duplicate.get(candidate)
+                val text = candidate.toString(Charsets.UTF_8)
+                if (text.toByteArray(Charsets.UTF_8).contentEquals(candidate) && text.length == charCount) {
+                    decoded = text
+                    buffer.position(start + length)
+                    break
+                }
+            }
+            if (decoded == null || !seen.add(decoded)) return false
+        }
+        return true
+    }
+
+    private fun captureBackupSnapshot(selection: BackupSelection): BackupImportSnapshot {
+        val sagerDatabase = SagerDatabase.instance
+        return BackupImportSnapshot(
+            profiles = if (selection.profile) sagerDatabase.proxyDao().getAll() else null,
+            groups = if (selection.profile) sagerDatabase.groupDao().allGroups() else null,
+            rules = if (selection.rule) sagerDatabase.rulesDao().allRules() else null,
+            settings = if (selection.setting) PublicDatabase.kvPairDao.all() else null,
+            cachedGroups = if (selection.profile) DataStore.cachedGroups().toList() else null,
+            selectedGroupSetting = if (selection.profile) {
+                PublicDatabase.kvPairDao[io.nekohasekai.sagernet.Key.PROFILE_GROUP]
+            } else null,
+        )
+    }
+
+    private fun persistBackup(prepared: PreparedBackup, selection: BackupSelection) {
+        if (selection.profile || selection.rule) {
+            SagerDatabase.instance.runInTransaction {
+                if (selection.profile) {
+                    SagerDatabase.proxyDao.reset()
+                    SagerDatabase.groupDao.reset()
+                    SagerDatabase.groupDao.insert(requireNotNull(prepared.groups))
+                    SagerDatabase.proxyDao.insert(requireNotNull(prepared.profiles))
+                }
+                if (selection.rule) {
+                    SagerDatabase.rulesDao.reset()
+                    SagerDatabase.rulesDao.insert(requireNotNull(prepared.rules))
+                }
+            }
+        }
+        if (selection.setting) {
+            PublicDatabase.instance.runInTransaction {
+                PublicDatabase.kvPairDao.reset()
+                PublicDatabase.kvPairDao.insert(requireNotNull(prepared.settings))
+            }
+        }
+    }
+
+    private fun restoreBackupSnapshot(snapshot: BackupImportSnapshot, selection: BackupSelection) {
+        val failures = mutableListOf<Exception>()
+        try {
+            DataStore.flushConfiguration()
+        } catch (failure: Exception) {
+            failures += failure
+        }
+        if (selection.profile || selection.rule) {
+            try {
+                SagerDatabase.instance.runInTransaction {
+                    if (selection.profile) {
+                        SagerDatabase.proxyDao.reset()
+                        SagerDatabase.groupDao.reset()
+                        SagerDatabase.groupDao.insert(requireNotNull(snapshot.groups))
+                        SagerDatabase.proxyDao.insert(requireNotNull(snapshot.profiles))
+                    }
+                    if (selection.rule) {
+                        SagerDatabase.rulesDao.reset()
+                        SagerDatabase.rulesDao.insert(requireNotNull(snapshot.rules))
+                    }
+                }
+            } catch (failure: Exception) {
+                failures += failure
+            }
+        }
+        if (selection.setting || selection.profile) {
+            try {
+                PublicDatabase.instance.runInTransaction {
+                    if (selection.setting) {
+                        PublicDatabase.kvPairDao.reset()
+                        PublicDatabase.kvPairDao.insert(requireNotNull(snapshot.settings))
+                    } else {
+                        PublicDatabase.kvPairDao.delete(io.nekohasekai.sagernet.Key.PROFILE_GROUP)
+                        snapshot.selectedGroupSetting?.let(PublicDatabase.kvPairDao::put)
+                    }
+                }
+            } catch (failure: Exception) {
+                failures += failure
+            }
+        }
+        if (failures.isNotEmpty()) {
+            throw IllegalStateException("Backup restoration failed.").apply {
+                failures.forEach(::addSuppressed)
+            }
         }
     }
 
@@ -748,5 +1162,21 @@ class ToolsFragment : YokhanComposeRouteFragment() {
         val profile: Boolean = true,
         val rule: Boolean = true,
         val setting: Boolean = true,
+    )
+
+    private data class PreparedBackup(
+        val profiles: List<ProxyEntity>?,
+        val groups: List<ProxyGroup>?,
+        val rules: List<RuleEntity>?,
+        val settings: List<KeyValuePair>?,
+    )
+
+    private data class BackupImportSnapshot(
+        val profiles: List<ProxyEntity>?,
+        val groups: List<ProxyGroup>?,
+        val rules: List<RuleEntity>?,
+        val settings: List<KeyValuePair>?,
+        val cachedGroups: List<ProxyGroup>?,
+        val selectedGroupSetting: KeyValuePair?,
     )
 }

@@ -25,6 +25,9 @@
 # SnakeYaml
 -keep class org.yaml.snakeyaml.** { *; }
 
+# Keep EdDSA internals stable for release verification diagnostics.
+-keep class net.i2p.crypto.eddsa.** { *; }
+
 -dontobfuscate
 -keepattributes SourceFile
 

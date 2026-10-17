@@ -1,4 +1,4 @@
-﻿package com.yokhan.gates.app.ui
+package com.yokhan.gates.app.ui
 
 import android.os.SystemClock
 import android.view.MenuItem
@@ -7,9 +7,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.yokhan.gates.app.ui.dashboard.DashboardComposeActions
+import com.yokhan.gates.app.auth.YokhanKeycloakAuth
 import com.yokhan.gates.app.ui.dashboard.DashboardComposeScreen
 import com.yokhan.gates.app.ui.dashboard.DashboardProfileUiItem
-import com.yokhan.gates.app.auth.YokhanKeycloakAuth
 import com.yokhan.gates.app.ui.shell.YokhanShellActivityRoute
 import com.yokhan.gates.app.ui.shell.YokhanShellRoute
 import com.yokhan.gates.shared.domain.ConnectionStatus
@@ -68,11 +68,8 @@ class DashboardController(
                     onToggleConnection = activity::toggleConnection,
                     onRunConnectionTest = ::runConnectionTest,
                     onAddProfile = {
-                        if (YokhanKeycloakAuth.isConfigured()) {
-                            activity.startYokhanLogin()
-                        } else {
-                            activity.displayRoute(YokhanShellRoute.Configuration)
-                        }
+                        if (YokhanKeycloakAuth.isConfigured()) activity.startYokhanLogin()
+                        else activity.displayRoute(YokhanShellRoute.Configuration)
                     },
                     onSelectProfile = ::selectProfileById,
                     onEditProfile = ::editProfileById,

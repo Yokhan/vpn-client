@@ -1,63 +1,80 @@
-﻿package com.yokhan.gates.shared.ui.design
+package com.yokhan.gates.shared.ui.design
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.collectLatest
+import kotlin.coroutines.coroutineContext
 
 @Composable
-fun YokhanStarfield(modifier: Modifier = Modifier) {
-    val infinite = rememberInfiniteTransition(label = "starfield")
-    val phase by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(16000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "stars",
-    )
-    Canvas(modifier) {
-        staticStars.forEach { star ->
-            drawCircle(
-                color = Color.White.copy(alpha = star.alpha),
-                radius = star.radius.dp.toPx(),
-                center = Offset(size.width * star.x, size.height * star.y),
-            )
+fun YokhanStarfield(modifier: Modifier = Modifier, active: Boolean = true) {
+    var elapsedSeconds by remember { mutableStateOf(0.0) }
+    val stars = remember { staticStars to movingStars }
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
+        val durationScale = coroutineContext[MotionDurationScale]
+        snapshotFlow { durationScale?.scaleFactor ?: 1f }.collectLatest { scale ->
+            if (scale <= 0f) return@collectLatest
+            var previousFrame: Long? = null
+            while (true) {
+                val frame = withFrameNanos { it }
+                previousFrame?.let { elapsedSeconds += starfieldElapsedDeltaSeconds(frame - it, scale) }
+                previousFrame = frame
+            }
         }
-        val elapsed = phase * 16f
-        movingStars.forEach { star ->
-            val progress = ((elapsed + star.initialOffsetSeconds) / star.durationSeconds) % 1f
-            val y = size.height * progress * 1.2f
-            if (star.streak) {
-                drawRoundRect(
-                    color = Color.White.copy(alpha = star.alpha),
-                    topLeft = Offset(size.width * star.x, y),
-                    size = Size(star.width.dp.toPx(), star.height.dp.toPx()),
-                    cornerRadius = CornerRadius(1.dp.toPx()),
-                )
-            } else {
+    }
+    Box(modifier.graphicsLayer { alpha = if (active) 1f else 0f }) {
+        if (active) Canvas(Modifier.fillMaxSize()) {
+            stars.first.forEach { star ->
                 drawCircle(
                     color = Color.White.copy(alpha = star.alpha),
-                    radius = (star.width / 2f).dp.toPx(),
-                    center = Offset(size.width * star.x, y),
+                    radius = star.radius.dp.toPx(),
+                    center = Offset(size.width * star.x, size.height * star.y),
                 )
+            }
+            // Only drawing observes the clock. Each star wraps at its own period.
+            val elapsed = elapsedSeconds
+            stars.second.forEach { star ->
+                val progress = starProgress(elapsed, star.durationSeconds, star.initialOffsetSeconds)
+                val y = size.height * progress * 1.2f
+                if (star.streak) {
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = star.alpha),
+                        topLeft = Offset(size.width * star.x, y),
+                        size = Size(star.width.dp.toPx(), star.height.dp.toPx()),
+                        cornerRadius = CornerRadius(1.dp.toPx()),
+                    )
+                } else {
+                    drawCircle(
+                        color = Color.White.copy(alpha = star.alpha),
+                        radius = (star.width / 2f).dp.toPx(),
+                        center = Offset(size.width * star.x, y),
+                    )
+                }
             }
         }
     }
 }
+
+internal fun starfieldElapsedDeltaSeconds(frameDeltaNanos: Long, scaleFactor: Float): Double =
+    if (scaleFactor > 0f) frameDeltaNanos / 1_000_000_000.0 / scaleFactor else 0.0
 
 @Immutable
 private data class StaticStar(

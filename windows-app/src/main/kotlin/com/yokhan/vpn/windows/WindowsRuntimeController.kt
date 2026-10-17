@@ -12,12 +12,14 @@ import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.SocketTimeoutException
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.net.http.WebSocket
+import java.net.http.WebSocketHandshakeException
 import java.net.NetworkInterface
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -29,16 +31,22 @@ import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.flow.MutableStateFlow
 
 data class RuntimeCommandResult(
     val exitCode: Int,
     val output: String,
+    val recoveryFailureStage: RecoveryFailureStage? = null,
 )
 
 data class AppRoutingState(
@@ -62,18 +70,24 @@ data class WindowsSessionState(
     val summary: String,
 )
 
+private const val GATES_WINDOWS_AUTH_CLIENT_ID = "gates-windows"
+private const val LEGACY_WINDOWS_AUTH_CLIENT_ID = "yokhan-vpn-windows"
+private val GATES_DEFAULT_TUN_ADDRESS = listOf("172.30.248.1/30")
+private val GATES_LEGACY_SING_BOX_TUN_ADDRESS = listOf("172.19.0.1/30")
+
 data class WindowsAppConfig(
     val subscriptionUrl: String = "https://cloak.yokhanfitness.ru/api/sub/REPLACE_WITH_PERSONAL_TOKEN",
-    val appApiBaseUrl: String = "https://cloak.yokhanfitness.ru",
-    val authIssuer: String = "https://auth.yokhanfitness.ru/realms/yokhan",
-    val authClientId: String = "yokhan-vpn-windows",
+    val profileSource: String = "legacy",
+    val appApiBaseUrl: String = GATES_APP_API_BASE_URL,
+    val authIssuer: String = GATES_AUTH_ISSUER,
+    val authClientId: String = GATES_WINDOWS_AUTH_CLIENT_ID,
     val authDevice: String = "main",
     val authRoom: String = "",
-    val downloadPageUrl: String = "https://yokhanfitness.ru/hub/gates",
+    val downloadPageUrl: String = GATES_DOWNLOAD_PAGE_URL,
     val autoCheckUpdates: Boolean = true,
+    val autoUploadRecoveryReports: Boolean = true,
     val reportUrls: List<String> = listOf(
-        "https://cloak.yokhanfitness.ru/api/app/bug-report",
-        "https://yokhanfitness.ru/api/app/bug-report",
+        GATES_BUG_REPORT_URL,
     ),
     val systemProxyEnabled: Boolean = true,
     val restoreSystemProxyOnStop: Boolean = true,
@@ -84,7 +98,7 @@ data class WindowsAppConfig(
     val socksPort: Int = 2088,
     val httpPort: Int = 2089,
     val tunInterfaceName: String = "GATES",
-    val tunAddress: List<String> = listOf("172.19.0.1/30"),
+    val tunAddress: List<String> = GATES_DEFAULT_TUN_ADDRESS,
     val tunMtu: Int = 9000,
     val tunStack: String = "mixed",
     val tunAutoRoute: Boolean = true,
@@ -114,6 +128,7 @@ data class WindowsAppConfig(
     val testUrls: List<String> = listOf(
         "https://www.google.com/generate_204",
         "https://www.youtube.com/generate_204",
+        "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
         "https://api.telegram.org",
         "https://vk.com",
         "https://rutube.ru",
@@ -135,6 +150,7 @@ private data class WindowsAuthState(
     val accessToken: String = "",
     val refreshToken: String = "",
     val expiresAtEpochSecond: Long = 0,
+    val requiresReauthentication: Boolean = false,
 )
 
 private data class SystemProxySnapshot(
@@ -188,55 +204,180 @@ private data class RoomNetFlowTarget(
     val address: InetSocketAddress,
     val peerId: String,
     val port: Int,
+    val lastActivityMillis: Long,
+)
+
+private data class RoomNetInboundFlow(
+    val socket: DatagramSocket,
+    val peerId: String,
+    val lastActivityMillis: Long,
+)
+
+private data class RoomNetConnectionEnd(
+    val statusCode: Int?,
+    val reason: String,
+    val error: Throwable? = null,
 )
 
 private class RoomNetRelay(
     private val gson: Gson,
     private val config: WindowsAppConfig,
     private val info: RoomNetInfo,
-    private val bearerToken: String,
+    private val accessTokenProvider: () -> String,
     private val wsUrl: String,
 ) {
     private val running = AtomicBoolean(true)
     private val webSocket = AtomicReference<WebSocket?>()
     private val peerSockets = ConcurrentHashMap<String, DatagramSocket>()
     private val outboundFlows = ConcurrentHashMap<String, RoomNetFlowTarget>()
-    private val inboundFlows = ConcurrentHashMap<String, DatagramSocket>()
-    private val done = CountDownLatch(1)
+    private val inboundFlows = ConcurrentHashMap<String, RoomNetInboundFlow>()
+    private val knownPeers = info.peers.map { it.id }.filter { it.isNotBlank() }.toSet()
+    private val allowedPortsByPeer = info.peers.associate { peer ->
+        peer.id to windowsRoomNetAllowedPorts(info.ports, peer.ports)
+    }
 
     fun run(): RuntimeCommandResult {
         val self = info.self ?: return RuntimeCommandResult(1, "RoomNet self peer is missing.")
         if (info.peers.isEmpty()) {
             return RuntimeCommandResult(1, "RoomNet has no peers.")
         }
+        if (info.room.isBlank() || self.id.isBlank()) {
+            return RuntimeCommandResult(1, "RoomNet room or self peer identity is missing.")
+        }
+        val peerIds = info.peers.map { it.id }
+        if (peerIds.any { it.isBlank() || it == self.id } || peerIds.distinct().size != peerIds.size) {
+            return RuntimeCommandResult(1, "RoomNet peer identities are invalid or duplicated.")
+        }
+        val localGameAddress = runCatching { InetAddress.getByName(config.roomNetLocalGameHost) }
+            .getOrNull()
+            ?.takeIf { it.isLoopbackAddress }
+            ?: return RuntimeCommandResult(1, "RoomNet local game host must resolve to loopback.")
+        if (!areWindowsRoomNetAddressesDistinct(
+                self.address,
+                info.peers.map { it.address },
+                localGameAddress.hostAddress,
+            )
+        ) {
+            return RuntimeCommandResult(1, "RoomNet peer addresses must be unique 127.77.x.y loopback endpoints.")
+        }
+        if (allowedPortsByPeer.values.any { it.size > WINDOWS_ROOMNET_MAX_LISTENERS_PER_PEER } ||
+            allowedPortsByPeer.values.sumOf { it.size } > WINDOWS_ROOMNET_MAX_LISTENERS
+        ) {
+            return RuntimeCommandResult(1, "RoomNet listener count exceeds the bounded peer limits.")
+        }
         println("RoomNet worker starting room=${info.room} self=${self.id} address=${self.address}")
         startPeerListeners()
-        val client = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(12))
-            .build()
-        val listener = Listener()
-        val ws = client.newWebSocketBuilder()
-            .header("Authorization", "Bearer $bearerToken")
-            .header("X-Yokhan-Device", config.authDevice)
-            .header("X-Yokhan-Client", "GATES-Windows-RoomNet")
-            .buildAsync(URI.create(wsUrl), listener)
-            .join()
-        webSocket.set(ws)
-        println("RoomNet websocket connected: $wsUrl")
-        Runtime.getRuntime().addShutdownHook(Thread { close() })
-        done.await()
-        close()
-        return RuntimeCommandResult(0, "RoomNet worker stopped.")
+        if (peerSockets.isEmpty()) return RuntimeCommandResult(1, "RoomNet could not open a loopback UDP listener.")
+        return try {
+            val client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(12))
+                .build()
+            Runtime.getRuntime().addShutdownHook(Thread { close() })
+            var retryToken: String? = null
+            var consecutiveFailures = 0
+            var consecutiveAuthRetries = 0
+            while (running.get()) {
+                val token = retryToken ?: runCatching { accessTokenProvider() }.getOrElse { error ->
+                    return RuntimeCommandResult(1, "RoomNet access token unavailable: ${error.message}")
+                }
+                retryToken = null
+                if (token.isBlank()) return RuntimeCommandResult(1, "RoomNet access token is empty.")
+
+                val listener = Listener()
+                var connectedSocket: WebSocket? = null
+                var connectedAtMillis: Long? = null
+                val end = try {
+                    connectedSocket = client.newWebSocketBuilder()
+                        .header("Authorization", "Bearer $token")
+                        .header("X-Yokhan-Device", config.authDevice)
+                        .header("X-Yokhan-Client", "GATES-Windows-RoomNet")
+                        .buildAsync(URI.create(wsUrl), listener)
+                        .join()
+                    webSocket.set(connectedSocket)
+                    println("RoomNet websocket connected: $wsUrl")
+                    connectedAtMillis = System.currentTimeMillis()
+                    listener.ended.get()
+                } catch (error: Exception) {
+                    roomNetConnectionEnd(error)
+                } finally {
+                    connectedSocket?.let { webSocket.compareAndSet(it, null) }
+                }
+
+                if (!running.get()) return RuntimeCommandResult(0, "RoomNet worker stopped.")
+                if (connectedAtMillis?.let {
+                        System.currentTimeMillis() - it >= WINDOWS_ROOMNET_AUTH_RETRY_RESET_MILLIS
+                    } == true
+                ) {
+                    consecutiveAuthRetries = 0
+                }
+                val refreshForAuth = end.statusCode == 401 ||
+                    (end.statusCode == 1008 && end.reason.trim().equals("session expired", ignoreCase = true))
+                val refreshedToken = if (refreshForAuth) {
+                    runCatching { accessTokenProvider() }.getOrElse { error ->
+                        return RuntimeCommandResult(1, "RoomNet session refresh failed: ${error.message}")
+                    }
+                } else {
+                    token
+                }
+                if (decideWindowsRoomNetRetry(
+                        end.statusCode,
+                        end.reason,
+                        token,
+                        refreshedToken,
+                        stopped = !running.get(),
+                        consecutiveAuthRetries = consecutiveAuthRetries,
+                    ) == WindowsRoomNetRetryDecision.STOP
+                ) {
+                    return RuntimeCommandResult(
+                        1,
+                        if (end.statusCode == 401 || end.statusCode == 403 || end.statusCode == 1008) {
+                            "RoomNet authorization or policy rejected the session."
+                        } else {
+                            "RoomNet connection stopped: ${end.error?.message ?: end.reason}"
+                        },
+                    )
+                }
+                if (refreshForAuth) {
+                    retryToken = refreshedToken
+                    consecutiveAuthRetries++
+                }
+                consecutiveFailures++
+                val delayMillis = windowsRoomNetReconnectDelayMillis(consecutiveFailures)
+                println("RoomNet disconnected; reconnecting in ${delayMillis}ms (status=${end.statusCode ?: "network"})")
+                try {
+                    Thread.sleep(delayMillis)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return RuntimeCommandResult(0, "RoomNet worker stopped.")
+                }
+            }
+            RuntimeCommandResult(0, "RoomNet worker stopped.")
+        } finally {
+            close()
+        }
+    }
+
+    private fun roomNetConnectionEnd(error: Throwable): RoomNetConnectionEnd {
+        val handshake = generateSequence(error) { it.cause }
+            .filterIsInstance<WebSocketHandshakeException>()
+            .firstOrNull()
+        return RoomNetConnectionEnd(
+            statusCode = handshake?.response?.statusCode(),
+            reason = "",
+            error = error.cause ?: error,
+        )
     }
 
     private fun startPeerListeners() {
         for (peer in info.peers) {
-            for (port in peer.ports.ifEmpty { info.ports }) {
+            for (port in allowedPortsByPeer[peer.id].orEmpty()) {
                 val key = socketKey(peer.id, port)
                 val socket = runCatching {
+                    val bindAddress = windowsRoomNetPeerSocketAddress(peer.address, port)
+                        ?: error("peer endpoint is outside the RoomNet loopback range")
                     DatagramSocket(null).also {
                         it.reuseAddress = true
-                        it.bind(InetSocketAddress(InetAddress.getByName(peer.address), port))
+                        it.bind(bindAddress)
                     }
                 }.getOrElse { error ->
                     println("RoomNet listener skipped ${peer.address}:$port for ${peer.id}: ${error.message}")
@@ -264,49 +405,112 @@ private class RoomNetRelay(
                 if (running.get()) Thread.sleep(100)
                 continue
             }
+            if (!packet.address.isLoopbackAddress) continue
             val source = InetSocketAddress(packet.address, packet.port)
             val flow = flowId(peer.id, port, source)
-            outboundFlows[flow] = RoomNetFlowTarget(source, peer.id, port)
+            putBoundedWindowsRoomNetFlow(
+                outboundFlows,
+                flow,
+                RoomNetFlowTarget(source, peer.id, port, System.currentTimeMillis()),
+                System.currentTimeMillis(),
+                { windowsRoomNetFlowExpiresAt(it.lastActivityMillis) },
+            )
             sendUdpToRoom(peer.id, port, flow, packet.data.copyOf(packet.length))
         }
     }
 
     private fun handleRemoteUdp(message: JsonObject) {
-        val from = message.get("from")?.asString.orEmpty()
-        val dstPort = message.get("dst_port")?.asInt ?: return
-        val flow = message.get("flow")?.asString.orEmpty()
-        val payloadText = message.get("payload")?.asString.orEmpty()
-        val payload = runCatching { Base64.getDecoder().decode(payloadText) }.getOrNull() ?: return
+        val self = info.self ?: return
+        val localGameAddress = runCatching { InetAddress.getByName(config.roomNetLocalGameHost) }
+            .getOrNull()
+            ?.takeIf { it.isLoopbackAddress }
+            ?: return
+        val datagram = runCatching {
+            WindowsRoomNetDatagram(
+                room = message.get("room")?.asString.orEmpty(),
+                to = message.get("to")?.asString.orEmpty(),
+                from = message.get("from")?.asString.orEmpty(),
+                destinationPort = message.get("dst_port")?.asInt ?: return,
+                flow = message.get("flow")?.asString.orEmpty(),
+                encodedPayload = message.get("payload")?.asString.orEmpty(),
+            )
+        }.getOrNull() ?: return
+        val payload = validateWindowsRoomNetDatagram(
+            datagram,
+            info.room,
+            self.id,
+            knownPeers,
+            allowedPortsByPeer[datagram.from].orEmpty(),
+        ) ?: return
+        val from = datagram.from
+        val dstPort = datagram.destinationPort
+        val flow = datagram.flow
 
         val target = outboundFlows[flow]
         if (target != null) {
-            val socket = peerSockets[socketKey(from, target.port)]
+            val now = System.currentTimeMillis()
+            if (isWindowsRoomNetFlowExpired(target.lastActivityMillis, now)) {
+                outboundFlows.remove(flow, target)
+                return
+            }
+            if (!isWindowsRoomNetResponseFlowMatch(target.peerId, target.port, from, dstPort)) return
+            val refreshed = outboundFlows.computeIfPresent(flow) { _, latest ->
+                if (isWindowsRoomNetFlowExpired(latest.lastActivityMillis, now) ||
+                    !isWindowsRoomNetResponseFlowMatch(latest.peerId, latest.port, from, dstPort)
+                ) {
+                    null
+                } else {
+                    latest.copy(lastActivityMillis = now)
+                }
+            } ?: return
+            val socket = peerSockets[socketKey(from, refreshed.port)]
             if (socket != null && !socket.isClosed) {
-                socket.send(DatagramPacket(payload, payload.size, target.address))
+                socket.send(DatagramPacket(payload, payload.size, refreshed.address))
             }
             return
         }
 
         val inboundKey = "$from|$flow|$dstPort"
-        val socket = inboundFlows.computeIfAbsent(inboundKey) {
-            createInboundFlowSocket(from, flow, dstPort)
+        val now = System.currentTimeMillis()
+        val inbound = synchronized(inboundFlows) {
+            val expired = inboundFlows.filterValues {
+                isWindowsRoomNetFlowExpired(it.lastActivityMillis, now)
+            }.keys
+            expired.forEach { key -> inboundFlows.remove(key)?.socket?.close() }
+            val existing = inboundFlows[inboundKey]
+            if (existing != null) {
+                existing.copy(lastActivityMillis = now).also { inboundFlows[inboundKey] = it }
+            } else {
+                val peerFlowCount = inboundFlows.values.count { it.peerId == from }
+                if (!canCreateWindowsRoomNetFlow(from, peerFlowCount, inboundFlows.size)) return
+                RoomNetInboundFlow(
+                    createInboundFlowSocket(from, flow, dstPort, inboundKey),
+                    from,
+                    now,
+                ).also { inboundFlows[inboundKey] = it }
+            }
         }
-        val localGameAddress = InetSocketAddress(InetAddress.getByName(config.roomNetLocalGameHost), dstPort)
-        socket.send(DatagramPacket(payload, payload.size, localGameAddress))
+        inbound.socket.send(DatagramPacket(payload, payload.size, InetSocketAddress(localGameAddress, dstPort)))
     }
 
-    private fun createInboundFlowSocket(peerId: String, flow: String, dstPort: Int): DatagramSocket {
+    private fun createInboundFlowSocket(peerId: String, flow: String, dstPort: Int, inboundKey: String): DatagramSocket {
         val socket = DatagramSocket(InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0))
+        socket.soTimeout = 30_000
         Thread({
             val buffer = ByteArray(65507)
             while (running.get() && !socket.isClosed) {
                 val packet = DatagramPacket(buffer, buffer.size)
                 try {
                     socket.receive(packet)
+                } catch (_: SocketTimeoutException) {
+                    if (expireInboundFlowIfIdle(inboundKey, socket)) break
+                    continue
                 } catch (_: Exception) {
                     if (running.get()) Thread.sleep(100)
                     continue
                 }
+                if (!packet.address.isLoopbackAddress) continue
+                if (!touchInboundFlow(inboundKey, socket)) continue
                 sendUdpToRoom(peerId, dstPort, flow, packet.data.copyOf(packet.length))
             }
         }, "GATES-RoomNet-inbound-$peerId-$dstPort").apply {
@@ -316,9 +520,32 @@ private class RoomNetRelay(
         return socket
     }
 
+    private fun touchInboundFlow(inboundKey: String, socket: DatagramSocket): Boolean = synchronized(inboundFlows) {
+        val flow = inboundFlows[inboundKey] ?: return@synchronized false
+        val now = System.currentTimeMillis()
+        if (flow.socket !== socket || isWindowsRoomNetFlowExpired(flow.lastActivityMillis, now)) {
+            inboundFlows.remove(inboundKey, flow)
+            runCatching { flow.socket.close() }
+            return@synchronized false
+        }
+        inboundFlows[inboundKey] = flow.copy(lastActivityMillis = now)
+        true
+    }
+
+    private fun expireInboundFlowIfIdle(inboundKey: String, socket: DatagramSocket): Boolean = synchronized(inboundFlows) {
+        val flow = inboundFlows[inboundKey] ?: return@synchronized true
+        if (flow.socket !== socket || !isWindowsRoomNetFlowExpired(flow.lastActivityMillis, System.currentTimeMillis())) {
+            return@synchronized flow.socket !== socket
+        }
+        inboundFlows.remove(inboundKey, flow)
+        runCatching { flow.socket.close() }
+        true
+    }
+
     private fun sendUdpToRoom(peerId: String, dstPort: Int, flow: String, payload: ByteArray) {
         val packet = JsonObject().apply {
             addProperty("type", "udp")
+            addProperty("room", info.room)
             addProperty("to", peerId)
             addProperty("dst_port", dstPort)
             addProperty("flow", flow)
@@ -329,10 +556,14 @@ private class RoomNetRelay(
 
     private fun close() {
         if (!running.getAndSet(false)) return
-        webSocket.getAndSet(null)?.sendClose(WebSocket.NORMAL_CLOSURE, "RoomNet stop")
+        webSocket.getAndSet(null)?.let { socket ->
+            runCatching { socket.sendClose(WebSocket.NORMAL_CLOSURE, "RoomNet stop") }
+        }
         peerSockets.values.forEach { runCatching { it.close() } }
-        inboundFlows.values.forEach { runCatching { it.close() } }
-        done.countDown()
+        peerSockets.clear()
+        inboundFlows.values.forEach { runCatching { it.socket.close() } }
+        inboundFlows.clear()
+        outboundFlows.clear()
     }
 
     private fun socketKey(peerId: String, port: Int): String = "$peerId:$port"
@@ -345,14 +576,27 @@ private class RoomNetRelay(
 
     private inner class Listener : WebSocket.Listener {
         private val partial = StringBuilder()
+        private var oversizedMessage = false
 
         override fun onOpen(webSocket: WebSocket) {
             webSocket.request(1)
         }
 
         override fun onText(webSocket: WebSocket, data: CharSequence, last: Boolean): CompletionStage<*> {
-            partial.append(data)
+            if (!oversizedMessage) {
+                if (partial.length + data.length > 128 * 1024) {
+                    partial.clear()
+                    oversizedMessage = true
+                } else {
+                    partial.append(data)
+                }
+            }
             if (last) {
+                if (oversizedMessage) {
+                    oversizedMessage = false
+                    webSocket.request(1)
+                    return CompletableFuture.completedFuture(null)
+                }
                 val text = partial.toString()
                 partial.clear()
                 runCatching {
@@ -372,33 +616,145 @@ private class RoomNetRelay(
 
         override fun onError(webSocket: WebSocket, error: Throwable) {
             println("RoomNet websocket error: ${error.message}")
-            close()
+            ended.complete(RoomNetConnectionEnd(statusCode = null, reason = "", error = error))
         }
 
         override fun onClose(webSocket: WebSocket, statusCode: Int, reason: String): CompletionStage<*> {
             println("RoomNet websocket closed: $statusCode $reason")
-            close()
+            ended.complete(RoomNetConnectionEnd(statusCode, reason))
             return CompletableFuture.completedFuture(null)
         }
+
+        val ended = CompletableFuture<RoomNetConnectionEnd>()
     }
 }
 
-private const val WINDOWS_APP_VERSION = "1.6.46"
-private const val WINDOWS_PLATFORM = "windows"
+internal fun normalizeWindowsAuthClientId(
+    value: String?,
+    fallback: String = GATES_WINDOWS_AUTH_CLIENT_ID,
+): String {
+    val trimmed = value?.trim().orEmpty()
+    if (trimmed.isBlank()) return fallback
+    if (trimmed.equals(LEGACY_WINDOWS_AUTH_CLIENT_ID, ignoreCase = true)) {
+        return fallback
+    }
+    return trimmed
+}
 
-class WindowsRuntimeController {
+private const val WINDOWS_APP_VERSION = "1.7.2"
+internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
+private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
+private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
+private const val WINDOWS_PLATFORM = "windows"
+private const val ELEVATED_CLI_TIMEOUT_SECONDS = 120
+
+internal fun isTunPermissionFailure(output: String): Boolean {
+    val normalized = output.lowercase()
+    return normalized.contains("access is denied") &&
+        (
+            normalized.contains("tun") ||
+                normalized.contains("configure interface")
+            )
+}
+
+internal fun windowsLocalDirectRouteRule(): JsonObject =
+    JsonObject().apply {
+        add("domain", JsonArray().also { domains ->
+            domains.add("localhost")
+        })
+        add("domain_suffix", JsonArray().also { suffixes ->
+            suffixes.add("localhost")
+            suffixes.add("local")
+        })
+        addProperty("outbound", "direct")
+    }
+
+internal fun windowsTunAddressIps(addresses: List<String>): List<String> =
+    addresses
+        .mapNotNull { address -> address.substringBefore('/').trim().takeIf { it.isNotBlank() } }
+        .distinct()
+
+internal fun normalizeTunAddress(addresses: List<String>): List<String> =
+    if (addresses == GATES_LEGACY_SING_BOX_TUN_ADDRESS) GATES_DEFAULT_TUN_ADDRESS else addresses
+
+internal fun managedRuntimePid(pidFileText: String?, processState: Map<String, String>): Long? {
+    val pidFileValue = pidFileText?.trim()?.toLongOrNull()
+    if (pidFileValue != null) return pidFileValue
+    return processState["pid"]?.trim()?.toLongOrNull()
+}
+
+internal fun selectWindowsDnsProxyOutbound(
+    activeRoute: String,
+    availableTags: Set<String>,
+): String {
+    val selected = activeRoute.trim().lowercase()
+    if (selected.isNotBlank() && selected != "auto") return selected
+    return listOf("naive", "relay", "bridge", "nl-tcp").firstOrNull { it in availableTags } ?: "auto"
+}
+
+internal fun buildWindowsTunAddressCleanupScript(interfaceName: String, addresses: List<String>): String {
+    val addressArray = addresses.joinToString(", ") { psSingleQuotedScriptValue(it) }
+    return "\$ErrorActionPreference = 'Stop'; " +
+        "\$alias = ${psSingleQuotedScriptValue(interfaceName)}; " +
+        "\$addresses = @($addressArray); " +
+        "try { " +
+        "foreach (\$address in \$addresses) { " +
+        "Get-NetIPAddress -InterfaceAlias \$alias -IPAddress \$address -ErrorAction SilentlyContinue | " +
+        "ForEach-Object { Remove-NetIPAddress -InputObject \$_ -Confirm:\$false -ErrorAction Stop }; " +
+        "} " +
+        "exit 0 " +
+        "} catch { " +
+        "Write-Output ('cleanup_error=' + \$_.Exception.Message); " +
+        "exit 1 " +
+        "}"
+}
+
+private fun psSingleQuotedScriptValue(value: String): String =
+    "'${value.replace("'", "''")}'"
+
+private fun RuntimeCommandResult.isRunningServiceTunnel(): Boolean =
+    exitCode == 0 && output.trim() == "RUNNING"
+
+class WindowsRuntimeController(
+    private val allowRuntimeServiceDelegation: Boolean = true,
+    private val appDir: File = windowsGatesAppDir(),
+    private val runtimeService: WindowsRuntimeControl = WindowsRuntimeServiceClient(),
+    private val prepareRuntimeService: () -> RuntimeCommandResult = { WindowsRuntimeServiceManager().ensureRunning() },
+    private val validateGeneratedConfig: ((File) -> RuntimeCommandResult)? = null,
+    private val stopLocalRuntime: ((WindowsAppConfig) -> RuntimeCommandResult)? = null,
+    private val fetchSubscriptionJson: ((String) -> String)? = null,
+    private val accessOnly: Boolean = false,
+    private val authHttpClient: HttpClient? = null,
+    private val authorizationBrowser: ((String) -> Boolean)? = null,
+    private val authorizationPause: ((Long) -> Unit)? = null,
+) {
+    internal val authorizationPrompt = MutableStateFlow<WindowsAuthorizationPrompt?>(null)
+    internal val authorizationPhase = MutableStateFlow(WindowsAuthorizationPhase.Idle)
+    private val authorizationCommitLock = Any()
+
+    fun cancelPendingAuthorization(cancel: () -> Unit): Boolean = synchronized(authorizationCommitLock) {
+        if (authorizationPrompt.value == null) false else { cancel(); true }
+    }
+
+    fun reopenAuthorization(): Boolean = authorizationPrompt.value?.let { openUri(it.verificationUri) } ?: false
+
     private val gson: Gson = GsonBuilder()
         .disableHtmlEscaping()
         .setPrettyPrinting()
         .create()
 
-    private val appDir: File = resolveAppDir()
     private val binDir = File(appDir, "bin")
     private val runtimeDir = File(appDir, "runtime")
     private val logsDir = File(appDir, "logs")
     private val appConfigFile = File(appDir, "app-config.json")
+    private val profileStore = WindowsAtomicStore(appDir)
     private val authStateFile = File(appDir, "auth-state.json")
-    private val rawConfigFile = File(runtimeDir, "subscription.singbox.json")
+    private val authStateStore = WindowsEncryptedJsonStore(authStateFile)
+    private val legacyConfigFile = File(runtimeDir, "subscription.singbox.json")
+    private val accountConfigFile = File(runtimeDir, "account.singbox.json")
+    private val manualConfigFile = File(runtimeDir, "manual.singbox.json")
+    private val rawConfigFile: File
+        get() = profileFile(readConfig().profileSource)
     private val generatedConfigFile = File(runtimeDir, "config.json")
     private val generatedModeFile = File(runtimeDir, "generated-mode.txt")
     private val pidFile = File(runtimeDir, "sing-box.pid")
@@ -420,9 +776,15 @@ class WindowsRuntimeController {
         if (!appConfigFile.isFile) {
             writeConfig(WindowsAppConfig())
         }
-        val json = appConfigFile.readText(StandardCharsets.UTF_8)
+        val json = profileStore.readText(appConfigFile, StandardCharsets.UTF_8)
         val source = runCatching { JsonParser.parseString(json).asJsonObject }.getOrNull()
-        val normalized = normalizeConfig(gson.fromJson(json, WindowsAppConfig::class.java))
+        val configJson = source?.let {
+            if (migrateWindowsConfigEndpoints(it)) gson.toJson(it) else json
+        } ?: json
+        if (configJson != json) {
+            profileStore.writeAtomic(appConfigFile, configJson.toByteArray(StandardCharsets.UTF_8))
+        }
+        val normalized = normalizeConfig(gson.fromJson(configJson, WindowsAppConfig::class.java))
         val defaults = WindowsAppConfig()
         return normalized.copy(
             systemProxyEnabled = if (source?.has("systemProxyEnabled") == true) {
@@ -434,6 +796,11 @@ class WindowsRuntimeController {
                 normalized.restoreSystemProxyOnStop
             } else {
                 defaults.restoreSystemProxyOnStop
+            },
+            autoUploadRecoveryReports = if (source?.has("autoUploadRecoveryReports") == true) {
+                normalized.autoUploadRecoveryReports
+            } else {
+                defaults.autoUploadRecoveryReports
             },
             allowProxyFallback = if (source?.has("allowProxyFallback") == true) {
                 normalized.allowProxyFallback
@@ -460,19 +827,58 @@ class WindowsRuntimeController {
 
     fun writeConfig(config: WindowsAppConfig) {
         ensureDirs()
-        appConfigFile.writeText(gson.toJson(config), StandardCharsets.UTF_8)
+        profileStore.writeAtomic(appConfigFile, gson.toJson(config).toByteArray(StandardCharsets.UTF_8))
     }
 
     fun sessionState(): WindowsSessionState {
         ensureDirs()
-        val signedIn = readAuthState() != null
-        val hasImportedConfig = rawConfigFile.isFile
+        val auth = readAuthState(readConfig())
+        val signedIn = auth != null && !auth.requiresReauthentication &&
+            (auth.expiresAtEpochSecond > Instant.now().epochSecond || auth.refreshToken.isNotBlank())
+        val hasImportedConfig = hasSavedProfile()
         return WindowsSessionState(
             signedIn = signedIn,
             hasImportedConfig = hasImportedConfig,
-            ready = signedIn && hasImportedConfig,
+            ready = hasImportedConfig,
             summary = authSummary(),
         )
+    }
+
+    private fun profileFile(source: String): File = when (source) {
+        "account" -> accountConfigFile
+        "manual" -> manualConfigFile
+        else -> legacyConfigFile
+    }
+
+    private fun hasSavedProfile(): Boolean = runCatching {
+        rawConfigFile.isFile && hasImportedTunnelProfile(profileStore.readText(rawConfigFile, StandardCharsets.UTF_8))
+    }.getOrDefault(false)
+
+    @Synchronized
+    internal fun storeImportedProfile(source: String, json: String, subscriptionUrl: String? = null): RuntimeCommandResult = profileStore.transaction {
+        if (source !in setOf("account", "manual") || !hasImportedTunnelProfile(json)) {
+            return@transaction RuntimeCommandResult(1, "Конфигурация не содержит поддерживаемого профиля GATES.")
+        }
+        ensureDirs()
+        val config = readConfig()
+        val selected = runCatching { windowsImportedProfileConfig(config, source, json) }.getOrElse {
+            return@transaction RuntimeCommandResult(1, "Конфигурация не содержит выбранного маршрута. Прежний профиль сохранён.")
+        }
+        val target = profileFile(source)
+        val oldProfile = target.takeIf { it.isFile }?.let(profileStore::readBytes)
+        val oldSettings = profileStore.readBytes(appConfigFile)
+        try {
+            profileStore.writeAtomic(target, json.toByteArray(StandardCharsets.UTF_8))
+            writeConfig(selected.copy(subscriptionUrl = subscriptionUrl ?: config.subscriptionUrl))
+            RuntimeCommandResult(0, "Конфигурация сохранена. Подключение не запущено.")
+        } catch (_: Exception) {
+            val restored = runCatching {
+                if (oldProfile != null) profileStore.writeAtomic(target, oldProfile)
+                else target.delete()
+                profileStore.writeAtomic(appConfigFile, oldSettings)
+            }.isSuccess
+            RuntimeCommandResult(1, if (restored) "Не удалось сохранить конфигурацию." else "Не удалось восстановить настройки после ошибки сохранения.")
+        }
     }
 
     fun appRoutingState(): AppRoutingState {
@@ -550,7 +956,7 @@ class WindowsRuntimeController {
             buildString {
                 appendLine("captured_at=${Instant.now()}")
                 appendLine("command=$command")
-                appendLine("args=${args.joinToString(" ")}")
+                appendLine("args=${redactedCliArguments(command, args).joinToString(" ")}")
                 appendLine("exit=${result.exitCode}")
                 append(result.output)
             },
@@ -568,7 +974,7 @@ class WindowsRuntimeController {
         val physicalBindRoutes = runCatching {
             config.physicalBindRoutes
                 .map { it.lowercase() }
-                .filter { it in listOf("bridge", "relay", "naive", "hy2") }
+                .filter(::isWindowsProxyRouteId)
         }
             .getOrDefault(defaults.physicalBindRoutes)
             .ifEmpty { defaults.physicalBindRoutes }
@@ -591,18 +997,23 @@ class WindowsRuntimeController {
             subscriptionUrl = runCatching { config.subscriptionUrl }.getOrNull()
                 ?.takeIf { it.isNotBlank() }
                 ?: defaults.subscriptionUrl,
+            profileSource = runCatching { config.profileSource }.getOrNull()
+                ?.takeIf { it in setOf("legacy", "account", "manual") }
+                ?: defaults.profileSource,
             appApiBaseUrl = runCatching { config.appApiBaseUrl }.getOrNull()
                 ?.trimEnd('/')
+                ?.let(::migrateWindowsAppApiBaseUrl)
                 ?.takeIf { it.startsWith("https://") }
                 ?: defaults.appApiBaseUrl,
             authIssuer = runCatching { config.authIssuer }.getOrNull()
                 ?.trimEnd('/')
+                ?.let(::migrateWindowsAuthIssuer)
                 ?.takeIf { it.startsWith("https://") }
                 ?: defaults.authIssuer,
-            authClientId = runCatching { config.authClientId }.getOrNull()
-                ?.takeUnless { it.equals("gates-windows", ignoreCase = true) }
-                ?.takeIf { it.isNotBlank() }
-                ?: defaults.authClientId,
+            authClientId = normalizeWindowsAuthClientId(
+                runCatching { config.authClientId }.getOrNull(),
+                defaults.authClientId,
+            ),
             authDevice = runCatching { config.authDevice }.getOrNull()
                 ?.takeIf { it.isNotBlank() }
                 ?: defaults.authDevice,
@@ -613,6 +1024,8 @@ class WindowsRuntimeController {
                 ?.takeIf { it.startsWith("https://") }
                 ?: defaults.downloadPageUrl,
             autoCheckUpdates = runCatching { config.autoCheckUpdates }.getOrDefault(defaults.autoCheckUpdates),
+            autoUploadRecoveryReports = runCatching { config.autoUploadRecoveryReports }
+                .getOrDefault(defaults.autoUploadRecoveryReports),
             reportUrls = reportUrls,
             systemProxyEnabled = runCatching { config.systemProxyEnabled }.getOrDefault(defaults.systemProxyEnabled),
             restoreSystemProxyOnStop = runCatching { config.restoreSystemProxyOnStop }
@@ -635,7 +1048,7 @@ class WindowsRuntimeController {
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
                 ?: defaults.tunInterfaceName,
-            tunAddress = cleanList(config.tunAddress, defaults.tunAddress, allowEmpty = false),
+            tunAddress = normalizeTunAddress(cleanList(config.tunAddress, defaults.tunAddress, allowEmpty = false)),
             tunMtu = runCatching { config.tunMtu }.getOrDefault(defaults.tunMtu)
                 .takeIf { it in 1280..65535 }
                 ?: defaults.tunMtu,
@@ -659,7 +1072,7 @@ class WindowsRuntimeController {
                 ?.takeIf { it.isNotBlank() }
                 ?: defaults.roomNetLocalGameHost,
             activeRoute = runCatching { config.activeRoute }.getOrNull()
-                ?.takeIf { it in listOf("auto", "bridge", "relay", "naive", "hy2") }
+                ?.takeIf { it == "auto" || isWindowsProxyRouteId(it) }
                 ?: defaults.activeRoute,
             disableBridgeMultiplex = runCatching { config.disableBridgeMultiplex }.getOrNull()
                 ?: defaults.disableBridgeMultiplex,
@@ -681,12 +1094,18 @@ class WindowsRuntimeController {
     }
 
     suspend fun run(command: String, route: String? = null): RuntimeCommandResult {
+        if (accessOnly && command !in WINDOWS_ACCESS_ONLY_COMMANDS) {
+            return RuntimeCommandResult(403, "Операция запрещена в изолированной проверке доступа.")
+        }
         return runCatching {
             when (command) {
                 "init" -> initialize()
-                "login" -> login()
+                "login" -> {
+                    val context = currentCoroutineContext()
+                    runInterruptible(Dispatchers.IO) { login { context.ensureActive() } }
+                }
                 "import-app" -> importAuthenticatedAppConfig()
-                "import-sub" -> importSubscription()
+                "import-sub" -> importSubscription(route)
                 "generate" -> generateConfig()
                 "check" -> checkConfig()
                 "connect" -> connect()
@@ -712,6 +1131,9 @@ class WindowsRuntimeController {
                 "disable-system-proxy" -> disableSystemProxy()
                 "enable-autostart" -> setAutoStart(enabled = true)
                 "disable-autostart" -> setAutoStart(enabled = false)
+                "install-service" -> WindowsRuntimeServiceManager().install()
+                "uninstall-service" -> WindowsRuntimeServiceManager().uninstall()
+                "service-status" -> WindowsRuntimeServiceManager().status()
                 "roomnet-info" -> roomNetInfo()
                 "roomnet-start" -> startRoomNet()
                 "roomnet-stop" -> stopRoomNet()
@@ -721,6 +1143,7 @@ class WindowsRuntimeController {
                 else -> RuntimeCommandResult(2, "Unknown command: $command")
             }
         }.getOrElse { error ->
+            if (error is CancellationException) throw error
             RuntimeCommandResult(1, error.message ?: error.toString())
         }
     }
@@ -743,16 +1166,22 @@ class WindowsRuntimeController {
         )
     }
 
-    private fun login(): RuntimeCommandResult {
+    private fun login(checkActive: () -> Unit = {}): RuntimeCommandResult {
+        try {
+        authorizationPhase.value = WindowsAuthorizationPhase.Starting
+        checkActive()
         ensureDirs()
         val config = readConfig()
-        val metadata = fetchJson("${config.authIssuer}/.well-known/openid-configuration")
-        val deviceEndpoint = metadata.get("device_authorization_endpoint")?.asString
+        val metadata = fetchJson("${config.authIssuer}/.well-known/openid-configuration", secureAuth = true)
+        require(metadata.get("issuer")?.asString?.trimEnd('/') == config.authIssuer.trimEnd('/')) {
+            "Authorization issuer mismatch"
+        }
+        val deviceEndpoint = validatedWindowsAuthEndpoint(config.authIssuer, metadata.get("device_authorization_endpoint")?.asString
             ?.takeIf { it.isNotBlank() }
-            ?: "${config.authIssuer}/protocol/openid-connect/auth/device"
-        val tokenEndpoint = metadata.get("token_endpoint")?.asString
+            ?: "${config.authIssuer}/protocol/openid-connect/auth/device")
+        val tokenEndpoint = validatedWindowsAuthEndpoint(config.authIssuer, metadata.get("token_endpoint")?.asString
             ?.takeIf { it.isNotBlank() }
-            ?: error("Keycloak metadata has no token endpoint")
+            ?: error("Keycloak metadata has no token endpoint"))
         val pkce = newPkcePair()
         val deviceResponse = postForm(
             deviceEndpoint,
@@ -766,24 +1195,30 @@ class WindowsRuntimeController {
         if (deviceResponse.statusCode() !in 200..299) {
             return RuntimeCommandResult(
                 deviceResponse.statusCode(),
-                "Login start failed: HTTP ${deviceResponse.statusCode()} ${deviceResponse.body()}",
+                "Login start failed: HTTP ${deviceResponse.statusCode()}",
             )
         }
 
         val body = JsonParser.parseString(deviceResponse.body()).asJsonObject
         val deviceCode = body.get("device_code")?.asString ?: error("device_code is missing")
         val userCode = body.get("user_code")?.asString.orEmpty()
-        val verificationUri = body.get("verification_uri_complete")?.asString
+        val verificationUri = validatedWindowsAuthEndpoint(config.authIssuer, body.get("verification_uri_complete")?.asString
             ?: body.get("verification_uri")?.asString
-            ?: error("verification_uri is missing")
-        val expiresIn = body.get("expires_in")?.asLong ?: 600L
-        var intervalSeconds = body.get("interval")?.asLong ?: 5L
+            ?: error("verification_uri is missing"))
+        val expiresIn = (body.get("expires_in")?.asLong ?: 600L).coerceIn(1L, 900L)
+        var intervalSeconds = (body.get("interval")?.asLong ?: 5L).coerceIn(2L, 30L)
 
+        checkActive()
+        authorizationPrompt.value = WindowsAuthorizationPrompt(verificationUri, userCode)
+        authorizationPhase.value = WindowsAuthorizationPhase.Waiting
         val opened = openUri(verificationUri)
         val startedAt = Instant.now().epochSecond
         val deadline = startedAt + expiresIn
         while (Instant.now().epochSecond < deadline) {
-            Thread.sleep(intervalSeconds.coerceAtLeast(2L) * 1000L)
+            checkActive()
+            val pauseMillis = intervalSeconds.coerceIn(2L, 60L) * 1000L
+            authorizationPause?.invoke(pauseMillis) ?: Thread.sleep(pauseMillis)
+            checkActive()
             val tokenResponse = postForm(
                 tokenEndpoint,
                 mapOf(
@@ -794,7 +1229,13 @@ class WindowsRuntimeController {
                 ),
             )
             if (tokenResponse.statusCode() in 200..299) {
+                synchronized(authorizationCommitLock) {
+                    checkActive()
+                    authorizationPrompt.value = null
+                    authorizationPhase.value = WindowsAuthorizationPhase.ReceivingProfile
+                }
                 saveAuthState(config, tokenEndpoint, JsonParser.parseString(tokenResponse.body()).asJsonObject)
+                checkActive()
                 val imported = importAuthenticatedAppConfig()
                 return RuntimeCommandResult(
                     imported.exitCode,
@@ -802,9 +1243,6 @@ class WindowsRuntimeController {
                         appendLine("Signed in with Keycloak.")
                         if (opened) {
                             appendLine("Browser was opened for device authorization.")
-                        }
-                        if (userCode.isNotBlank()) {
-                            appendLine("User code: $userCode")
                         }
                         append(imported.output)
                     }.trim(),
@@ -821,7 +1259,7 @@ class WindowsRuntimeController {
                 "expired_token" -> return RuntimeCommandResult(1, "Login expired. Start sign in again.")
                 else -> return RuntimeCommandResult(
                     tokenResponse.statusCode(),
-                    "Login token exchange failed: HTTP ${tokenResponse.statusCode()} ${tokenResponse.body()}",
+                    "Login token exchange failed: HTTP ${tokenResponse.statusCode()}",
                 )
             }
         }
@@ -830,17 +1268,20 @@ class WindowsRuntimeController {
             1,
             buildString {
                 append("Login timed out.")
-                if (!opened) append(" Open this URL manually: $verificationUri")
-                if (userCode.isNotBlank()) append(" Code: $userCode")
+                if (!opened) append(" Browser could not be opened.")
             },
         )
+        } finally {
+            authorizationPrompt.value = null
+            authorizationPhase.value = WindowsAuthorizationPhase.Idle
+        }
     }
 
     private fun importAuthenticatedAppConfig(): RuntimeCommandResult {
         ensureDirs()
         val config = readConfig()
         val token = freshAccessToken(config)
-            ?: return RuntimeCommandResult(1, "Sign in first.")
+            ?: return RuntimeCommandResult(401, "Sign in first.")
         val query = mutableMapOf(
             "platform" to WINDOWS_PLATFORM,
             "device" to config.authDevice,
@@ -858,36 +1299,40 @@ class WindowsRuntimeController {
             .timeout(Duration.ofSeconds(30))
             .GET()
             .build()
-        val response = httpClient().send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        val response = httpClient(allowRedirects = false).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
         if (response.statusCode() !in 200..299) {
-            return RuntimeCommandResult(response.statusCode(), "App config fetch failed: HTTP ${response.statusCode()} ${response.body()}")
+            if (response.statusCode() == 401) requireReauthentication(config)
+            return RuntimeCommandResult(response.statusCode(), "App config fetch failed: HTTP ${response.statusCode()}")
         }
-        JsonParser.parseString(response.body()).asJsonObject
-        rawConfigFile.writeText(response.body(), StandardCharsets.UTF_8)
-        return RuntimeCommandResult(0, "Imported authenticated app config to ${rawConfigFile.absolutePath}")
+        return storeImportedProfile("account", response.body())
     }
 
-    private fun importSubscription(): RuntimeCommandResult {
+    private fun importSubscription(input: String? = null): RuntimeCommandResult {
         ensureDirs()
         val config = readConfig()
-        val url = singBoxSubscriptionUrl(config.subscriptionUrl)
-        val request = HttpRequest.newBuilder(URI.create(url))
-            .header("Accept", "application/json")
-            .timeout(java.time.Duration.ofSeconds(30))
-            .GET()
-            .build()
-        val response = HttpClient.newBuilder()
-            .connectTimeout(java.time.Duration.ofSeconds(10))
-            .build()
-            .send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
-        if (response.statusCode() !in 200..299) {
-            return RuntimeCommandResult(response.statusCode(), "Subscription fetch failed: HTTP ${response.statusCode()}")
+        val subscriptionUrl = input?.trim() ?: config.subscriptionUrl
+        val url = runCatching { subscriptionJsonEndpoint(subscriptionUrl) }.getOrElse {
+            return RuntimeCommandResult(1, "Укажите HTTPS-ссылку подписки GATES.")
         }
-        JsonParser.parseString(response.body()).asJsonObject
-        rawConfigFile.writeText(response.body(), StandardCharsets.UTF_8)
-        return RuntimeCommandResult(0, "Imported subscription sing-box JSON to ${rawConfigFile.absolutePath}")
+        return try {
+            val json = fetchSubscriptionJson?.invoke(url) ?: run {
+                val request = HttpRequest.newBuilder(URI.create(url))
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(30))
+                    .GET().build()
+                val response = httpClient().send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                if (response.statusCode() !in 200..299) {
+                    return RuntimeCommandResult(response.statusCode(), "Не удалось получить подписку: HTTP ${response.statusCode()}.")
+                }
+                response.body()
+            }
+            storeImportedProfile("manual", json, subscriptionUrl)
+        } catch (_: Exception) {
+            RuntimeCommandResult(1, "Не удалось получить подписку. Сохранённые профили не изменены.")
+        }
     }
 
+    @Synchronized
     private fun generateConfig(forceProxyMode: Boolean = false): RuntimeCommandResult {
         ensureDirs()
         if (!rawConfigFile.isFile) {
@@ -895,7 +1340,7 @@ class WindowsRuntimeController {
         }
         val appConfig = readConfig()
         val runtimeMode = effectiveRuntimeMode(appConfig, forceProxyMode)
-        val root = JsonParser.parseString(rawConfigFile.readText(StandardCharsets.UTF_8)).asJsonObject
+        val root = JsonParser.parseString(profileStore.readText(rawConfigFile, StandardCharsets.UTF_8)).asJsonObject
         root.add("inbounds", buildInbounds(appConfig, runtimeMode))
         normalizeLog(root)
         normalizeDns(root, appConfig)
@@ -903,7 +1348,7 @@ class WindowsRuntimeController {
         applyPhysicalBind(root, appConfig)
         generatedModeFile.writeText(runtimeMode, StandardCharsets.US_ASCII)
         generatedConfigFile.writeText(gson.toJson(root), StandardCharsets.UTF_8)
-        return checkConfig().let { check ->
+        return (validateGeneratedConfig?.invoke(generatedConfigFile) ?: checkConfig()).let { check ->
             if (check.exitCode == 0) {
                 RuntimeCommandResult(
                     0,
@@ -965,13 +1410,28 @@ class WindowsRuntimeController {
         )
     }
 
+    @Synchronized
     private fun connect(): RuntimeCommandResult {
         ensureDirs()
-        extractRuntime()
         val config = readConfig()
+        if (allowRuntimeServiceDelegation && runtimeService.health().isRunningServiceTunnel()) {
+            return RuntimeCommandResult(
+                0,
+                "Runtime is already running in GATES Runtime service. Saved configurations apply on the next connection.",
+            )
+        }
+        val existingId = managedProcessId()
+        val existingProcess = managedProcess()
+        if (isManagedProcessRunning(existingId, existingProcess)) {
+            return RuntimeCommandResult(
+                0,
+                "Runtime is already running ${runningRuntimeModeSummary()} runtime. Saved configurations apply on the next connection.",
+            )
+        }
+        extractRuntime()
         val steps = mutableListOf<String>()
         if (
-            !authStateFile.isFile &&
+            readAuthState(config) == null &&
             !rawConfigFile.isFile &&
             config.subscriptionUrl.contains("REPLACE_WITH_PERSONAL_TOKEN")
         ) {
@@ -981,8 +1441,10 @@ class WindowsRuntimeController {
                 return RuntimeCommandResult(signedIn.exitCode, steps.joinToString("\n") + "\n" + signedIn.output)
             }
         }
-        if (authStateFile.isFile) {
-            val imported = importAuthenticatedAppConfig()
+        if (readAuthState(config) != null && config.profileSource != "manual") {
+            val imported = runCatching { importAuthenticatedAppConfig() }.getOrElse {
+                RuntimeCommandResult(1, "Не удалось обновить аккаунтную конфигурацию.")
+            }
             steps += "import-app exit=${imported.exitCode}"
             if (imported.exitCode != 0 && !rawConfigFile.isFile) {
                 return RuntimeCommandResult(imported.exitCode, steps.joinToString("\n") + "\n" + imported.output)
@@ -1000,17 +1462,44 @@ class WindowsRuntimeController {
         if (generated.exitCode != 0) {
             return RuntimeCommandResult(generated.exitCode, steps.joinToString("\n") + "\n" + generated.output)
         }
-        var started = startProxy()
-        steps += "start-proxy exit=${started.exitCode}"
-        var startedMode = generatedRuntimeModeSummary()
-        if (started.exitCode != 0 && config.runtimeMode == "tun" && config.allowProxyFallback) {
-            val fallbackGenerated = generateConfig(forceProxyMode = true)
-            steps += "fallback-generate exit=${fallbackGenerated.exitCode}"
-            if (fallbackGenerated.exitCode == 0) {
-                started = startProxy()
-                startedMode = generatedRuntimeModeSummary()
-                steps += "fallback-start-proxy exit=${started.exitCode}"
+        val generatedMode = generatedRuntimeModeSummary()
+        if (shouldRequestTunElevation(config, generatedMode)) {
+            if (allowRuntimeServiceDelegation) {
+                val service = startThroughRuntimeService()
+                steps += "runtime-helper-connect exit=${service.exitCode}"
+                return RuntimeCommandResult(service.exitCode, steps.joinToString("\n") + "\n" + service.output)
             }
+            val elevated = requestElevatedCli("connect", expectedRunning = true)
+            steps += "elevate-connect exit=${elevated.exitCode}"
+            return RuntimeCommandResult(elevated.exitCode, steps.joinToString("\n") + "\n" + elevated.output)
+        }
+        val started = startProxy()
+        steps += "start-runtime exit=${started.exitCode}"
+        val startedMode = generatedRuntimeModeSummary()
+        if (started.exitCode != 0 && config.runtimeMode == "tun" && startedMode == "tun") {
+            val elevated = if (
+                isTunPermissionFailure(started.output) &&
+                !isRunningAsAdministrator() &&
+                allowRuntimeServiceDelegation
+            ) {
+                val delegated = startThroughRuntimeService()
+                steps += "runtime-helper-connect-after-error exit=${delegated.exitCode}"
+                delegated
+            } else if (isTunPermissionFailure(started.output) && !isRunningAsAdministrator()) {
+                val requested = requestElevatedCli("connect", expectedRunning = true)
+                steps += "elevate-connect-after-error exit=${requested.exitCode}"
+                requested
+            } else {
+                RuntimeCommandResult(
+                    started.exitCode,
+                    "TUN failed. Proxy fallback was not used; set runtime to proxy explicitly if a fallback is needed.",
+                )
+            }
+            return RuntimeCommandResult(
+                elevated.exitCode,
+                steps.joinToString("\n") + "\n" + started.output + "\n" + elevated.output,
+                recoveryFailureStage = if (elevated.exitCode == 0) null else started.recoveryFailureStage,
+            )
         }
         val systemProxy = if (started.exitCode == 0 && startedMode != "tun" && config.systemProxyEnabled) {
             enableSystemProxy(config).also {
@@ -1019,7 +1508,7 @@ class WindowsRuntimeController {
         } else {
             RuntimeCommandResult(0, "")
         }
-        val roomNet = startRoomNet()
+        val roomNet = startRoomNetForConnect()
         steps += "roomnet-start exit=${roomNet.exitCode}"
         return RuntimeCommandResult(
             when {
@@ -1039,14 +1528,16 @@ class WindowsRuntimeController {
                     append(roomNet.output)
                 }
             }.trim(),
+            recoveryFailureStage = started.recoveryFailureStage,
         )
     }
 
+    @Synchronized
     private fun startProxy(): RuntimeCommandResult {
         ensureDirs()
         val existing = managedProcess()
         if (existing != null && existing.isAlive) {
-            return RuntimeCommandResult(0, "Already running. PID ${existing.pid()}")
+            return RuntimeCommandResult(0, "Already running ${runningRuntimeModeSummary()} runtime. PID ${existing.pid()}")
         }
         val check = checkConfig()
         if (check.exitCode != 0) {
@@ -1056,11 +1547,25 @@ class WindowsRuntimeController {
         val stamp = Instant.now().toString().replace(":", "-")
         val outLog = File(logsDir, "sing-box-$stamp.out.log")
         val errLog = File(logsDir, "sing-box-$stamp.err.log")
-        val process = ProcessBuilder(singBox().absolutePath, "run", "-c", generatedConfigFile.absolutePath)
-            .directory(binDir)
-            .redirectOutput(outLog)
-            .redirectError(errLog)
-            .start()
+        val runtimeMode = generatedRuntimeModeSummary()
+        if (runtimeMode == "tun") {
+            val prepared = prepareTunInterfaceForStart(readConfig())
+            if (prepared.exitCode != 0) {
+                return RuntimeCommandResult(
+                    prepared.exitCode,
+                    "TUN interface cleanup failed before start.\n${prepared.output}".trim(),
+                )
+            }
+        }
+        val process = try {
+            ProcessBuilder(singBox().absolutePath, "run", "-c", generatedConfigFile.absolutePath)
+                .directory(binDir)
+                .redirectOutput(outLog)
+                .redirectError(errLog)
+                .start()
+        } catch (_: Exception) {
+            return RuntimeCommandResult(1, "sing-box could not be started.", RecoveryFailureStage.CORE_STARTUP)
+        }
         pidFile.writeText(process.pid().toString(), StandardCharsets.US_ASCII)
         processStateFile.writeText(
             gson.toJson(
@@ -1069,6 +1574,7 @@ class WindowsRuntimeController {
                     "out_log" to outLog.absolutePath,
                     "err_log" to errLog.absolutePath,
                     "started_at" to Instant.now().toString(),
+                    "mode" to runtimeMode,
                 ),
             ),
             StandardCharsets.UTF_8,
@@ -1083,17 +1589,58 @@ class WindowsRuntimeController {
                     appendLine("sing-box exited early")
                     if (errLog.isFile) append(errLog.readText(StandardCharsets.UTF_8).takeLast(6000))
                 }.trim(),
+                RecoveryFailureStage.CORE_STARTUP,
             )
         }
-        return RuntimeCommandResult(0, "Started ${generatedRuntimeModeSummary()} runtime. PID ${process.pid()}")
+        return RuntimeCommandResult(0, "Started $runtimeMode runtime. PID ${process.pid()}")
     }
 
+    internal fun standaloneProxyDiagnosticSnapshot(sessionId: String): com.yokhan.gates.windows.service.TunnelDiagnosticSnapshot? = runCatching {
+        if (generatedRuntimeModeSummary() != "proxy" || readProcessState()["mode"] != "proxy") return null
+        val processId = managedProcessId() ?: return null
+        val process = ProcessHandle.of(processId).orElse(null)
+        if (process?.isAlive == true) {
+            val expectedExecutable = singBox().canonicalPath
+            val actualExecutable = process.info().command().orElse("")
+            if (!actualExecutable.equals(expectedExecutable, ignoreCase = true)) return null
+        }
+        val validated = com.yokhan.gates.windows.service.SingBoxConfigValidator.validate(generatedConfigFile.readBytes())
+            as? com.yokhan.gates.windows.service.ConfigValidationResult.Accepted ?: return null
+        com.yokhan.gates.windows.service.TunnelDiagnosticSnapshot(sessionId, process?.isAlive == true, validated.config)
+    }.getOrNull()
+
+    private fun startRoomNetForConnect(): RuntimeCommandResult =
+        runCatching { startRoomNet() }.getOrElse { error ->
+            RuntimeCommandResult(0, "RoomNet not started: ${error.message ?: error.toString()}")
+        }
+
+    private fun prepareTunInterfaceForStart(config: WindowsAppConfig): RuntimeCommandResult {
+        val addresses = windowsTunAddressIps(config.tunAddress)
+        if (addresses.isEmpty()) return RuntimeCommandResult(0, "")
+        val script = buildWindowsTunAddressCleanupScript(config.tunInterfaceName, addresses)
+        return powershell(script, timeoutSeconds = 10)
+    }
+
+    @Synchronized
     private fun stop(): RuntimeCommandResult {
         val config = readConfig()
         val roomNetStop = stopRoomNet()
+        val service = if (allowRuntimeServiceDelegation) {
+            runCatching { stopThroughRuntimeService() }.getOrElse { RuntimeCommandResult(1, "Service stop was not confirmed") }
+        } else RuntimeCommandResult(0, "")
+        val local = runCatching { stopLocalRuntime?.invoke(config) ?: stopManagedLocalRuntime(config, roomNetStop) }
+            .getOrElse { RuntimeCommandResult(1, "Local runtime stop was not confirmed") }
+        return RuntimeCommandResult(
+            if (service.exitCode != 0) service.exitCode else local.exitCode,
+            listOf(service.output, local.output).filter(String::isNotBlank).joinToString("\n"),
+        )
+    }
+
+    private fun stopManagedLocalRuntime(config: WindowsAppConfig, roomNetStop: RuntimeCommandResult): RuntimeCommandResult {
+        val processId = managedProcessId()
         val process = managedProcess()
-        if (process == null || !process.isAlive) {
-            pidFile.delete()
+        if (!isManagedProcessRunning(processId, process)) {
+            clearRuntimeProcessState()
             val proxyRestore = if (config.restoreSystemProxyOnStop) disableSystemProxy() else RuntimeCommandResult(0, "")
             return RuntimeCommandResult(
                 if (proxyRestore.exitCode != 0) proxyRestore.exitCode else 0,
@@ -1104,17 +1651,45 @@ class WindowsRuntimeController {
                 }.trim(),
             )
         }
-        process.destroy()
-        runCatching { process.onExit().get(5, TimeUnit.SECONDS) }
-        if (process.isAlive) {
-            process.destroyForcibly()
+        val runningMode = runningRuntimeModeSummary()
+        val stopError = runCatching {
+            if (process?.isAlive == true) {
+                process.destroy()
+                runCatching { process.onExit().get(5, TimeUnit.SECONDS) }
+                if (process.isAlive) {
+                    process.destroyForcibly()
+                    runCatching { process.onExit().get(5, TimeUnit.SECONDS) }
+                }
+            } else if (processId != null) {
+                stopWindowsProcess(processId)
+            }
+        }.exceptionOrNull()
+        if (isManagedProcessRunning(processId, process)) {
+            if (runningMode == "tun" && !isRunningAsAdministrator()) {
+                val elevated = requestElevatedCli("stop", expectedRunning = false)
+                return RuntimeCommandResult(
+                    elevated.exitCode,
+                    buildString {
+                        appendLine("Stop needs Windows administrator rights for TUN runtime.")
+                        appendLine(roomNetStop.output)
+                        append(elevated.output)
+                    }.trim(),
+                )
+            }
+            return RuntimeCommandResult(
+                1,
+                buildString {
+                    appendLine("Failed to stop runtime. PID ${processId ?: "unknown"}")
+                    if (stopError != null) appendLine(stopError.message.orEmpty())
+                }.trim(),
+            )
         }
-        pidFile.delete()
+        clearRuntimeProcessState()
         val proxyRestore = if (config.restoreSystemProxyOnStop) disableSystemProxy() else RuntimeCommandResult(0, "")
         return RuntimeCommandResult(
             if (proxyRestore.exitCode != 0) proxyRestore.exitCode else 0,
             buildString {
-                appendLine("Stopped runtime. PID ${process.pid()}")
+                appendLine("Stopped runtime. PID ${processId ?: "unknown"}")
                 appendLine(roomNetStop.output)
                 if (proxyRestore.output.isNotBlank()) append(proxyRestore.output)
             }.trim(),
@@ -1123,8 +1698,12 @@ class WindowsRuntimeController {
 
     private fun status(): RuntimeCommandResult {
         val config = readConfig()
+        val processId = managedProcessId()
         val process = managedProcess()
-        val exit = if (process?.isAlive == true) {
+        val serviceState = runtimeService.health()
+        val isServiceTunnelRunning = serviceState.isRunningServiceTunnel()
+        val isRunning = isManagedProcessRunning(processId, process) || isServiceTunnelRunning
+        val exit = if (isRunning) {
             curlBody(config, "https://api.ipify.org", timeoutSeconds = 15).let { result ->
                 if (result.exitCode == 0) result.output.trim() else "unknown: ${result.output}"
             }
@@ -1134,8 +1713,19 @@ class WindowsRuntimeController {
         return RuntimeCommandResult(
             0,
             buildString {
-                appendLine("Process: ${if (process?.isAlive == true) "running PID ${process.pid()}" else "stopped"}")
-                appendLine("Mode: requested=${config.runtimeMode}; generated=${generatedRuntimeModeSummary()}")
+                appendLine(
+                    "Process: ${when {
+                        isServiceTunnelRunning -> "running in GATES Runtime service"
+                        isRunning -> "running PID $processId"
+                        else -> "stopped"
+                    }}",
+                )
+                appendLine(
+                    "Mode: requested=${config.runtimeMode}; generated=${generatedRuntimeModeSummary()}; " +
+                        "running=${if (isServiceTunnelRunning) "tun-service" else if (isRunning) runningRuntimeModeSummary() else "none"}",
+                )
+                appendLine("TUN privileges: ${tunPrivilegeSummary(config)}")
+                appendLine("Runtime helper: ${runtimeHelperSummary()}")
                 appendLine("SOCKS: ${config.listenHost}:${config.socksPort}")
                 appendLine("HTTP: ${config.listenHost}:${config.httpPort}")
                 appendLine("System proxy: ${systemProxySummary()}")
@@ -1144,6 +1734,7 @@ class WindowsRuntimeController {
                 appendLine("RoomNet: ${roomNetSummary(config)}")
                 appendLine("Physical bind: ${physicalBindSummary(config)}")
                 appendLine("Exit IP via local proxy: $exit")
+                appendLine("Connectivity history: ${windowsConnectivityHistory().get("availability").asString}")
                 appendLine("AppData: ${appDir.absolutePath}")
             }.trim(),
         )
@@ -1156,15 +1747,64 @@ class WindowsRuntimeController {
             "none"
         }
 
+    private fun runningRuntimeModeSummary(): String =
+        readProcessState()["mode"]?.ifBlank { null } ?: "unknown"
+
+    private fun shouldRequestTunElevation(config: WindowsAppConfig, generatedMode: String): Boolean =
+        config.runtimeMode == "tun" && generatedMode == "tun" && !isRunningAsAdministrator()
+
+    private fun tunPrivilegeSummary(config: WindowsAppConfig): String {
+        val tunSelected = config.runtimeMode == "tun" || generatedRuntimeModeSummary() == "tun"
+        if (!tunSelected) return "not required"
+        return if (isRunningAsAdministrator()) "available" else "required"
+    }
+
+    private fun runtimeHelperSummary(): String =
+        if (runtimeService.health().exitCode == 0) "running" else "not running"
+
+    private fun startThroughRuntimeService(): RuntimeCommandResult {
+        val prepared = prepareRuntimeService()
+        if (prepared.exitCode != 0) return prepared
+        if (!generatedConfigFile.isFile) return RuntimeCommandResult(1, "Missing generated TUN config.")
+        val result = runtimeService.startTunnel(
+            generatedConfigFile.readText(StandardCharsets.UTF_8),
+        )
+        return mergeRuntimeServiceResults(prepared, requireRuntimeStartAcknowledgement(result))
+    }
+
+    private fun stopThroughRuntimeService(): RuntimeCommandResult {
+        val result = runtimeService.stop().let {
+            requireRuntimeStopAcknowledgement(it)
+        }
+        return mergeRuntimeServiceResults(RuntimeCommandResult(0, ""), result)
+    }
+
+    private fun mergeRuntimeServiceResults(
+        prepared: RuntimeCommandResult,
+        result: RuntimeCommandResult,
+    ): RuntimeCommandResult {
+        return RuntimeCommandResult(
+            result.exitCode,
+            buildString {
+                appendLine(prepared.output)
+                append(result.output)
+            }.trim(),
+        )
+    }
+
     private fun test(): RuntimeCommandResult {
         val config = readConfig()
-        if (managedProcess()?.isAlive != true) {
+        val processId = managedProcessId()
+        val isServiceTunnelRunning = runtimeService.health().isRunningServiceTunnel()
+        if (!isManagedProcessRunning(processId, managedProcess()) && !isServiceTunnelRunning) {
             return RuntimeCommandResult(1, "Runtime is not running. Start proxy first.")
         }
         var failed = 0
+        val qualitySamples = mutableListOf<WindowsCurlQualitySample>()
         val output = buildString {
             for (url in config.testUrls) {
                 val result = curl(config, url, timeoutSeconds = 25)
+                parseWindowsCurlQualitySample(url, result)?.let(qualitySamples::add)
                 if (result.exitCode == 0) {
                     appendLine("OK   $url :: ${result.output}")
                 } else {
@@ -1173,92 +1813,122 @@ class WindowsRuntimeController {
                 }
             }
         }.trim()
+        val routeId = reportTelemetryRoute(config)
+        if (routeId.isNotBlank() && qualitySamples.isNotEmpty()) {
+            val payload = buildWindowsQualityTelemetryPayload(routeId, qualitySamples)
+            val bearer = runCatching { freshAccessToken(config) }.getOrNull()
+            sendRouteTelemetry(config, payload, bearer)
+        }
         return RuntimeCommandResult(if (failed == 0) 0 else 1, output)
     }
 
+    @Synchronized
     private fun setRoute(route: String): RuntimeCommandResult {
         val normalized = route.lowercase()
-        if (normalized !in listOf("auto", "bridge", "relay", "naive", "hy2")) {
+        if (normalized != "auto" && !isWindowsProxyRouteId(normalized)) {
             return RuntimeCommandResult(1, "Unsupported route: $route")
         }
         val config = readConfig()
-        writeConfig(config.copy(activeRoute = normalized))
-        val generated = if (rawConfigFile.isFile) generateConfig() else RuntimeCommandResult(0, "Config will be generated after import")
-        return RuntimeCommandResult(generated.exitCode, "Active route set to $normalized\n${generated.output}".trim())
+        return applyRoutingChange(config.copy(activeRoute = normalized), "Active route set to $normalized")
     }
 
+    @Synchronized
     private fun setRuntimeMode(mode: String): RuntimeCommandResult {
         val normalized = mode.lowercase()
         if (normalized !in listOf("tun", "system-proxy", "proxy")) {
             return RuntimeCommandResult(1, "Unsupported runtime mode: $mode")
         }
         val config = readConfig()
-        writeConfig(config.copy(runtimeMode = normalized))
-        val generated = if (rawConfigFile.isFile) generateConfig() else RuntimeCommandResult(0, "Config will be generated after import")
-        return RuntimeCommandResult(generated.exitCode, "Runtime mode set to $normalized\n${generated.output}".trim())
+        return applyRoutingChange(config.copy(runtimeMode = normalized), "Runtime mode set to $normalized")
     }
 
+    @Synchronized
     private fun setTunRouting(mode: String): RuntimeCommandResult {
         val normalized = mode.lowercase()
         if (normalized !in listOf("all", "selected")) {
             return RuntimeCommandResult(1, "Unsupported TUN routing mode: $mode")
         }
         val config = readConfig()
-        writeConfig(config.copy(tunRouteAll = normalized == "all"))
-        val generated = if (rawConfigFile.isFile) generateConfig() else RuntimeCommandResult(0, "Config will be generated after import")
-        return RuntimeCommandResult(generated.exitCode, "TUN routing set to $normalized\n${generated.output}".trim())
+        return applyRoutingChange(config.copy(tunRouteAll = normalized == "all"), "TUN routing set to $normalized")
     }
 
+    @Synchronized
     fun addAppRouting(target: String, proxy: Boolean): RuntimeCommandResult {
-        val app = parseAppRoutingTarget(target)
+        val app = parseWindowsAppRoutingTarget(target)
             ?: return RuntimeCommandResult(1, "Expected .exe path or process name.")
         val config = readConfig()
-        val updated = if (proxy) {
-            config.copy(
-                appProxyProcessNames = addUnique(config.appProxyProcessNames, app.processName),
-                appProxyProcessPaths = addUnique(config.appProxyProcessPaths, app.processPath),
-                appDirectProcessNames = removeValue(config.appDirectProcessNames, app.processName),
-                appDirectProcessPaths = removeValue(config.appDirectProcessPaths, app.processPath),
-            )
-        } else {
-            config.copy(
-                appDirectProcessNames = addUnique(config.appDirectProcessNames, app.processName),
-                appDirectProcessPaths = addUnique(config.appDirectProcessPaths, app.processPath),
-                appProxyProcessNames = removeValue(config.appProxyProcessNames, app.processName),
-                appProxyProcessPaths = removeValue(config.appProxyProcessPaths, app.processPath),
-            )
-        }
-        writeConfig(updated)
-        val generated = if (rawConfigFile.isFile) generateConfig() else RuntimeCommandResult(0, "Config will be generated after import")
+        val updated = updateWindowsAppRouting(config, app, proxy, remove = false)
         val mode = if (proxy) "GATES" else "direct"
-        return RuntimeCommandResult(
-            generated.exitCode,
-            "App route set to $mode: ${app.label}\n${generated.output}".trim(),
-        )
+        return applyRoutingChange(updated, "App route set to $mode: ${app.label}")
     }
 
+    @Synchronized
     fun removeAppRouting(target: String, proxy: Boolean): RuntimeCommandResult {
-        val normalized = target.trim().trim('"')
-        if (normalized.isBlank()) return RuntimeCommandResult(1, "Expected .exe path or process name.")
-        val fileName = File(normalized).name.takeIf { it.isNotBlank() } ?: normalized
-        val parsed = parseAppRoutingTarget(normalized)
-        val nameTargets = listOfNotNull(normalized, fileName, parsed?.processName).toTypedArray()
-        val pathTargets = listOfNotNull(normalized, parsed?.processPath).toTypedArray()
+        val app = parseWindowsAppRoutingTarget(target)
+            ?: return RuntimeCommandResult(1, "Expected .exe path or process name.")
         val config = readConfig()
-        val updated = if (proxy) {
-            config.copy(
-                appProxyProcessNames = removeValue(config.appProxyProcessNames, *nameTargets),
-                appProxyProcessPaths = removeValue(config.appProxyProcessPaths, *pathTargets),
-            )
-        } else {
-            config.copy(
-                appDirectProcessNames = removeValue(config.appDirectProcessNames, *nameTargets),
-                appDirectProcessPaths = removeValue(config.appDirectProcessPaths, *pathTargets),
+        val updated = updateWindowsAppRouting(config, app, proxy, remove = true)
+        return applyRoutingChange(updated, "App route removed: ${app.label}")
+    }
+
+    private fun applyRoutingChange(updated: WindowsAppConfig, message: String): RuntimeCommandResult {
+        val serviceState = if (allowRuntimeServiceDelegation) runtimeService.health() else RuntimeCommandResult(1, "")
+        if (allowRuntimeServiceDelegation && (serviceState.exitCode != 0 || serviceState.output.trim() !in setOf("RUNNING", "STOPPED"))) {
+            return RuntimeCommandResult(1, "Runtime state could not be verified; routing settings were not changed")
+        }
+        val digest = if (serviceState.exitCode == 0) runtimeService.configurationDigest() else RuntimeCommandResult(1, "")
+        val serviceHasIntent = digest.exitCode == 0 && digest.output.trim().matches(Regex("[0-9a-f]{64}"))
+        if (serviceState.exitCode == 0 && (digest.exitCode != 0 || (!serviceHasIntent && digest.output.trim() != "NONE"))) {
+            return RuntimeCommandResult(1, "Runtime configuration could not be verified; routing settings were not changed")
+        }
+        val serviceNeedsApply = serviceState.isRunningServiceTunnel() || serviceHasIntent
+        if (serviceNeedsApply && (!rawConfigFile.isFile || !generatedConfigFile.isFile)) {
+            return RuntimeCommandResult(1, "Cannot apply app routing without the imported and previous runtime configurations")
+        }
+        if (serviceNeedsApply) {
+            val localDigest = runCatching { runtimeConfigurationDigest(generatedConfigFile.readText(StandardCharsets.UTF_8)) }.getOrNull()
+            if (digest.exitCode != 0 || localDigest == null || digest.output.trim() != localDigest) {
+                return RuntimeCommandResult(1, "Runtime configuration differs from the local snapshot; synchronize it before editing app routing")
+            }
+        }
+        if (!serviceNeedsApply && isManagedProcessRunning(managedProcessId(), managedProcess())) {
+            return RuntimeCommandResult(1, "Stop the legacy runtime before editing app routing")
+        }
+        val files = listOf(appConfigFile, generatedConfigFile, generatedModeFile)
+        val previous = files.associateWith { if (it.isFile) it.readBytes() else null }
+        var applyAttempted = false
+        val result = runCatching {
+            writeConfig(updated)
+            val generated = if (rawConfigFile.isFile) generateConfig() else RuntimeCommandResult(0, "Config will be generated after import")
+            if (generated.exitCode != 0) generated
+            else if (serviceNeedsApply) {
+                applyAttempted = true
+                val applied = startThroughRuntimeService()
+                RuntimeCommandResult(applied.exitCode, listOf(message, generated.output, applied.output).joinToString("\n"))
+            } else {
+                RuntimeCommandResult(0, "$message\nSaved for the next connection\n${generated.output}")
+            }
+        }.getOrElse { RuntimeCommandResult(1, "App routing update failed") }
+        if (result.exitCode != 0) {
+            val filesRestored = runCatching {
+                previous.forEach { (file, bytes) ->
+                    if (bytes != null) file.writeBytes(bytes) else check(!file.exists() || file.delete())
+                }
+            }.isSuccess
+            // An IPC timeout can hide a successful apply; explicitly restore the old service config.
+            val runtimeRestore = if (applyAttempted) {
+                val oldJson = previous[generatedConfigFile]?.toString(StandardCharsets.UTF_8)
+                if (oldJson == null) RuntimeCommandResult(1, "Previous runtime config is unavailable")
+                else runCatching { requireRuntimeStartAcknowledgement(runtimeService.startTunnel(oldJson)) }
+                    .getOrElse { RuntimeCommandResult(1, "Runtime rollback failed") }
+            } else RuntimeCommandResult(0, "")
+            val restored = filesRestored && runtimeRestore.exitCode == 0
+            return RuntimeCommandResult(
+                result.exitCode,
+                "App routing was not applied; ${if (restored) "previous settings restored" else "rollback incomplete; check runtime state"}\n${result.output}",
             )
         }
-        writeConfig(updated)
-        val generated = if (rawConfigFile.isFile) generateConfig() else RuntimeCommandResult(0, "Config will be generated after import")
-        return RuntimeCommandResult(generated.exitCode, "App route removed: $normalized\n${generated.output}".trim())
+        return result
     }
 
     private fun appRoutingSummary(): RuntimeCommandResult {
@@ -1285,44 +1955,10 @@ class WindowsRuntimeController {
         )
     }
 
-    private data class AppRoutingTarget(
-        val processName: String,
-        val processPath: String,
-        val label: String,
-    )
-
-    private fun parseAppRoutingTarget(raw: String): AppRoutingTarget? {
-        val value = raw.trim().trim('"')
-        if (value.isBlank()) return null
-        val file = File(value)
-        val isPath = file.isAbsolute || value.contains("\\") || value.contains("/")
-        val name = if (isPath) file.name else value
-        if (!name.endsWith(".exe", ignoreCase = true)) return null
-        val path = if (isPath) file.absolutePath else ""
-        return AppRoutingTarget(
-            processName = name,
-            processPath = path,
-            label = path.ifBlank { name },
-        )
-    }
-
-    private fun addUnique(values: List<String>, value: String): List<String> {
-        if (value.isBlank()) return values
-        if (values.any { it.equals(value, ignoreCase = true) }) return values
-        return values + value
-    }
-
-    private fun removeValue(values: List<String>, vararg targets: String): List<String> {
-        val normalized = targets
-            .filter { it.isNotBlank() }
-            .map { it.trim() }
-        if (normalized.isEmpty()) return values
-        return values.filter { value -> normalized.none { value.equals(it, ignoreCase = true) } }
-    }
 
     private fun probeRoutes(): RuntimeCommandResult {
         val original = readConfig()
-        val wasRunning = managedProcess()?.isAlive == true
+        val wasRunning = isManagedProcessRunning(managedProcessId(), managedProcess())
         val rows = mutableListOf<String>()
         try {
             for (route in original.routeOrder) {
@@ -1383,7 +2019,9 @@ class WindowsRuntimeController {
             copied += publicName
         }
         copyIfPresent("app-config.json", appConfigFile, "app-config.json")
-        copyIfPresent("subscription.singbox.json", rawConfigFile, "subscription.singbox.json")
+        copyIfPresent("subscription.singbox.json", legacyConfigFile, "subscription.singbox.json")
+        copyIfPresent("account.singbox.json", accountConfigFile, "account.singbox.json")
+        copyIfPresent("manual.singbox.json", manualConfigFile, "manual.singbox.json")
         copyIfPresent("config.json", generatedConfigFile, "config.json")
         return if (copied.isEmpty()) {
             RuntimeCommandResult(1, "No compatible runtime state files found in ${sourceDir.absolutePath}")
@@ -1516,7 +2154,7 @@ class WindowsRuntimeController {
             gson = gson,
             config = config,
             info = info,
-            bearerToken = token,
+            accessTokenProvider = { freshAccessToken(config) ?: error("Sign in first.") },
             wsUrl = roomNetWebSocketUrl(config, info),
         )
         return relay.run()
@@ -1545,15 +2183,12 @@ class WindowsRuntimeController {
     }
 
     private fun roomNetWebSocketUrl(config: WindowsAppConfig, info: RoomNetInfo): String {
-        val base = info.relay.url.ifBlank {
-            config.appApiBaseUrl.trimEnd('/').replaceFirst("https://", "wss://") + info.relay.path
-        }
-        val query = mutableMapOf("device" to config.authDevice)
-        if (config.authRoom.isNotBlank()) {
-            query["room"] = config.authRoom
-        }
-        val encoded = query.entries.joinToString("&") { (key, value) -> "${urlEncode(key)}=${urlEncode(value)}" }
-        return if ("?" in base) "$base&$encoded" else "$base?$encoded"
+        return canonicalWindowsRoomNetWebSocketUrl(
+            appApiBaseUrl = config.appApiBaseUrl,
+            advertisedUrl = info.relay.url,
+            device = config.authDevice,
+            room = config.authRoom,
+        )
     }
 
     private fun describeRoomNetInfo(info: RoomNetInfo): String {
@@ -1621,6 +2256,7 @@ class WindowsRuntimeController {
             "generated-config-shape.redacted.json" to generatedConfigShape(),
             "runtime-files.txt" to runtimeInventory(),
             "recent-runtime-logs.redacted.txt" to recentRuntimeLogs(),
+            "connectivity-history.redacted.json" to gson.toJson(windowsConnectivityHistory()),
         )
         ZipOutputStream(bundleFile.outputStream().buffered()).use { zip ->
             entries.forEach { (name, content) ->
@@ -1642,6 +2278,22 @@ class WindowsRuntimeController {
     private fun checkUpdate(download: Boolean): RuntimeCommandResult {
         ensureDirs()
         val config = readConfig()
+        val expectedSigner = System.getProperty(WINDOWS_UPDATE_SIGNER_PROPERTY)
+        if (download && expectedSigner.isNullOrBlank()) {
+            // Manual distribution must still work when the update API is unavailable.
+            return deliverWindowsUpdate(
+                expectedSigner = null,
+                downloadPageUrl = config.downloadPageUrl,
+                releaseUrl = config.downloadPageUrl,
+                assetName = "",
+                assetUrl = "",
+                openPage = ::openUri,
+                downloadAsset = ::downloadUpdateAsset,
+                verifySignature = ::verifyWindowsInstallerSignature,
+                openInstaller = ::openFile,
+                latestVersion = "",
+            )
+        }
         val url = appEndpoint(
             config,
             "/api/app/release",
@@ -1687,20 +2339,17 @@ class WindowsRuntimeController {
         if (updateAvailable == false) {
             return RuntimeCommandResult(0, "No update. Current version: $WINDOWS_APP_VERSION")
         }
-        if (assetName.isBlank() || assetUrl.isBlank()) {
-            openUri(releaseUrl)
-            return RuntimeCommandResult(0, "Update found, but no Windows asset was selected. Opened download page: $releaseUrl")
-        }
-
-        val target = downloadUpdateAsset(assetName, assetUrl)
-        val opened = openFile(target)
-        return RuntimeCommandResult(
-            0,
-            buildString {
-                appendLine("Downloaded update: ${target.absolutePath}")
-                appendLine("Latest version: ${latest.ifBlank { "unknown" }}")
-                append(if (opened) "Installer opened." else "Open the downloaded file manually.")
-            }.trim(),
+        return deliverWindowsUpdate(
+            expectedSigner = expectedSigner,
+            downloadPageUrl = config.downloadPageUrl,
+            releaseUrl = releaseUrl,
+            assetName = assetName,
+            assetUrl = assetUrl,
+            openPage = ::openUri,
+            downloadAsset = ::downloadUpdateAsset,
+            verifySignature = ::verifyWindowsInstallerSignature,
+            openInstaller = ::openFile,
+            latestVersion = latest,
         )
     }
 
@@ -1709,22 +2358,29 @@ class WindowsRuntimeController {
         val config = readConfig()
         val statusResult = status()
         val logsResult = logs()
+        val reportRoute = reportTelemetryRoute(config)
+        val telemetryPayload = buildWindowsUnknownTelemetryPayload(reportRoute).apply {
+            addProperty("selected_route_mode", config.activeRoute)
+        }
         val payload = JsonObject().apply {
             addProperty("platform", WINDOWS_PLATFORM)
             addProperty("app_version", WINDOWS_APP_VERSION)
             addProperty("captured_at", Instant.now().toString())
             addProperty("message", message.ifBlank { "User sent a bug report from Windows app." }.take(2000))
             addProperty("auth", authSummary())
-            addProperty("active_route", config.activeRoute)
+            addProperty("selected_route_mode", config.activeRoute)
+            telemetryPayload.entrySet().forEach { (key, value) -> add(key, value.deepCopy()) }
             addProperty("runtime_status", statusResult.output.take(6000))
             addProperty("runtime_logs", logsResult.output.takeLast(9000))
             addProperty("generated_config_shape", generatedConfigShape().take(14000))
             addProperty("app_config", redactedAppConfig().take(8000))
+            add("connectivity_history", windowsConnectivityHistory())
         }
         val localFile = File(reportsDir, "bug-report-${Instant.now().toString().replace(":", "-")}.json")
         localFile.writeText(gson.toJson(payload), StandardCharsets.UTF_8)
 
         val bearer = runCatching { freshAccessToken(config) }.getOrNull()
+        sendRouteTelemetry(config, telemetryPayload, bearer)
         val failures = mutableListOf<String>()
         for (url in config.reportUrls) {
             val requestBuilder = HttpRequest.newBuilder(URI.create(url))
@@ -1761,6 +2417,29 @@ class WindowsRuntimeController {
         )
     }
 
+    private fun sendRouteTelemetry(
+        config: WindowsAppConfig,
+        payload: JsonObject,
+        bearerToken: String?,
+    ) {
+        if (!payload.has("active_route")) return
+        runCatching {
+            val requestBuilder = HttpRequest.newBuilder(
+                URI.create("${config.appApiBaseUrl.trimEnd('/')}/api/app/route-telemetry"),
+            )
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json; charset=utf-8")
+                .header("X-Yokhan-Client", "GATES-Windows")
+                .header("X-Yokhan-App-Version", WINDOWS_APP_VERSION)
+                .timeout(Duration.ofSeconds(10))
+                .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(payload), StandardCharsets.UTF_8))
+            if (!bearerToken.isNullOrBlank()) {
+                requestBuilder.header("Authorization", "Bearer $bearerToken")
+            }
+            httpClient().send(requestBuilder.build(), HttpResponse.BodyHandlers.discarding())
+        }
+    }
+
     private fun normalizeLog(root: JsonObject) {
         val log = root.getAsJsonObject("log") ?: JsonObject().also { root.add("log", it) }
         log.addProperty("level", "info")
@@ -1769,7 +2448,11 @@ class WindowsRuntimeController {
 
     private fun normalizeDns(root: JsonObject, config: WindowsAppConfig) {
         val dns = root.getAsJsonObject("dns") ?: return
-        val finalRoute = selectedProxyOutbound(config)
+        val tags = root.getAsJsonArray("outbounds")
+            ?.mapNotNull { it.asJsonObject.get("tag")?.asString }
+            ?.toSet()
+            ?: emptySet()
+        val finalRoute = selectWindowsDnsProxyOutbound(config.activeRoute, tags)
         dns.getAsJsonArray("servers")?.forEach { element ->
             val server = element.asJsonObject
             when (server.get("tag")?.asString) {
@@ -1788,19 +2471,22 @@ class WindowsRuntimeController {
             disableBridgeMultiplex(outbounds)
         }
         if (config.activeRoute == "auto" && "auto" !in tags) {
-            val available = JsonArray()
-            config.routeOrder.filter { it in tags }.forEach { available.add(it) }
-            val normalizedOutbounds = JsonArray()
-            normalizedOutbounds.add(
-                JsonObject().apply {
-                    addProperty("type", "urltest")
-                    addProperty("tag", "auto")
-                    add("outbounds", available)
-                    addProperty("url", config.healthcheckUrl)
-                    addProperty("interval", "30s")
-                    addProperty("tolerance", 200)
-                },
+            val health = fetchRouteHealthSnapshot(config)
+            val availableProxyRoutes = if (config.profileSource == "account") {
+                validWindowsProxyRouteTags(outbounds)
+            } else {
+                tags.filter { it != "direct" }
+            }
+            val candidates = orderWindowsRoutesByHealth(
+                windowsAutoRouteCandidates(
+                    config.routeOrder,
+                    availableProxyRoutes,
+                    includeUnlistedRoutes = config.profileSource == "account",
+                ),
+                health,
             )
+            val normalizedOutbounds = JsonArray()
+            normalizedOutbounds.add(buildWindowsAutoOutbound(candidates, health, config.healthcheckUrl))
             outbounds.forEach { normalizedOutbounds.add(it) }
             root.add("outbounds", normalizedOutbounds)
         }
@@ -1826,22 +2512,8 @@ class WindowsRuntimeController {
     private fun normalizeAppRouteRules(route: JsonObject, config: WindowsAppConfig) {
         val rules = route.getAsJsonArray("rules") ?: JsonArray()
         val prepend = JsonArray()
-        addProcessRule(
-            prepend,
-            processNames = config.appDirectProcessNames,
-            processPaths = config.appDirectProcessPaths,
-            outbound = "direct",
-        )
-        addProcessRule(
-            prepend,
-            processNames = config.appProxyProcessNames,
-            processPaths = config.appProxyProcessPaths,
-            outbound = selectedProxyOutbound(config),
-        )
-        if (prepend.size() == 0) {
-            route.add("rules", rules)
-            return
-        }
+        prepend.add(windowsLocalDirectRouteRule())
+        windowsAppProcessRules(config, selectedProxyOutbound(config)).forEach { prepend.add(it) }
         val merged = JsonArray()
         prepend.forEach { merged.add(it) }
         rules.forEach { merged.add(it) }
@@ -1849,32 +2521,6 @@ class WindowsRuntimeController {
         route.addProperty("find_process", true)
     }
 
-    private fun addProcessRule(
-        rules: JsonArray,
-        processNames: List<String>,
-        processPaths: List<String>,
-        outbound: String,
-    ) {
-        val names = processNames.filter { it.isNotBlank() }
-        val paths = processPaths.filter { it.isNotBlank() }
-        if (names.isEmpty() && paths.isEmpty()) return
-        if (names.isNotEmpty()) {
-            rules.add(
-                JsonObject().apply {
-                    add("process_name", JsonArray().also { array -> names.forEach { array.add(it) } })
-                    addProperty("outbound", outbound)
-                },
-            )
-        }
-        if (paths.isNotEmpty()) {
-            rules.add(
-                JsonObject().apply {
-                    add("process_path", JsonArray().also { array -> paths.forEach { array.add(it) } })
-                    addProperty("outbound", outbound)
-                },
-            )
-        }
-    }
 
     private fun disableBridgeMultiplex(outbounds: JsonArray) {
         outbounds.forEach { element ->
@@ -1893,6 +2539,35 @@ class WindowsRuntimeController {
 
     private fun selectedProxyOutbound(config: WindowsAppConfig): String =
         if (config.activeRoute == "auto") "auto" else config.activeRoute
+
+    private fun fetchRouteHealthSnapshot(config: WindowsAppConfig): WindowsRouteHealthSnapshot {
+        val url = "${config.appApiBaseUrl.trimEnd('/')}/api/app/route-health"
+        return runCatching {
+            val request = HttpRequest.newBuilder(URI.create(url))
+                .header("Accept", "application/json")
+                .header("X-Yokhan-Client", "GATES-Windows")
+                .header("X-Yokhan-App-Version", WINDOWS_APP_VERSION)
+                .timeout(Duration.ofSeconds(8))
+                .GET()
+                .build()
+            val response = httpClient().send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+            if (response.statusCode() !in 200..299) return@runCatching WindowsRouteHealthSnapshot()
+            parseWindowsRouteHealthPayload(response.body())
+        }.getOrDefault(WindowsRouteHealthSnapshot())
+    }
+
+    private fun reportTelemetryRoute(config: WindowsAppConfig): String {
+        if (config.activeRoute != "auto") return config.activeRoute
+        val state = readProcessState()
+        val logs = listOf("out_log", "err_log")
+            .mapNotNull { key -> state[key]?.let(::File) }
+            .filter(File::isFile)
+            .joinToString("\n") { file ->
+                runCatching { file.readText(StandardCharsets.UTF_8).takeLast(64 * 1024) }
+                    .getOrDefault("")
+            }
+        return detectWindowsRuntimeRoute(logs)
+    }
 
     private fun applyPhysicalBind(root: JsonObject, config: WindowsAppConfig) {
         if (config.physicalBindEnabled != true) return
@@ -2018,19 +2693,19 @@ class WindowsRuntimeController {
         ).any { it in text }
     }
 
-    private fun httpClient(): HttpClient =
-        HttpClient.newBuilder()
+    private fun httpClient(allowRedirects: Boolean = true): HttpClient =
+        if (!allowRedirects && authHttpClient != null) authHttpClient else HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(12))
-            .followRedirects(HttpClient.Redirect.NORMAL)
+            .followRedirects(if (allowRedirects) HttpClient.Redirect.NORMAL else HttpClient.Redirect.NEVER)
             .build()
 
-    private fun fetchJson(url: String): JsonObject {
+    private fun fetchJson(url: String, secureAuth: Boolean = false): JsonObject {
         val request = HttpRequest.newBuilder(URI.create(url))
             .header("Accept", "application/json")
             .timeout(Duration.ofSeconds(20))
             .GET()
             .build()
-        val response = httpClient().send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        val response = httpClient(allowRedirects = !secureAuth).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
         if (response.statusCode() !in 200..299) {
             error("GET $url failed: HTTP ${response.statusCode()}")
         }
@@ -2047,39 +2722,50 @@ class WindowsRuntimeController {
             .timeout(Duration.ofSeconds(25))
             .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
             .build()
-        return httpClient().send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        return httpClient(allowRedirects = false).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
     }
 
-    private fun saveAuthState(config: WindowsAppConfig, tokenEndpoint: String, tokenPayload: JsonObject) {
+    private fun saveAuthState(config: WindowsAppConfig, tokenEndpoint: String, tokenPayload: JsonObject, previousRefreshToken: String = "") {
         val expiresIn = tokenPayload.get("expires_in")?.asLong ?: 300L
+        val accessToken = tokenPayload.get("access_token")?.asString.orEmpty()
+        require(accessToken.isNotBlank()) { "Authorization token is missing" }
         val state = WindowsAuthState(
             issuer = config.authIssuer,
             clientId = config.authClientId,
             tokenEndpoint = tokenEndpoint,
-            accessToken = tokenPayload.get("access_token")?.asString.orEmpty(),
-            refreshToken = tokenPayload.get("refresh_token")?.asString.orEmpty(),
+            accessToken = accessToken,
+            refreshToken = tokenPayload.get("refresh_token")?.asString?.takeIf { it.isNotBlank() } ?: previousRefreshToken,
             expiresAtEpochSecond = Instant.now().epochSecond + expiresIn,
         )
-        authStateFile.writeText(gson.toJson(state), StandardCharsets.UTF_8)
+        authStateStore.write(gson.toJson(state))
     }
 
-    private fun readAuthState(): WindowsAuthState? {
-        if (!authStateFile.isFile) return null
-        return runCatching {
-            gson.fromJson(authStateFile.readText(StandardCharsets.UTF_8), WindowsAuthState::class.java)
+    private fun readAuthState(config: WindowsAppConfig): WindowsAuthState? = authStateStore.transaction {
+        if (!authStateFile.isFile) return@transaction null
+        runCatching {
+            val stored = authStateStore.read() ?: return@runCatching null
+            val state = gson.fromJson(stored.json, WindowsAuthState::class.java)
+            if (!windowsAuthIssuerMatches(state.issuer, config.authIssuer)) return@runCatching null
+            if (state.clientId.isNotBlank() && state.clientId != config.authClientId) return@runCatching null
+            validatedWindowsAuthEndpoint(config.authIssuer, state.tokenEndpoint)
+            if (stored.needsMigration) {
+                authStateStore.write(stored.json)
+            }
+            state
         }.getOrNull()
     }
 
-    private fun freshAccessToken(config: WindowsAppConfig): String? {
-        val state = readAuthState() ?: return null
+    private fun freshAccessToken(config: WindowsAppConfig): String? = authStateStore.transaction {
+        val state = readAuthState(config) ?: return@transaction null
+        if (state.requiresReauthentication) return@transaction null
         if (state.accessToken.isNotBlank() && state.expiresAtEpochSecond > Instant.now().epochSecond + 90) {
-            return state.accessToken
+            return@transaction state.accessToken
         }
         if (state.refreshToken.isBlank() || state.tokenEndpoint.isBlank()) {
-            return state.accessToken.takeIf { it.isNotBlank() }
+            return@transaction state.accessToken.takeIf { it.isNotBlank() && state.expiresAtEpochSecond > Instant.now().epochSecond }
         }
         val response = postForm(
-            state.tokenEndpoint,
+            validatedWindowsAuthEndpoint(config.authIssuer, state.tokenEndpoint),
             mapOf(
                 "grant_type" to "refresh_token",
                 "refresh_token" to state.refreshToken,
@@ -2087,16 +2773,25 @@ class WindowsRuntimeController {
             ),
         )
         if (response.statusCode() !in 200..299) {
-            if (state.accessToken.isNotBlank()) return state.accessToken
+            val failure = runCatching { JsonParser.parseString(response.body()).asJsonObject.get("error")?.asString }.getOrNull()
+            if (failure in setOf("invalid_grant", "invalid_token") || response.statusCode() == 401) {
+                requireReauthentication(config)
+                return@transaction null
+            }
+            if (state.accessToken.isNotBlank() && state.expiresAtEpochSecond > Instant.now().epochSecond) return@transaction state.accessToken
             error("Token refresh failed: HTTP ${response.statusCode()}")
         }
         val tokenPayload = JsonParser.parseString(response.body()).asJsonObject
-        saveAuthState(config, state.tokenEndpoint, tokenPayload)
-        return tokenPayload.get("access_token")?.asString?.takeIf { it.isNotBlank() }
+        saveAuthState(config, state.tokenEndpoint, tokenPayload, state.refreshToken)
+        tokenPayload.get("access_token")?.asString?.takeIf { it.isNotBlank() }
+    }
+
+    private fun requireReauthentication(config: WindowsAppConfig) = authStateStore.transaction {
+        readAuthState(config)?.let { authStateStore.write(gson.toJson(it.copy(requiresReauthentication = true))) }
     }
 
     private fun authSummary(): String {
-        val state = readAuthState() ?: return "not signed in"
+        val state = readAuthState(readConfig()) ?: return "not signed in"
         val expires = if (state.expiresAtEpochSecond > 0) {
             Instant.ofEpochSecond(state.expiresAtEpochSecond).toString()
         } else {
@@ -2244,6 +2939,55 @@ class WindowsRuntimeController {
     private fun regDelete(key: String, name: String): RuntimeCommandResult =
         runProcess(listOf("reg.exe", "delete", key, "/v", name, "/f"), appDir, timeoutSeconds = 10)
 
+    private fun isRunningAsAdministrator(): Boolean {
+        val script =
+            "\$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent()); " +
+                "\$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)"
+        val result = powershell(script, timeoutSeconds = 10)
+        return result.exitCode == 0 && result.output.lineSequence().any { line ->
+            line.trim().equals("true", ignoreCase = true)
+        }
+    }
+
+    private fun requestElevatedCli(command: String, expectedRunning: Boolean): RuntimeCommandResult {
+        val launcher = selfLauncher()
+            ?: return RuntimeCommandResult(1, "Cannot request administrator rights: GATES launcher path was not found.")
+        val script = listOf(
+            "\$ErrorActionPreference = 'Stop';",
+            "try {",
+            "\$p = Start-Process",
+            "-FilePath ${psSingleQuoted(launcher)}",
+            "-ArgumentList @('--cli', ${psSingleQuoted(command)})",
+            "-Verb RunAs",
+            "-PassThru",
+            "-Wait",
+            "-WindowStyle Hidden;",
+            "if (\$null -ne \$p) { Write-Output ('elevated_exit_code=' + \$p.ExitCode) }",
+            "else { Write-Output 'elevated_started' }",
+            "} catch {",
+            "Write-Output ('uac_error=' + \$_.Exception.Message);",
+            "exit 1",
+            "}",
+        ).joinToString(" ")
+        val result = powershell(script, timeoutSeconds = ELEVATED_CLI_TIMEOUT_SECONDS)
+        val isExpectedState = isManagedProcessRunning(managedProcessId(), managedProcess()) == expectedRunning
+        val exitCode = if (result.exitCode == 0 && isExpectedState) 0 else 1
+        return RuntimeCommandResult(
+            exitCode,
+            buildString {
+                appendLine("Windows administrator approval requested for GATES $command.")
+                if (result.output.isNotBlank()) appendLine(result.output)
+                append(
+                    if (isExpectedState) {
+                        "Runtime state is correct after elevated $command."
+                    } else {
+                        "Runtime state did not match the expected state after elevated $command."
+                    },
+                )
+            }.trim(),
+        )
+    }
+
     private fun notifySystemProxyChanged() {
         val memberDefinition = "[DllImport(\"wininet.dll\", SetLastError=true)] " +
             "public static extern bool InternetSetOption(System.IntPtr hInternet, int dwOption, " +
@@ -2308,7 +3052,31 @@ class WindowsRuntimeController {
         return target
     }
 
+    private fun verifyWindowsInstallerSignature(file: File): RuntimeCommandResult {
+        val expectedThumbprint = System.getProperty(WINDOWS_UPDATE_SIGNER_PROPERTY).orEmpty()
+            .replace(" ", "")
+            .uppercase()
+        if (!WINDOWS_SIGNER_PATTERN.matches(expectedThumbprint)) {
+            return RuntimeCommandResult(1, "Windows update signer is not configured; installer was not opened.")
+        }
+        val script = "${'$'}s=Get-AuthenticodeSignature -LiteralPath ${psSingleQuoted(file.absolutePath)}; " +
+            "if(${'$'}s.Status -ne 'Valid' -or ${'$'}null -eq ${'$'}s.SignerCertificate){exit 2}; " +
+            "Write-Output ${'$'}s.SignerCertificate.Thumbprint"
+        val signature = runProcess(
+            listOf("powershell.exe", "-NoProfile", "-Command", script),
+            updatesDir,
+            timeoutSeconds = 30,
+        )
+        val actualThumbprint = signature.output.replace(" ", "").trim().uppercase()
+        return if (signature.exitCode == 0 && actualThumbprint == expectedThumbprint) {
+            RuntimeCommandResult(0, "Installer signature verified.")
+        } else {
+            RuntimeCommandResult(1, "Downloaded installer signature or publisher is invalid; installer was deleted.")
+        }
+    }
+
     private fun openUri(url: String): Boolean {
+        authorizationBrowser?.let { return it(url) }
         val desktopOpened = runCatching {
             if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
                 Desktop.getDesktop().browse(URI.create(url))
@@ -2318,11 +3086,6 @@ class WindowsRuntimeController {
             }
         }.getOrDefault(false)
         if (desktopOpened) return true
-        val cmdOpened = runCatching {
-            ProcessBuilder("cmd.exe", "/c", "start", "", url).start()
-            true
-        }.getOrDefault(false)
-        if (cmdOpened) return true
         return runCatching {
             ProcessBuilder("rundll32.exe", "url.dll,FileProtocolHandler", url).start()
             true
@@ -2353,9 +3116,9 @@ class WindowsRuntimeController {
         compact: Boolean = false,
     ): RuntimeCommandResult {
         val format = if (compact) {
-            "%{http_code} tls=%{time_appconnect}s ttfb=%{time_starttransfer}s total=%{time_total}s"
+            "%{http_code} tls=%{time_appconnect}s ttfb=%{time_starttransfer}s total=%{time_total}s bytes=%{size_download} speed=%{speed_download}"
         } else {
-            "%{http_code} dns=%{time_namelookup}s tcp=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s total=%{time_total}s"
+            "%{http_code} dns=%{time_namelookup}s tcp=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s total=%{time_total}s bytes=%{size_download} speed=%{speed_download}"
         }
         return runProcess(
             listOf(
@@ -2364,6 +3127,8 @@ class WindowsRuntimeController {
                 "-sS",
                 "-o",
                 "NUL",
+                "--range",
+                "0-262143",
                 "--proxy",
                 "socks5h://${config.listenHost}:${config.socksPort}",
                 "--connect-timeout",
@@ -2398,14 +3163,6 @@ class WindowsRuntimeController {
         )
     }
 
-    private fun singBoxSubscriptionUrl(url: String): String {
-        val trimmed = url.trim()
-        require(trimmed.isNotBlank() && !trimmed.contains("REPLACE_WITH_PERSONAL_TOKEN")) {
-            "Set subscription URL first"
-        }
-        return if (trimmed.contains("/singbox")) trimmed else trimmed.trimEnd('/') + "/singbox"
-    }
-
     private fun runProcess(args: List<String>, directory: File, timeoutSeconds: Int): RuntimeCommandResult {
         val process = ProcessBuilder(args)
             .directory(directory)
@@ -2421,9 +3178,39 @@ class WindowsRuntimeController {
     }
 
     private fun managedProcess(): ProcessHandle? {
-        if (!pidFile.isFile) return null
-        val pid = pidFile.readText(StandardCharsets.US_ASCII).trim().toLongOrNull() ?: return null
+        val pid = managedProcessId() ?: return null
         return ProcessHandle.of(pid).orElse(null)
+    }
+
+    private fun managedProcessId(): Long? {
+        val pidFileText = if (pidFile.isFile) {
+            pidFile.readText(StandardCharsets.US_ASCII)
+        } else {
+            null
+        }
+        return managedRuntimePid(pidFileText, readProcessState())
+    }
+
+    private fun isManagedProcessRunning(processId: Long?, process: ProcessHandle?): Boolean {
+        if (process?.isAlive == true) return true
+        return isWindowsProcessRunning(processId)
+    }
+
+    private fun isWindowsProcessRunning(processId: Long?): Boolean {
+        if (processId == null) return false
+        val script = "if (Get-Process -Id $processId -ErrorAction SilentlyContinue) { 'true' } else { 'false' }"
+        val result = powershell(script, timeoutSeconds = 5)
+        return result.exitCode == 0 && result.output.lineSequence().any { line ->
+            line.trim().equals("true", ignoreCase = true)
+        }
+    }
+
+    private fun stopWindowsProcess(processId: Long): RuntimeCommandResult =
+        powershell("Stop-Process -Id $processId -Force", timeoutSeconds = 10)
+
+    private fun clearRuntimeProcessState() {
+        pidFile.delete()
+        processStateFile.delete()
     }
 
     private fun managedRoomNetProcess(): ProcessHandle? {
@@ -2560,7 +3347,7 @@ class WindowsRuntimeController {
     }
 
     private fun redactSubscriptionUrl(url: String): String =
-        redactSecrets(url)
+        redactedSubscriptionUrl(url)
 
     private fun redactSecrets(text: String): String {
         var redacted = text
@@ -2620,9 +3407,7 @@ class WindowsRuntimeController {
         return File(binDir, "sing-box.exe")
     }
 
-    private fun resolveAppDir(): File {
-        val appData = System.getenv("APPDATA")?.takeIf { it.isNotBlank() }?.let { File(it) }
-            ?: File(System.getProperty("user.home"), "AppData/Roaming")
-        return File(appData, "GATES")
-    }
+    internal fun recoveryCoreVersion(): String =
+        if (System.getenv("YOKHAN_SING_BOX_DIR").isNullOrBlank()) "1.13.12" else "unknown"
+
 }

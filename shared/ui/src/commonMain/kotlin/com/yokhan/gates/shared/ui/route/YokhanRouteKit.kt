@@ -1,4 +1,4 @@
-﻿package com.yokhan.gates.app.ui.compose
+package com.yokhan.gates.shared.ui.route
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -30,10 +31,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -73,6 +80,8 @@ fun YokhanRouteFrame(
     spaceActive: Boolean,
     onMenuClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
+    showMenu: Boolean = true,
     content: @Composable ColumnScope.(YokhanPalette, YokhanTypography) -> Unit,
 ) {
     val target = yokhanPalette(spaceActive = spaceActive)
@@ -99,6 +108,8 @@ fun YokhanRouteFrame(
                 colors = colors,
                 typography = typography,
                 onMenuClick = onMenuClick,
+                onBack = onBack,
+                showMenu = showMenu,
             )
             Column(
                 modifier = Modifier
@@ -124,6 +135,7 @@ fun YokhanRouteLazyFrame(
     spaceActive: Boolean,
     onMenuClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
     content: LazyListScope.(YokhanPalette, YokhanTypography) -> Unit,
 ) {
     val target = yokhanPalette(spaceActive = spaceActive)
@@ -150,6 +162,7 @@ fun YokhanRouteLazyFrame(
                 colors = colors,
                 typography = typography,
                 onMenuClick = onMenuClick,
+                onBack = onBack,
             )
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -251,7 +264,7 @@ fun YokhanSectionLabel(
             fontFamily = typography.mono,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 1.4.sp,
+            letterSpacing = 0.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -271,7 +284,7 @@ fun YokhanHeadline(
         fontFamily = typography.text,
         fontSize = 20.sp,
         fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.2.sp,
+        letterSpacing = 0.sp,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier,
@@ -333,7 +346,7 @@ fun YokhanCaption(
         fontFamily = typography.mono,
         fontSize = 10.sp,
         fontWeight = FontWeight.Medium,
-        letterSpacing = 0.8.sp,
+        letterSpacing = 0.sp,
         modifier = modifier,
     )
 }
@@ -432,6 +445,26 @@ fun YokhanStatPair(
 }
 
 @Composable
+fun YokhanAdaptiveActionPair(
+    first: @Composable (Modifier) -> Unit,
+    second: @Composable (Modifier) -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth < 320.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
+                first(Modifier.fillMaxWidth())
+                second(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
+                first(Modifier.weight(1f))
+                second(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
 fun YokhanButtonGrid(
     actions: List<YokhanRouteAction>,
     colors: YokhanPalette,
@@ -487,7 +520,7 @@ fun YokhanRouteButton(
             .clip(RoundedCornerShape(YokhanRadius.Pill))
             .background(background)
             .border(YokhanStroke.Thin, border, RoundedCornerShape(YokhanRadius.Pill))
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .alpha(alpha)
             .padding(
                 horizontal = YokhanSpacing.ControlHorizontal,
@@ -501,7 +534,7 @@ fun YokhanRouteButton(
             fontFamily = typography.mono,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 0.7.sp,
+            letterSpacing = 0.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -603,6 +636,8 @@ private fun YokhanRouteTopBar(
     colors: YokhanPalette,
     typography: YokhanTypography,
     onMenuClick: () -> Unit,
+    onBack: (() -> Unit)? = null,
+    showMenu: Boolean = true,
 ) {
     Row(
         modifier = Modifier
@@ -612,14 +647,20 @@ private fun YokhanRouteTopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.Icon),
     ) {
-        YokhanMenuGlyph(colors = colors, onClick = onMenuClick)
+        if (onBack == null && showMenu) {
+            YokhanMenuGlyph(colors = colors, onClick = onMenuClick)
+        } else if (onBack != null) {
+            IconButton(onClick = onBack, modifier = Modifier.testTag("route.back")) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = colors.primary)
+            }
+        }
         Text(
             text = title,
             color = colors.primary,
             fontFamily = typography.text,
             fontSize = 24.sp,
             fontWeight = FontWeight.Medium,
-            letterSpacing = 1.1.sp,
+            letterSpacing = 0.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
@@ -634,7 +675,7 @@ private fun YokhanRouteTopBar(
                 fontFamily = typography.mono,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 1.2.sp,
+                letterSpacing = 0.sp,
                 maxLines = 1,
             )
             YokhanRouteStatusDot(

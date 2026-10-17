@@ -15,7 +15,7 @@ import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
-import com.yokhan.gates.app.ui.compose.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanRouteAction
 import com.yokhan.gates.app.ui.compose.YokhanSelectableApp
 import com.yokhan.gates.app.ui.compose.YokhanSelectableAppsScreen
 import io.nekohasekai.sagernet.utils.PackageCache

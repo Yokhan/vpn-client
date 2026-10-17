@@ -1,9 +1,12 @@
 ﻿package com.yokhan.gates.app.ui.dashboard
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import com.yokhan.gates.app.auth.YokhanKeycloakAuth
 import com.yokhan.gates.shared.domain.ConnectionStatus
 import com.yokhan.gates.shared.domain.DashboardState
 import com.yokhan.gates.shared.domain.LatencyDisplay
@@ -25,10 +28,12 @@ fun DashboardComposeScreen(
     modifier: Modifier = Modifier,
     scrollToTopSignal: Int = 0,
 ) {
+    val authConfigured = YokhanKeycloakAuth.isConfigured()
+    val signedIn by YokhanKeycloakAuth.sessionAvailable.collectAsState()
     YokhanDashboardScreen(
         state = state,
         profiles = profiles,
-        labels = dashboardLabels(),
+        labels = dashboardLabels(authConfigured = authConfigured, signedIn = signedIn),
         actions = actions,
         modifier = modifier,
         scrollToTopSignal = scrollToTopSignal,
@@ -37,7 +42,7 @@ fun DashboardComposeScreen(
 }
 
 @Composable
-private fun dashboardLabels(): DashboardUiLabels {
+private fun dashboardLabels(authConfigured: Boolean, signedIn: Boolean): DashboardUiLabels {
     return DashboardUiLabels(
         title = stringResource(R.string.dashboard_title),
         system = stringResource(R.string.dashboard_system_label),
@@ -54,10 +59,31 @@ private fun dashboardLabels(): DashboardUiLabels {
         checkConnection = stringResource(R.string.dashboard_check_connection),
         checkingConnection = stringResource(R.string.connection_test_testing).uppercase(),
         configurations = stringResource(R.string.dashboard_configurations),
-        add = stringResource(R.string.dashboard_add),
-        firstRunTitle = stringResource(R.string.dashboard_first_run_title),
-        firstRunBody = stringResource(R.string.dashboard_first_run_body),
-        firstRunAction = stringResource(R.string.dashboard_first_run_action),
+        add = stringResource(
+            if (signedIn) R.string.yokhan_auth_refresh_action
+            else if (authConfigured) R.string.dashboard_auth_add else R.string.dashboard_add,
+        ),
+        firstRunTitle = stringResource(
+            if (authConfigured) {
+                R.string.dashboard_auth_first_run_title
+            } else {
+                R.string.dashboard_first_run_title
+            },
+        ),
+        firstRunBody = stringResource(
+            if (authConfigured) {
+                R.string.dashboard_auth_first_run_body
+            } else {
+                R.string.dashboard_first_run_body
+            },
+        ),
+        firstRunAction = stringResource(
+            if (authConfigured) {
+                R.string.yokhan_auth_login_action
+            } else {
+                R.string.dashboard_first_run_action
+            },
+        ),
         latency = stringResource(R.string.dashboard_latency_label),
         status = stringResource(R.string.dashboard_status_label),
         protocol = stringResource(R.string.dashboard_protocol_label),

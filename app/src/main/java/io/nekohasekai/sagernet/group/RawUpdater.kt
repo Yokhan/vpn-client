@@ -2,6 +2,7 @@
 
 import android.annotation.SuppressLint
 import com.yokhan.gates.app.manifest.YokhanRouteManifestManager
+import com.yokhan.gates.app.auth.planProfileRefresh
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.*
 import io.nekohasekai.sagernet.fmt.AbstractBean
@@ -155,13 +156,15 @@ object RawUpdater : GroupUpdater() {
 
         Logs.d("Unique profiles: ${nameMap.size}")
 
-        val toDelete = ArrayList<ProxyEntity>()
-        val toReplace = exists.mapNotNull { entity ->
-            val name = entity.displayName()
-            if (nameMap.contains(name)) name to entity else let {
-                toDelete.add(entity)
-                null
-            }
+        val refresh = planProfileRefresh(
+            exists.map { it.id to it.displayName() },
+            nameMap.keys.toList(),
+            setOf(DataStore.selectedProxy, DataStore.currentProfile),
+        )
+        val byId = exists.associateBy { it.id }
+        val toDelete = refresh.removedIds.mapNotNull(byId::get)
+        val toReplace = nameMap.keys.zip(refresh.replacementIds).mapNotNull { (name, id) ->
+            id?.let(byId::get)?.let { name to it }
         }.toMap()
 
         Logs.d("toDelete profiles: ${toDelete.size}")
@@ -227,8 +230,9 @@ object RawUpdater : GroupUpdater() {
 
         val existCount = SagerDatabase.proxyDao.countByGroup(proxyGroup.id).toInt()
 
-        if (existCount != proxies.size) {
-            Logs.e("Exist profiles: $existCount, new profiles: ${proxies.size}")
+        val retainedCount = exists.count { it.id !in refresh.removedIds && it.id !in refresh.replacementIds }
+        if (existCount != proxies.size + retainedCount) {
+            Logs.e("Exist profiles: $existCount, new profiles: ${proxies.size}, retained: $retainedCount")
         }
 
         subscription.lastUpdated = (System.currentTimeMillis() / 1000).toInt()

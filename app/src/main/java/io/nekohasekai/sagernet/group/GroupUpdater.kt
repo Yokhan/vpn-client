@@ -5,6 +5,8 @@ import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.GroupManager
 import io.nekohasekai.sagernet.database.ProxyGroup
 import io.nekohasekai.sagernet.database.SubscriptionBean
+import io.nekohasekai.sagernet.database.SagerDatabase
+import com.yokhan.gates.app.backup.ProfileMutations
 import io.nekohasekai.sagernet.fmt.AbstractBean
 import io.nekohasekai.sagernet.fmt.http.HttpBean
 import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
@@ -134,21 +136,49 @@ abstract class GroupUpdater {
         }
 
         suspend fun executeUpdate(proxyGroup: ProxyGroup, byUser: Boolean): Boolean {
+            val requestedSubscription = proxyGroup.subscription ?: return false
+            val confirmedOfflineUpdate = if (byUser && needsOfflineConfirmation(requestedSubscription)) {
+                GroupManager.userInterface?.confirm(app.getString(R.string.update_subscription_warning))
+                    ?: false
+            } else false
+            if (byUser && needsOfflineConfirmation(requestedSubscription) && !confirmedOfflineUpdate) {
+                return false
+            }
+
+            return ProfileMutations.withLock {
+                try {
+                    // WorkManager can resume an old request after an import in the UI process.
+                    DataStore.flushConfiguration()
+                    DataStore.refreshConfiguration()
+                    DataStore.cacheGroups(SagerDatabase.groupDao.allGroups())
+                    val currentGroup = SagerDatabase.groupDao.getById(proxyGroup.id)
+                        ?: return@withLock false
+                    val subscription = currentGroup.subscription ?: return@withLock false
+                    if (!byUser && (!subscription.autoUpdate ||
+                            subscription.updateWhenConnectedOnly && !DataStore.serviceState.connected)
+                    ) return@withLock false
+                    if (byUser && needsOfflineConfirmation(subscription) &&
+                        (!confirmedOfflineUpdate || subscription.link != requestedSubscription.link ||
+                            subscription.updateWhenConnectedOnly != requestedSubscription.updateWhenConnectedOnly)
+                    ) return@withLock false
+                    executeUpdateLocked(currentGroup, byUser)
+                } finally {
+                    DataStore.flushConfiguration()
+                }
+            }
+        }
+
+        private fun needsOfflineConfirmation(subscription: SubscriptionBean): Boolean =
+            !DataStore.serviceState.connected &&
+                (subscription.link?.startsWith("http://") == true || subscription.updateWhenConnectedOnly)
+
+        private suspend fun executeUpdateLocked(proxyGroup: ProxyGroup, byUser: Boolean): Boolean {
             return coroutineScope {
                 if (!updating.add(proxyGroup.id)) cancel()
                 GroupManager.postReload(proxyGroup.id)
 
                 val subscription = proxyGroup.subscription!!
-                val connected = DataStore.serviceState.connected
                 val userInterface = GroupManager.userInterface
-
-                if (byUser && (subscription.link?.startsWith("http://") == true || subscription.updateWhenConnectedOnly) && !connected) {
-                    if (userInterface == null || !userInterface.confirm(app.getString(R.string.update_subscription_warning))) {
-                        finishUpdate(proxyGroup)
-                        cancel()
-                        return@coroutineScope true
-                    }
-                }
 
                 try {
                     RawUpdater.doUpdate(proxyGroup, subscription, userInterface, byUser)

@@ -1,4 +1,4 @@
-﻿package com.yokhan.gates.shared.ui.dashboard
+package com.yokhan.gates.shared.ui.dashboard
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
@@ -39,15 +39,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -58,6 +57,8 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -121,6 +122,7 @@ data class DashboardUiTuning(
 data class DashboardUiVisibility(
     val showMenu: Boolean = true,
     val showConnectionTest: Boolean = true,
+    val showProfiles: Boolean = true,
     val showAddProfile: Boolean = true,
     val showProfileActions: Boolean = true,
 )
@@ -285,8 +287,13 @@ fun YokhanDashboardScreen(
             .fillMaxSize()
             .background(if (drawBackgroundEffects) colors.background else Color.Transparent)
     ) {
-        if (drawBackgroundEffects && starfieldMounted) {
-            YokhanStarfield(modifier = Modifier.fillMaxSize().alpha(spaceLayerAlpha))
+        if (drawBackgroundEffects) {
+            YokhanStarfield(
+                modifier = Modifier.fillMaxSize().graphicsLayer {
+                    alpha = if (starfieldMounted) spaceLayerAlpha else 0f
+                },
+                active = starfieldMounted,
+            )
         }
 
         Column(
@@ -297,7 +304,9 @@ fun YokhanDashboardScreen(
             Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp)) {
                 DashboardToolbar(colors, labels, typography, actions, visibility)
                 DashboardTelemetryStrip(
-                    state = state,
+                    latencyLabel = state.latencyLabel,
+                    testRunning = state.isConnectionTestRunning,
+                    protocolLabel = state.activeProfileProtocolLabel,
                     connected = connected,
                     colors = colors,
                     labels = labels,
@@ -311,13 +320,15 @@ fun YokhanDashboardScreen(
                     .verticalScroll(scrollState)
                     .padding(start = 12.dp, end = 12.dp, bottom = tuning.contentBottomPadding.dp),
             ) {
-                CurrentConfigCard(state, colors, labels, typography)
-                LaunchPanel(state, connected, visualSpaceActive, colors, labels, typography, actions, tuning)
-                ConnectionStatusRow(state, connected, colors, labels, typography)
+                CurrentConfigCard(state.activeProfileName, state.activeProfileSubtitle, colors, labels, typography)
+                LaunchPanel(state.connectionStatus, state.uploadLabel, state.downloadLabel, connected, visualSpaceActive, colors, labels, typography, actions, tuning)
+                ConnectionStatusRow(state.connectionStatus, state.timerLabel, connected, colors, labels, typography)
                 if (visibility.showConnectionTest) {
-                    ConnectionTestButton(state, colors, labels, typography, actions, tuning)
+                    ConnectionTestButton(state.isConnectionTestRunning, state.canRunConnectionTest, colors, labels, typography, actions, tuning)
                 }
-                ProfilesCard(profiles, colors, labels, typography, actions, visibility)
+                if (visibility.showProfiles) {
+                    ProfilesCard(profiles, colors, labels, typography, actions, visibility)
+                }
                 Spacer(Modifier.height(40.dp))
             }
         }
@@ -396,7 +407,8 @@ private fun DashboardToolbar(
 
 @Composable
 private fun CurrentConfigCard(
-    state: DashboardState,
+    profileName: String,
+    profileSubtitle: String,
     colors: DashboardColors,
     labels: DashboardUiLabels,
     typography: DashboardTypography,
@@ -416,7 +428,7 @@ private fun CurrentConfigCard(
                 fontSize = 10,
             )
             Text(
-                text = state.activeProfileName,
+                text = profileName,
                 color = colors.primary,
                 fontFamily = typography.text,
                 fontSize = 18.sp,
@@ -426,7 +438,7 @@ private fun CurrentConfigCard(
                 modifier = Modifier.padding(top = 4.dp),
             )
             Text(
-                text = state.activeProfileSubtitle,
+                text = profileSubtitle,
                 color = colors.secondary,
                 fontFamily = typography.mono,
                 fontSize = 12.sp,
@@ -441,7 +453,9 @@ private fun CurrentConfigCard(
 
 @Composable
 private fun LaunchPanel(
-    state: DashboardState,
+    connectionStatus: ConnectionStatus,
+    uploadLabel: String,
+    downloadLabel: String,
     connected: Boolean,
     running: Boolean,
     colors: DashboardColors,
@@ -459,9 +473,9 @@ private fun LaunchPanel(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        SpeedPanel(labels.upload, state.uploadLabel, "в†‘", colors, typography, false)
-        OrbScene(state.connectionStatus, connected, running, colors, labels, typography, actions.onToggleConnection, tuning)
-        SpeedPanel(labels.download, state.downloadLabel, "в†“", colors, typography, true)
+        SpeedPanel(labels.upload, uploadLabel, ICON_UPLOAD, colors, typography, false)
+        OrbScene(connectionStatus, connected, running, colors, labels, typography, actions.onToggleConnection, tuning)
+        SpeedPanel(labels.download, downloadLabel, ICON_DOWNLOAD, colors, typography, true)
     }
 }
 
@@ -527,26 +541,21 @@ private fun OrbScene(
     onClick: () -> Unit,
     tuning: DashboardUiTuning,
 ) {
-    val infinite = rememberInfiniteTransition(label = "dashboard-orb")
     val rocketRunning = connectionStatus == ConnectionStatus.Connecting ||
         connectionStatus == ConnectionStatus.Connected ||
         connectionStatus == ConnectionStatus.Disconnecting
-    val ringScale by infinite.animateFloat(
+    val ringScale = rememberDashboardPulse(
+        active = connected,
         initialValue = 1f,
-        targetValue = if (connected) 1.04f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1600, easing = CssEaseInOut),
-            repeatMode = RepeatMode.Reverse,
-        ),
+        targetValue = 1.04f,
+        durationMillis = 1600,
         label = "ring-scale",
     )
-    val flameScale by infinite.animateFloat(
+    val flameScale = rememberDashboardPulse(
+        active = rocketRunning,
         initialValue = 1f,
-        targetValue = if (rocketRunning) 1.15f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(420, easing = CssEaseInOut),
-            repeatMode = RepeatMode.Reverse,
-        ),
+        targetValue = 1.15f,
+        durationMillis = 420,
         label = "flame-scale",
     )
 
@@ -554,7 +563,8 @@ private fun OrbScene(
         modifier = Modifier
             .size(192.dp)
             .graphicsLayer { clip = false }
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick)
+            .testTag("dashboard.toggle"),
         contentAlignment = Alignment.Center,
     ) {
         Box(
@@ -563,7 +573,10 @@ private fun OrbScene(
                 .clip(CircleShape)
                 .background(Brush.radialGradient(listOf(colors.orbCenter, colors.background)))
         )
-        Canvas(Modifier.size(176.dp).scale(ringScale)) {
+        Canvas(Modifier.size(176.dp).graphicsLayer {
+            scaleX = ringScale.value
+            scaleY = ringScale.value
+        }) {
             drawCircle(
                 color = colors.accent.copy(alpha = if (connected) 0.35f else 0.18f),
                 style = Stroke(width = 1.dp.toPx())
@@ -584,14 +597,35 @@ private fun OrbScene(
 }
 
 @Composable
+private fun rememberDashboardPulse(
+    active: Boolean,
+    initialValue: Float,
+    targetValue: Float,
+    durationMillis: Int,
+    label: String,
+): State<Float> {
+    if (!active) return remember(initialValue) { mutableStateOf(initialValue) }
+    return rememberInfiniteTransition(label = "$label-transition").animateFloat(
+        initialValue = initialValue,
+        targetValue = targetValue,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis, easing = CssEaseInOut),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = label,
+    )
+}
+
+@Composable
 private fun ConnectionStatusRow(
-    state: DashboardState,
+    connectionStatus: ConnectionStatus,
+    timerLabel: String,
     connected: Boolean,
     colors: DashboardColors,
     labels: DashboardUiLabels,
     typography: DashboardTypography,
 ) {
-    val statusText = when (state.connectionStatus) {
+    val statusText = when (connectionStatus) {
         ConnectionStatus.Connected -> labels.connected
         ConnectionStatus.Connecting -> labels.connecting
         ConnectionStatus.Disconnecting -> labels.disconnecting
@@ -612,7 +646,7 @@ private fun ConnectionStatusRow(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = state.timerLabel,
+                text = timerLabel,
                 color = colors.primary,
                 fontFamily = typography.mono,
                 fontSize = 12.sp,
@@ -632,17 +666,18 @@ private fun ConnectionStatusRow(
 
 @Composable
 private fun ConnectionTestButton(
-    state: DashboardState,
+    testRunning: Boolean,
+    canRunTest: Boolean,
     colors: DashboardColors,
     labels: DashboardUiLabels,
     typography: DashboardTypography,
     actions: DashboardUiActions,
     tuning: DashboardUiTuning,
 ) {
-    val canRequestTest = !state.isConnectionTestRunning
+    val canRequestTest = !testRunning
     val foreground = when {
-        state.isConnectionTestRunning -> colors.accent
-        state.canRunConnectionTest -> colors.secondary
+        testRunning -> colors.accent
+        canRunTest -> colors.secondary
         else -> colors.secondary.copy(alpha = 0.62f)
     }
     val animatedForeground by animateColorAsState(
@@ -651,7 +686,7 @@ private fun ConnectionTestButton(
         label = "connection-test-foreground",
     )
     val borderColor by animateColorAsState(
-        targetValue = if (state.isConnectionTestRunning) {
+        targetValue = if (testRunning) {
             colors.accent.copy(alpha = 0.62f)
         } else {
             colors.border
@@ -661,20 +696,18 @@ private fun ConnectionTestButton(
     )
     val backgroundAlpha by animateFloatAsState(
         targetValue = when {
-            state.isConnectionTestRunning -> 0.12f
-            state.canRunConnectionTest -> 0.055f
+            testRunning -> 0.12f
+            canRunTest -> 0.055f
             else -> 0.028f
         },
         animationSpec = tween(260, easing = CssEase),
         label = "connection-test-bg",
     )
-    val pulse by rememberInfiniteTransition(label = "connection-test-pulse").animateFloat(
+    val pulse = rememberDashboardPulse(
+        active = testRunning,
         initialValue = 0.72f,
-        targetValue = if (state.isConnectionTestRunning) 1f else 0.72f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(620, easing = CssEaseInOut),
-            repeatMode = RepeatMode.Reverse,
-        ),
+        targetValue = 1f,
+        durationMillis = 620,
         label = "connection-test-dot",
     )
     Box(
@@ -685,7 +718,7 @@ private fun ConnectionTestButton(
     ) {
         Row(
             modifier = Modifier
-                .shadow(if (state.isConnectionTestRunning) 5.dp else 3.dp, RoundedCornerShape(22.dp), clip = false)
+                .shadow(if (testRunning) 5.dp else 3.dp, RoundedCornerShape(22.dp), clip = false)
                 .height(38.dp)
                 .clip(RoundedCornerShape(22.dp))
                 .background(
@@ -710,14 +743,17 @@ private fun ConnectionTestButton(
             ) {
                 Box(
                     Modifier
-                        .size(if (state.isConnectionTestRunning) 5.dp else 3.dp)
-                        .scale(pulse)
+                        .size(if (testRunning) 5.dp else 3.dp)
+                        .graphicsLayer {
+                            scaleX = pulse.value
+                            scaleY = pulse.value
+                        }
                         .clip(CircleShape)
                         .background(animatedForeground)
                 )
             }
             Text(
-                text = if (state.isConnectionTestRunning) labels.checkingConnection else labels.checkConnection,
+                text = if (testRunning) labels.checkingConnection else labels.checkConnection,
                 color = animatedForeground,
                 fontFamily = typography.text,
                 fontSize = 10.sp,
@@ -873,7 +909,7 @@ private fun ProfileRow(
                 )
             }
             Text(
-                text = "вњЋ",
+                text = ICON_EDIT,
                 color = colors.secondary.copy(alpha = if (visibility.showProfileActions) 1f else 0f),
                 fontSize = if (visibility.showProfileActions) 22.sp else 0.sp,
                 modifier = Modifier
@@ -881,7 +917,7 @@ private fun ProfileRow(
                     .clickable { actions.onEditProfile(item.id) },
             )
             Text(
-                text = "в‹®",
+                text = ICON_MORE,
                 color = colors.secondary.copy(alpha = if (visibility.showProfileActions) 1f else 0f),
                 fontSize = if (visibility.showProfileActions) 24.sp else 0.sp,
                 modifier = Modifier
@@ -894,7 +930,9 @@ private fun ProfileRow(
 
 @Composable
 private fun DashboardTelemetryStrip(
-    state: DashboardState,
+    latencyLabel: String,
+    testRunning: Boolean,
+    protocolLabel: String,
     connected: Boolean,
     colors: DashboardColors,
     labels: DashboardUiLabels,
@@ -923,10 +961,10 @@ private fun DashboardTelemetryStrip(
                 .padding(start = 4.dp, end = 4.dp, top = 9.dp, bottom = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            StatsSegment("в—·", if (state.isConnectionTestRunning) "..." else state.latencyLabel, labels.latency, colors, typography)
+            StatsSegment(ICON_LATENCY, if (testRunning) "..." else latencyLabel, labels.latency, colors, typography)
             StatsDivider(colors)
             StatsSegment(
-                "в—Џ",
+                ICON_STATUS,
                 if (connected) labels.connected else labels.disconnected,
                 labels.status,
                 colors.copy(primary = if (connected) DashboardGreen else DashboardRed),
@@ -934,7 +972,7 @@ private fun DashboardTelemetryStrip(
                 iconColor = if (connected) DashboardGreen else DashboardRed,
             )
             StatsDivider(colors)
-            StatsSegment("в—‡", state.activeProfileProtocolLabel, labels.protocol, colors, typography)
+            StatsSegment(ICON_PROTOCOL, protocolLabel, labels.protocol, colors, typography)
         }
     }
 }
@@ -1096,7 +1134,7 @@ private fun OrbMarks(connected: Boolean, colors: DashboardColors, modifier: Modi
 @Composable
 private fun DashboardRocket(
     connectionStatus: ConnectionStatus,
-    flameScale: Float,
+    flameScale: State<Float>,
     tuning: DashboardUiTuning,
 ) {
     val initiallyVisible = connectionStatus == ConnectionStatus.Connecting ||
@@ -1114,10 +1152,6 @@ private fun DashboardRocket(
     val rocketCenterX = rocketLeft + tuning.rocketWidth / 2
     val leftFlameLeft = rocketCenterX + tuning.leftFlameX - tuning.flameWidth / 2
     val rightFlameLeft = rocketCenterX + tuning.rightFlameX - tuning.flameWidth / 2
-    val flameScaleX = 1f + (flameScale - 1f) * 0.4f
-    val flameDrawWidth = tuning.flameWidth * flameScaleX
-    val flameDrawHeight = tuning.flameHeight * flameScale
-    val flameDrawOffsetX = (flameDrawWidth - tuning.flameWidth) / 2f
     val flameMaxScaleX = 1f + (DashboardRocketTokens.FlameMaxScale - 1f) * 0.4f
     val flameMaxDrawWidth = tuning.flameWidth * flameMaxScaleX
     val flameMaxDrawHeight = tuning.flameHeight * DashboardRocketTokens.FlameMaxScale
@@ -1164,8 +1198,9 @@ private fun DashboardRocket(
         contentAlignment = Alignment.TopStart,
         modifier = Modifier
             .size(width = sceneWidth.dp, height = sceneHeight.dp)
-            .offset(y = (((tuning.rocketHeight + rocketVerticalBleed) * yOffset.value) + sceneOffsetCompensation).dp)
             .graphicsLayer {
+                // Frame updates only change the layer, not composition or layout.
+                translationY = (((tuning.rocketHeight + rocketVerticalBleed) * yOffset.value) + sceneOffsetCompensation).dp.toPx()
                 this.alpha = alpha.value
                 clip = false
             },
@@ -1192,8 +1227,8 @@ private fun DashboardRocket(
                     .offset(x = flameMaxDrawOffsetX.dp)
                     .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
                     .graphicsLayer {
-                        scaleY = flameScale
-                        scaleX = flameScaleX
+                        scaleY = flameScale.value
+                        scaleX = 1f + (flameScale.value - 1f) * 0.4f
                         transformOrigin = TransformOrigin(0.5f, 0f)
                         clip = false
                     },
@@ -1213,8 +1248,8 @@ private fun DashboardRocket(
                     .offset(x = flameMaxDrawOffsetX.dp)
                     .size(width = tuning.flameWidth.dp, height = tuning.flameHeight.dp)
                     .graphicsLayer {
-                        scaleY = flameScale
-                        scaleX = flameScaleX
+                        scaleY = flameScale.value
+                        scaleX = 1f + (flameScale.value - 1f) * 0.4f
                         transformOrigin = TransformOrigin(0.5f, 0f)
                         clip = false
                     },
@@ -1222,6 +1257,9 @@ private fun DashboardRocket(
         }
         if (tuning.rocketDebugOverlay) {
             Canvas(Modifier.matchParentSize()) {
+                val flameDrawWidth = tuning.flameWidth * (1f + (flameScale.value - 1f) * 0.4f)
+                val flameDrawHeight = tuning.flameHeight * flameScale.value
+                val flameDrawOffsetX = (flameDrawWidth - tuning.flameWidth) / 2f
                 val stroke = 1.dp.toPx()
                 val rocketTopLeft = Offset(rocketLeft.dp.toPx(), rocketTop.dp.toPx())
                 val rocketSize = Size(tuning.rocketWidth.dp.toPx(), tuning.rocketHeight.dp.toPx())
@@ -1268,3 +1306,10 @@ private val CssEaseOut = YokhanMotion.CssEaseOut
 private val CssEaseInOut = YokhanMotion.CssEaseInOut
 private val RocketLaunchEasing = YokhanMotion.RocketLaunch
 private val RocketDisconnectEasing = YokhanMotion.RocketDisconnect
+private const val ICON_UPLOAD = "\u2191"
+private const val ICON_DOWNLOAD = "\u2193"
+private const val ICON_EDIT = "\u270E"
+private const val ICON_MORE = "\u22EE"
+private const val ICON_LATENCY = "\u25C7"
+private const val ICON_STATUS = "\u25CF"
+private const val ICON_PROTOCOL = "\u25C8"
