@@ -112,6 +112,7 @@ internal class WindowsQaSession(val realAccess: Boolean = false) : WindowsQaTarg
                     "report.message" -> listOf("input.report.sample", "input.report.clear")
                     "form.input.manual-input" -> listOf("input.access.sample", "input.access.clear")
                     "routing.search" -> listOf("input.routing.sample", "input.routing.clear", "input.routing.none")
+                    "routing.manual-exe" -> listOf("input.exe.sample", "input.exe.invalid", "input.exe.clear")
                     else -> emptyList()
                 } })
         }
@@ -146,6 +147,7 @@ internal class WindowsQaSession(val realAccess: Boolean = false) : WindowsQaTarg
                         val tag = when (id.split('.')[1]) {
                             "report" -> "report.message"
                             "access" -> "form.input.manual-input"
+                            "exe" -> "routing.manual-exe"
                             else -> "routing.search"
                         }
                         val privateInput = if (id == "input.access.private" && realAccess) {
@@ -158,6 +160,7 @@ internal class WindowsQaSession(val realAccess: Boolean = false) : WindowsQaTarg
                         semantics.input(tag, privateInput ?: if (id.endsWith(".clear")) "" else when (tag) {
                             "report.message" -> "QA synthetic report; not sent"
                             "form.input.manual-input" -> "https://example.invalid/sub/qa"
+                            "routing.manual-exe" -> if (id.endsWith(".invalid")) "not-an-exe" else "test-app.exe"
                             else -> if (id.endsWith(".none")) "not-present" else "game"
                         })
                     }

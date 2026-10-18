@@ -6,6 +6,19 @@ import kotlin.test.assertFalse
 import com.yokhan.gates.shared.domain.ConnectionStatus
 
 class WindowsUiMessagesTest {
+    @Test fun setupAndOfflineRuleFailuresHaveActionableSecretFreeMessages() {
+        val cases = listOf(
+            "prepare-runtime" to RuntimeCommandResult(1223, "password=private"),
+            "prepare-runtime" to RuntimeCommandResult(1, "setup failed token=private"),
+            "add-app-direct" to RuntimeCommandResult(1, "Runtime state could not be verified; private"),
+            "set-route" to RuntimeCommandResult(1, "Selected route is not available in the imported profile; private"),
+        )
+        for ((command, result) in cases) {
+            val message = windowsUiResultMessage(command, result)
+            assertFalse(message.contains("private"))
+            assertFalse(message == "Не удалось сохранить изменения.")
+        }
+    }
     @Test fun errorsDoNotExposeRawTransportOrAccountOutput() {
         val message = windowsUiResultMessage("login", RuntimeCommandResult(1, "token=private; IOException C:\\user"))
         assertEquals("Не удалось получить доступ.", message)

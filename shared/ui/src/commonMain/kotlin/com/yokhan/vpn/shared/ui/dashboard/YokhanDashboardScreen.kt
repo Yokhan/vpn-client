@@ -876,6 +876,7 @@ private fun ProfileRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { actions.onSelectProfile(item.id) }
+                .testTag("dashboard.profile.${item.id}")
                 .padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

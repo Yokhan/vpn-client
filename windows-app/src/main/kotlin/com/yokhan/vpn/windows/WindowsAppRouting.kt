@@ -3,24 +3,54 @@ package com.yokhan.gates.windows
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import java.io.File
-import java.nio.file.InvalidPathException
 
 internal data class WindowsAppRoutingTarget(val processName: String = "", val processPath: String = "") {
     val label: String get() = processPath.ifBlank { processName }
 }
 
 internal fun parseWindowsAppRoutingTarget(raw: String): WindowsAppRoutingTarget? {
-    val value = raw.trim().trim('"')
-    if (!value.endsWith(".exe", ignoreCase = true)) return null
-    val file = File(value)
-    if (!value.contains('/') && !value.contains('\\')) return WindowsAppRoutingTarget(processName = value)
-    if (!file.isAbsolute) return null
     return try {
-        WindowsAppRoutingTarget(processPath = file.toPath().normalize().toString())
-    } catch (_: InvalidPathException) {
+        val input = raw.trim()
+        if (input.isEmpty()) return null
+        val quoted = input.startsWith('"') || input.endsWith('"')
+        if (quoted && !(input.startsWith('"') && input.endsWith('"') && input.length > 1)) return null
+        val value = if (quoted) input.substring(1, input.length - 1) else input
+        if (value.any { it.isISOControl() || it == '"' } || !value.endsWith(".exe", ignoreCase = true)) return null
+
+        val hasPath = value.contains('/') || value.contains('\\')
+        if (!hasPath) {
+            if (value.any { it in "<>:\\|?*" } || value.endsWith('.') || value.endsWith(' ')) return null
+            WindowsAppRoutingTarget(processName = value)
+        } else {
+            val file = File(value)
+            if (!file.isAbsolute || !isFullyQualifiedWindowsPath(value) || hasInvalidWindowsPathSegment(value)) return null
+            WindowsAppRoutingTarget(processPath = file.toPath().normalize().toString())
+        }
+    } catch (_: IllegalArgumentException) {
         null
     }
 }
+
+private fun isFullyQualifiedWindowsPath(value: String): Boolean {
+    if (File.separatorChar != '\\') return true
+    val driveRooted = value.length >= 3 && value[0].isLetter() && value[1] == ':' && value[2] in "/\\"
+    val unc = (value.startsWith("\\\\") || value.startsWith("//")) &&
+        value.split('/', '\\').count(String::isNotEmpty) >= 3
+    return driveRooted || unc
+}
+
+private fun hasInvalidWindowsPathSegment(value: String): Boolean {
+    if (File.separatorChar != '\\') return false
+    val segments = value.split('/', '\\')
+    return segments.withIndex().any { (index, segment) ->
+        val isDrive = index == 0 && segment.length == 2 && segment[1] == ':'
+        (segment.any { it in "<>:\\|?*" } && !(isDrive && segment[0].isLetter())) ||
+            segment.endsWith('.') || segment.endsWith(' ')
+    }
+}
+
+internal fun windowsProcessRoutingValue(name: String, path: String): String =
+    parseWindowsAppRoutingTarget(path)?.label ?: name
 
 internal fun updateWindowsAppRouting(
     config: WindowsAppConfig,

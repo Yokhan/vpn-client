@@ -10,6 +10,7 @@ internal data class WindowsUiSnapshot(
     val config: WindowsAppConfig,
     val session: WindowsSessionState,
     val appRouting: AppRoutingState,
+    val routes: List<WindowsProfileRoute> = emptyList(),
 )
 
 internal suspend fun loadWindowsUiSnapshot(
@@ -17,11 +18,13 @@ internal suspend fun loadWindowsUiSnapshot(
     readConfig: () -> WindowsAppConfig,
     readSession: () -> WindowsSessionState,
     readAppRouting: () -> AppRoutingState,
+    readRoutes: () -> List<WindowsProfileRoute> = { emptyList() },
 ): WindowsUiSnapshot = withContext(dispatcher) {
     WindowsUiSnapshot(
         config = readConfig(),
         session = readSession(),
         appRouting = readAppRouting(),
+        routes = readRoutes(),
     )
 }
 

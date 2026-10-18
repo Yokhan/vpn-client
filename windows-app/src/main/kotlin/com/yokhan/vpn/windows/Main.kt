@@ -106,7 +106,7 @@ private val AppHeight = 820.dp
 private val ProductionDashboardVisibility = DashboardUiVisibility(
     showMenu = false,
     showConnectionTest = false,
-    showProfiles = false,
+    showProfiles = true,
     showAddProfile = false,
     showProfileActions = false,
 )
@@ -311,6 +311,7 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
     val runtimeCommandGeneration = remember { WindowsRuntimeCommandGeneration() }
     var connectionStatus by remember { mutableStateOf(ConnectionStatus.Disconnected) }
     var activeRoute by remember { mutableStateOf(WindowsAppConfig().activeRoute) }
+    var availableRoutes by remember { mutableStateOf(emptyList<WindowsProfileRoute>()) }
     var busy by remember { mutableStateOf(true) }
     var lastMessage by remember { mutableStateOf("") }
     var roomNetMessage by remember { mutableStateOf("") }
@@ -378,7 +379,8 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
             }
             qa.publish(WindowsQaState(screen, automationRevision, automationBusy, actions,
                 fixture = !qa.realAccess, connectionStatus = connectionStatus.name,
-                signedIn = sessionState.signedIn, profileReady = sessionState.ready),
+                signedIn = sessionState.signedIn, profileReady = sessionState.ready,
+                activeRoute = activeRoute, availableRoutes = availableRoutes.map { it.tag }),
                 screenshotAllowed = automationScreenshotAllowed) { id ->
                 if (id.startsWith("nav.")) {
                     showBugDialog = false
@@ -474,6 +476,10 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
             appRoutingState = AppRoutingState(true, listOf("game.exe"), emptyList(),
                 listOf("browser.exe"), emptyList())
             runningApps = listOf(WindowsProcessCandidate(0, "game.exe", "C:\\QA\\game.exe"))
+            availableRoutes = listOf(
+                WindowsProfileRoute("nl-tcp", "NL VLESS", "VLESS / TCP", "45.134.174.246"),
+                WindowsProfileRoute("hy2", "Hysteria2", "HY2 / UDP", "45.134.174.246"),
+            )
             busy = false
             return@LaunchedEffect
         }
@@ -487,15 +493,22 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                 readConfig = controller::readConfig,
                 readSession = controller::sessionState,
                 readAppRouting = controller::appRoutingState,
+                readRoutes = controller::availableRoutes,
             )
             sessionState = snapshot.session
             activeRoute = snapshot.config.activeRoute
+            availableRoutes = snapshot.routes
             appRoutingState = snapshot.appRouting
             runtimeMode = snapshot.config.runtimeMode
             autoUploadRecoveryReports = snapshot.config.autoUploadRecoveryReports
             recoveryPreferenceLoaded = true
             autoCheckUpdates = snapshot.config.autoCheckUpdates
             snapshotLoaded = true
+            if (qa == null && runtimeMode == "tun") {
+                lastMessage = "Подготовка службы туннеля…"
+                val prepared = withContext(Dispatchers.IO) { controller.run("prepare-runtime") }
+                lastMessage = if (prepared.exitCode == 0) "" else windowsUiResultMessage("prepare-runtime", prepared)
+            }
         }
         if (!snapshotLoaded) {
             return@LaunchedEffect
@@ -560,14 +573,12 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
         }
     }
 
-    val profiles = remember(activeRoute) {
-        listOf(
-            DashboardProfileUiItem(1, "Auto route", "AUTO", activeRoute == "auto"),
-            DashboardProfileUiItem(2, "Bridge", "VLESS", activeRoute == "bridge"),
-            DashboardProfileUiItem(3, "Relay", "VLESS", activeRoute == "relay"),
-            DashboardProfileUiItem(4, "Naive", "HTTPS", activeRoute == "naive"),
-            DashboardProfileUiItem(5, "HY2", "HYSTERIA2", activeRoute == "hy2"),
-        )
+    val profiles = remember(activeRoute, availableRoutes) {
+        listOf(DashboardProfileUiItem(1, "Автоматически", "AUTO", activeRoute == "auto")) +
+            availableRoutes.mapIndexed { index, route ->
+                DashboardProfileUiItem((index + 2).toLong(), route.label,
+                    "${route.protocol} · ${route.server}", activeRoute == route.tag)
+            }
     }
 
     fun launchRuntime(
@@ -598,6 +609,7 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                 }
                 connectionStatus = windowsUiStatusAfterCommand(connectionStatus, nextStatus, result.exitCode)
                 sessionState = withContext(Dispatchers.IO) { controller.sessionState() }
+                availableRoutes = withContext(Dispatchers.IO) { controller.availableRoutes() }
                 if (command == "set-route" && result.exitCode == 0 && route != null) {
                     activeRoute = route
                 }
@@ -686,9 +698,11 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                     readConfig = controller::readConfig,
                     readSession = controller::sessionState,
                     readAppRouting = controller::appRoutingState,
+                    readRoutes = controller::availableRoutes,
                 )
                 sessionState = snapshot.session
                 activeRoute = snapshot.config.activeRoute
+                availableRoutes = snapshot.routes
                 appRoutingState = snapshot.appRouting
                 lastMessage = windowsUiResultMessage(command, result)
                 if (result.exitCode == 0 && sessionState.ready) showAccess = false
@@ -708,9 +722,11 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
             ) {
                 val result = withContext(Dispatchers.IO) { controller.run("import-sub", input) }
                 val snapshot = loadWindowsUiSnapshot(readConfig = controller::readConfig,
-                    readSession = controller::sessionState, readAppRouting = controller::appRoutingState)
+                    readSession = controller::sessionState, readAppRouting = controller::appRoutingState,
+                    readRoutes = controller::availableRoutes)
                 sessionState = snapshot.session
                 activeRoute = snapshot.config.activeRoute
+                availableRoutes = snapshot.routes
                 appRoutingState = snapshot.appRouting
                 lastMessage = windowsUiResultMessage("import-sub", result)
                 if (result.exitCode == 0) {
@@ -789,9 +805,9 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                         message = lastMessage,
                         onDismiss = { showAppsDialog = false; showSettingsDialog = true },
                         onRefreshProcesses = { refreshRunningApps() },
-                        onPickExe = {
+                        onPickExe = { proxy ->
                             if (qa == null) chooseExeFile(ownerWindow)?.let { path ->
-                                launchAppRouting("Приложение", "add-app-proxy", path)
+                                launchAppRouting("Приложение", if (proxy) "add-app-proxy" else "add-app-direct", path)
                             }
                         },
                         onRouteAll = { launchAppRouting("Режим", "set-tun-routing", "all") },
@@ -996,15 +1012,10 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                                     }
                                 },
                                 onSelectProfile = { id ->
-                                    val route = when (id) {
-                                        1L -> "auto"
-                                        2L -> "bridge"
-                                        3L -> "relay"
-                                        4L -> "naive"
-                                        5L -> "hy2"
-                                        else -> "auto"
+                                    windowsRouteTagForProfileId(id, availableRoutes)?.let { route ->
+                                        if (qa != null && !qa.realAccess) activeRoute = route
+                                        else launchRuntime("Маршрут $route", "set-route", route = route)
                                     }
-                                    launchRuntime("Маршрут $route", "set-route", route = route)
                                 },
                             ),
                             modifier = Modifier.fillMaxSize(),
@@ -1193,18 +1204,19 @@ private fun activeRouteLabel(route: String): String =
         "relay" -> "Relay"
         "naive" -> "Naive"
         "hy2" -> "HY2"
+        "nl-tcp" -> "NL VLESS"
         else -> route
     }
 
 private fun routeProtocol(route: String): VpnProtocol =
     when (route) {
-        "bridge", "relay" -> VpnProtocol.Vless
+        "bridge", "relay", "nl-tcp" -> VpnProtocol.Vless
         else -> VpnProtocol.Unknown
     }
 
 private fun routeProtocolLabel(route: String): String =
     when (route) {
-        "bridge", "relay" -> "VLESS"
+        "bridge", "relay", "nl-tcp" -> "VLESS"
         "naive" -> "HTTPS"
         "hy2" -> "HYSTERIA2"
         else -> "AUTO"

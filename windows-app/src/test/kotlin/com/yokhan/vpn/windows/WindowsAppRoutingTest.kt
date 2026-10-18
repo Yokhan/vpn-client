@@ -17,9 +17,20 @@ class WindowsAppRoutingTest {
     @Test
     fun malformedExecutablePathIsRejectedWithoutThrowing() {
         assertNull(parseWindowsAppRoutingTarget("C:\\Bad\u0000folder\\game.exe"))
+        assertNull(parseWindowsAppRoutingTarget("C:\\bad?folder\\game.exe"))
+        assertNull(parseWindowsAppRoutingTarget("\"C:\\Games\\game.exe"))
+        assertNull(parseWindowsAppRoutingTarget("relative\\game.exe"))
         if (File.separatorChar == '\\') {
             assertNull(parseWindowsAppRoutingTarget("C:\\Trailing space \\game.exe"))
         }
+    }
+
+    @Test
+    fun processRowsFallBackToNameWhenPathIsMissingOrInvalid() {
+        assertEquals("game.exe", windowsProcessRoutingValue("game.exe", ""))
+        assertEquals("game.exe", windowsProcessRoutingValue("game.exe", "relative\\game.exe"))
+        val path = File("C:/Games/A/game.exe").absolutePath
+        assertEquals(path, windowsProcessRoutingValue("game.exe", path))
     }
 
     @Test
@@ -62,6 +73,26 @@ class WindowsAppRoutingTest {
         assertTrue("game.exe" in result.appDirectProcessNames)
         assertNull(parseWindowsAppRoutingTarget("relative/game.exe"))
         assertNull(parseWindowsAppRoutingTarget("game.dll"))
+    }
+
+    @Test
+    fun executableNameCanBeAddedToEitherRoutingTarget() {
+        val proxy = updateWindowsAppRouting(
+            WindowsAppConfig(),
+            parseWindowsAppRoutingTarget("game.exe")!!,
+            proxy = true,
+            remove = false,
+        )
+        val direct = updateWindowsAppRouting(
+            WindowsAppConfig(),
+            parseWindowsAppRoutingTarget("game.exe")!!,
+            proxy = false,
+            remove = false,
+        )
+        assertEquals(listOf("game.exe"), proxy.appProxyProcessNames)
+        assertEquals(WindowsAppConfig().appDirectProcessNames + "game.exe", direct.appDirectProcessNames)
+        assertEquals(WindowsAppConfig().appDirectProcessNames, proxy.appDirectProcessNames)
+        assertTrue(direct.appProxyProcessNames.isEmpty())
     }
 
     @Test
@@ -308,6 +339,7 @@ class WindowsAppRoutingTest {
         val controller = WindowsRuntimeController(
             appDir = root,
             runtimeService = service,
+            runtimeServiceInstalled = { true },
             prepareRuntimeService = { RuntimeCommandResult(0, "") },
             validateGeneratedConfig = { JsonParser.parseString(it.readText()); validation },
             stopLocalRuntime = localStop,

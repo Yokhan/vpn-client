@@ -16,4 +16,5 @@ internal fun windowsAccessAcceptanceController(directory: File): WindowsRuntimeC
             override fun configurationDigest(): RuntimeCommandResult = error("Runtime forbidden in access acceptance")
         },
         prepareRuntimeService = { error("Service preparation forbidden in access acceptance") },
+        prepareRuntimeWithoutTunnel = { error("Service preparation forbidden in access acceptance") },
     )

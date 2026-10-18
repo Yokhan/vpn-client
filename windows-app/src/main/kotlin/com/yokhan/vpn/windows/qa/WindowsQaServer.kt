@@ -33,6 +33,8 @@ data class WindowsQaState(
     val connectionStatus: String = "unknown",
     val signedIn: Boolean = false,
     val profileReady: Boolean = false,
+    val activeRoute: String = "",
+    val availableRoutes: List<String> = emptyList(),
 )
 
 interface WindowsQaTarget {
@@ -293,6 +295,7 @@ class WindowsQaServer(private val target: WindowsQaTarget) : AutoCloseable {
         "fixture.loading", "fixture.empty", "fixture.long", "fixture.default", "fixture.signedout", "fixture.signedin", "fixture.update", "fixture.effects-off", "fixture.effects-on",
             "input.report.sample", "input.report.clear", "input.access.sample", "input.access.clear", "input.access.private",
             "input.routing.sample", "input.routing.clear", "input.routing.none",
+            "input.exe.sample", "input.exe.invalid", "input.exe.clear",
             "nav.dashboard",
             "nav.settings",
             "nav.access",

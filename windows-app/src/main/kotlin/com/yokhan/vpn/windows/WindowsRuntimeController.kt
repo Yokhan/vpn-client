@@ -641,7 +641,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.7.2"
+private const val WINDOWS_APP_VERSION = "1.7.3"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -727,6 +727,10 @@ class WindowsRuntimeController(
     private val authHttpClient: HttpClient? = null,
     private val authorizationBrowser: ((String) -> Boolean)? = null,
     private val authorizationPause: ((Long) -> Unit)? = null,
+    private val runtimeServiceInstalled: () -> Boolean? = ::queryWindowsRuntimeServiceInstalled,
+    private val prepareRuntimeWithoutTunnel: () -> RuntimeCommandResult = {
+        WindowsRuntimeServiceManager().prepareWithoutConnecting()
+    },
 ) {
     internal val authorizationPrompt = MutableStateFlow<WindowsAuthorizationPrompt?>(null)
     internal val authorizationPhase = MutableStateFlow(WindowsAuthorizationPhase.Idle)
@@ -843,6 +847,11 @@ class WindowsRuntimeController(
             summary = authSummary(),
         )
     }
+
+    internal fun availableRoutes(): List<WindowsProfileRoute> = runCatching {
+        if (!rawConfigFile.isFile) emptyList()
+        else windowsProfileRoutes(profileStore.readText(rawConfigFile, StandardCharsets.UTF_8))
+    }.getOrDefault(emptyList())
 
     private fun profileFile(source: String): File = when (source) {
         "account" -> accountConfigFile
@@ -1097,7 +1106,7 @@ class WindowsRuntimeController(
         if (accessOnly && command !in WINDOWS_ACCESS_ONLY_COMMANDS) {
             return RuntimeCommandResult(403, "Операция запрещена в изолированной проверке доступа.")
         }
-        return runCatching {
+        val result = runCatching {
             when (command) {
                 "init" -> initialize()
                 "login" -> {
@@ -1134,6 +1143,8 @@ class WindowsRuntimeController(
                 "install-service" -> WindowsRuntimeServiceManager().install()
                 "uninstall-service" -> WindowsRuntimeServiceManager().uninstall()
                 "service-status" -> WindowsRuntimeServiceManager().status()
+                "prepare-runtime" -> if (readConfig().runtimeMode == "tun") prepareRuntimeWithoutTunnel()
+                    else RuntimeCommandResult(0, "Runtime preparation is not required for proxy mode")
                 "roomnet-info" -> roomNetInfo()
                 "roomnet-start" -> startRoomNet()
                 "roomnet-stop" -> stopRoomNet()
@@ -1146,6 +1157,8 @@ class WindowsRuntimeController(
             if (error is CancellationException) throw error
             RuntimeCommandResult(1, error.message ?: error.toString())
         }
+        recordWindowsCommandResult(appDir, command, result)
+        return result
     }
 
     private fun initialize(): RuntimeCommandResult {
@@ -1456,6 +1469,10 @@ class WindowsRuntimeController(
             if (imported.exitCode != 0) {
                 return RuntimeCommandResult(imported.exitCode, steps.joinToString("\n") + "\n" + imported.output)
             }
+        }
+        val selectedRoute = readConfig().activeRoute
+        if (selectedRoute != "auto" && availableRoutes().none { it.tag == selectedRoute }) {
+            return RuntimeCommandResult(1, "Selected route is not available in the imported profile")
         }
         val generated = generateConfig()
         steps += "generate exit=${generated.exitCode}"
@@ -1829,6 +1846,9 @@ class WindowsRuntimeController(
             return RuntimeCommandResult(1, "Unsupported route: $route")
         }
         val config = readConfig()
+        if (normalized != "auto" && availableRoutes().none { it.tag == normalized }) {
+            return RuntimeCommandResult(1, "Selected route is not available in the imported profile")
+        }
         return applyRoutingChange(config.copy(activeRoute = normalized), "Active route set to $normalized")
     }
 
@@ -1873,7 +1893,10 @@ class WindowsRuntimeController(
 
     private fun applyRoutingChange(updated: WindowsAppConfig, message: String): RuntimeCommandResult {
         val serviceState = if (allowRuntimeServiceDelegation) runtimeService.health() else RuntimeCommandResult(1, "")
-        if (allowRuntimeServiceDelegation && (serviceState.exitCode != 0 || serviceState.output.trim() !in setOf("RUNNING", "STOPPED"))) {
+        val brokerConfirmedAbsent = allowRuntimeServiceDelegation && serviceState.exitCode != 0 &&
+            runtimeServiceInstalled() == false
+        if (allowRuntimeServiceDelegation && !brokerConfirmedAbsent &&
+            (serviceState.exitCode != 0 || serviceState.output.trim() !in setOf("RUNNING", "STOPPED"))) {
             return RuntimeCommandResult(1, "Runtime state could not be verified; routing settings were not changed")
         }
         val digest = if (serviceState.exitCode == 0) runtimeService.configurationDigest() else RuntimeCommandResult(1, "")

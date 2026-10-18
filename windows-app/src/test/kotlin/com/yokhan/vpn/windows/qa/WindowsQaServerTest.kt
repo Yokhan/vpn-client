@@ -74,6 +74,24 @@ class WindowsQaServerTest {
     }
 
     @Test
+    fun syntheticExeInputRequiresBothAllowlistAndCurrentEditableControl() = withServer { server, target ->
+        val ids = listOf("input.exe.sample", "input.exe.invalid", "input.exe.clear")
+        for (id in ids) {
+            val absent = request(server, "POST", "/v1/actions", server.token, "{\"id\":\"$id\"}")
+            assertEquals(403, absent.statusCode())
+        }
+        target.actions = ids + "input.exe.arbitrary"
+        for (id in ids) {
+            val accepted = request(server, "POST", "/v1/actions", server.token, "{\"id\":\"$id\"}")
+            assertEquals(200, accepted.statusCode())
+            assertEquals(id, target.lastAction)
+        }
+        val forbidden = request(server, "POST", "/v1/actions", server.token, "{\"id\":\"input.exe.arbitrary\"}")
+        assertEquals(403, forbidden.statusCode())
+        assertEquals(3, target.actionCalls.get())
+    }
+
+    @Test
     fun actionBodiesAreBoundedForContentLengthAndChunkedRequests() = withServer { server, _ ->
         val tooLarge = request(server, "POST", "/v1/actions", server.token, " ".repeat(1025))
         assertEquals(413, tooLarge.statusCode())
@@ -203,13 +221,14 @@ class WindowsQaServerTest {
         val calls = AtomicInteger()
         val actionCalls = AtomicInteger()
         var lastAction: String? = null
+        var actions = listOf("nav.dashboard", "fixture.connected")
         var failure: RuntimeException? = null
         var image = byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
 
         override fun state(): WindowsQaState {
             calls.incrementAndGet()
             failure?.let { throw it }
-            return WindowsQaState("dashboard", 12, false, listOf("nav.dashboard", "fixture.connected"))
+            return WindowsQaState("dashboard", 12, false, actions)
         }
 
         override fun action(id: String): WindowsQaState {

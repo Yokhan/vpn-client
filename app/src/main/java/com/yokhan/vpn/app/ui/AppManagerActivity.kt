@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
@@ -20,6 +21,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.yokhan.gates.app.routing.RuCompatibilityClassifier
 import com.yokhan.gates.shared.ui.design.YokhanPalette
 import com.yokhan.gates.shared.ui.design.YokhanTypography
+import com.yokhan.gates.shared.ui.route.YokhanBody
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
@@ -43,12 +45,6 @@ import moe.matsuri.nb4a.utils.NGUtil
 import kotlin.coroutines.coroutineContext
 
 class AppManagerActivity : ThemedActivity() {
-
-    private enum class ProxyMode {
-        Off,
-        Proxy,
-        Bypass,
-    }
 
     private class ProxiedApp(
         private val pm: PackageManager,
@@ -76,19 +72,15 @@ class AppManagerActivity : ThemedActivity() {
     private val searchText = mutableStateOf("")
     private val showSystemApps = mutableStateOf(true)
     private val bypassRuApps = mutableStateOf(DataStore.enableRuBypass)
-    private val proxyMode = mutableStateOf(
-        if (!DataStore.proxyApps) ProxyMode.Off else if (DataStore.bypass) ProxyMode.Bypass else ProxyMode.Proxy,
-    )
+    private val openPlan = planAppManagerOpen(DataStore.proxyApps, DataStore.bypass)
+    private val proxyMode = mutableStateOf(openPlan.proxyMode)
+    private val pendingReconnect = mutableStateOf(false)
     private val loading = mutableStateOf(true)
     private val allAppsEmpty = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (!DataStore.proxyApps) {
-            DataStore.proxyApps = true
-            proxyMode.value = if (DataStore.bypass) ProxyMode.Bypass else ProxyMode.Proxy
-        }
         initProxiedUids()
         setContent {
             Content()
@@ -154,18 +146,18 @@ class AppManagerActivity : ThemedActivity() {
             actions = listOf(
                 YokhanRouteAction(
                     title = stringResource(R.string.off),
-                    primary = proxyMode.value == ProxyMode.Off,
-                    onClick = { setProxyMode(ProxyMode.Off) },
+                    primary = proxyMode.value == AppManagerProxyMode.Off,
+                    onClick = { setProxyMode(AppManagerProxyMode.Off) },
                 ),
                 YokhanRouteAction(
                     title = stringResource(R.string.route_proxy),
-                    primary = proxyMode.value == ProxyMode.Proxy,
-                    onClick = { setProxyMode(ProxyMode.Proxy) },
+                    primary = proxyMode.value == AppManagerProxyMode.Proxy,
+                    onClick = { setProxyMode(AppManagerProxyMode.Proxy) },
                 ),
                 YokhanRouteAction(
                     title = stringResource(R.string.bypass_apps),
-                    primary = proxyMode.value == ProxyMode.Bypass,
-                    onClick = { setProxyMode(ProxyMode.Bypass) },
+                    primary = proxyMode.value == AppManagerProxyMode.Bypass,
+                    onClick = { setProxyMode(AppManagerProxyMode.Bypass) },
                 ),
             ),
             colors = colors,
@@ -177,12 +169,21 @@ class AppManagerActivity : ThemedActivity() {
             colors = colors,
             typography = typography,
             onCheckedChange = {
+                if (bypassRuApps.value != it) pendingReconnect.value = true
                 bypassRuApps.value = it
                 DataStore.enableRuBypass = it
                 applyRuBypass(it)
             },
             modifier = Modifier.padding(top = 10.dp),
         )
+        if (pendingReconnect.value) {
+            YokhanBody(
+                text = "Изменения применятся после переподключения",
+                colors = colors,
+                typography = typography,
+                modifier = Modifier.padding(top = 10.dp).testTag("app-manager.pending-reconnect"),
+            )
+        }
         YokhanButtonGrid(
             actions = listOf(
                 YokhanRouteAction(
@@ -291,25 +292,30 @@ class AppManagerActivity : ThemedActivity() {
 
     private fun persistSelections() {
         val bundledPackages = bundledBypassPackages()
-        DataStore.individual = apps
+        val next = apps
             .filter { it.uid in selectedUids.value && it.packageName !in bundledPackages }
             .joinToString("\n") { it.packageName }
+        if (DataStore.individual != next) {
+            DataStore.individual = next
+            pendingReconnect.value = true
+        }
     }
 
-    private fun setProxyMode(mode: ProxyMode) {
+    private fun setProxyMode(mode: AppManagerProxyMode) {
+        if (proxyMode.value == mode) return
         proxyMode.value = mode
+        pendingReconnect.value = true
         when (mode) {
-            ProxyMode.Off -> {
+            AppManagerProxyMode.Off -> {
                 DataStore.proxyApps = false
-                finish()
             }
 
-            ProxyMode.Proxy -> {
+            AppManagerProxyMode.Proxy -> {
                 DataStore.proxyApps = true
                 DataStore.bypass = false
             }
 
-            ProxyMode.Bypass -> {
+            AppManagerProxyMode.Bypass -> {
                 DataStore.proxyApps = true
                 DataStore.bypass = true
             }
@@ -331,7 +337,8 @@ class AppManagerActivity : ThemedActivity() {
                 } else {
                     proxiedAppString.substring(0, i) to proxiedAppString.substring(i + 1)
                 }
-                setProxyMode(if (enabled.toBoolean()) ProxyMode.Bypass else ProxyMode.Proxy)
+                setProxyMode(if (enabled.toBoolean()) AppManagerProxyMode.Bypass else AppManagerProxyMode.Proxy)
+                if (DataStore.individual != importedApps) pendingReconnect.value = true
                 DataStore.individual = importedApps
                 initProxiedUids(importedApps)
                 showSnackbar(R.string.action_import_msg)

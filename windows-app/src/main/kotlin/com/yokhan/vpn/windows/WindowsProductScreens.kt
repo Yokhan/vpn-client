@@ -225,7 +225,7 @@ internal fun WindowsAppRoutingScreen(
     message: String,
     onDismiss: () -> Unit,
     onRefreshProcesses: () -> Unit,
-    onPickExe: () -> Unit,
+    onPickExe: (proxy: Boolean) -> Unit,
     onRouteAll: () -> Unit,
     onRouteSelected: () -> Unit,
     onAddProxy: (String) -> Unit,
@@ -235,7 +235,10 @@ internal fun WindowsAppRoutingScreen(
     modifier: Modifier = Modifier,
 ) {
     var searchText by remember { mutableStateOf("") }
+    var manualTargetText by remember { mutableStateOf("") }
     var refreshingProcesses by remember { mutableStateOf(false) }
+    val manualTarget = remember(manualTargetText) { parseWindowsAppRoutingTarget(manualTargetText) }
+    val manualTargetError = manualTargetText.isNotBlank() && manualTarget == null
     LaunchedEffect(busy) {
         if (!busy) refreshingProcesses = false
     }
@@ -256,6 +259,14 @@ internal fun WindowsAppRoutingScreen(
         item(key = "routing-controls") {
         Column(verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap)) {
         if (message.isNotBlank()) YokhanBody(message, colors, typography)
+        if (busy && !refreshingProcesses) {
+            ProductStatus(
+                "Применение изменений маршрутизации…",
+                colors,
+                typography,
+                modifier = Modifier.testTag("routing.pending"),
+            )
+        }
 
         YokhanRouteCard("Режим", colors, typography) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -281,15 +292,72 @@ internal fun WindowsAppRoutingScreen(
             }
             Spacer(Modifier.height(YokhanSpacing.CompactGap))
             Row(horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
-                YokhanRouteButton(
-                    text = "Выбрать .exe",
-                    primary = false,
+                ProductAddAction(
+                    label = "Для GATES",
+                    tooltip = "Выбрать .exe для маршрута через GATES",
+                    tag = "routing.pick-exe.proxy",
                     enabled = !busy,
                     colors = colors,
                     typography = typography,
-                    onClick = onPickExe,
-                    modifier = Modifier.weight(1f).testTag("routing.pick-exe"),
+                    onClick = { onPickExe(true) },
+                    modifier = Modifier.weight(1f),
                 )
+                ProductAddAction(
+                    label = "Напрямую",
+                    tooltip = "Выбрать .exe для прямого маршрута",
+                    tag = "routing.pick-exe.direct",
+                    enabled = !busy,
+                    colors = colors,
+                    typography = typography,
+                    onClick = { onPickExe(false) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            ProductTextInput(
+                value = manualTargetText,
+                onValueChange = { manualTargetText = it },
+                placeholder = "Имя .exe или полный путь",
+                colors = colors,
+                typography = typography,
+                enabled = !busy,
+                fieldTag = "routing.manual-exe",
+                clearTag = "routing.manual-exe.clear",
+            )
+            if (manualTargetError) {
+                YokhanCaption(
+                    text = "Укажите имя .exe или абсолютный путь к нему",
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.testTag("routing.manual-exe.error"),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
+                ProductAddAction(
+                    label = "Через GATES",
+                    tooltip = "Добавить введённый .exe в маршрут через GATES",
+                    tag = "routing.manual-exe.proxy",
+                    enabled = !busy && manualTarget != null,
+                    colors = colors,
+                    typography = typography,
+                    onClick = {
+                        manualTarget?.let { onAddProxy(it.label) }
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                ProductAddAction(
+                    label = "Напрямую",
+                    tooltip = "Добавить введённый .exe в прямой маршрут",
+                    tag = "routing.manual-exe.direct",
+                    enabled = !busy && manualTarget != null,
+                    colors = colors,
+                    typography = typography,
+                    onClick = {
+                        manualTarget?.let { onAddDirect(it.label) }
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
                 YokhanRouteButton(
                     text = if (refreshingProcesses && busy) "Обновление…" else "Обновить",
                     primary = false,
@@ -347,8 +415,8 @@ internal fun WindowsAppRoutingScreen(
                     busy = busy,
                     colors = colors,
                     typography = typography,
-                    onAddProxy = { onAddProxy(app.path) },
-                    onAddDirect = { onAddDirect(app.path) },
+                    onAddProxy = { onAddProxy(windowsProcessRoutingValue(app.name, app.path)) },
+                    onAddDirect = { onAddDirect(windowsProcessRoutingValue(app.name, app.path)) },
                 )
             }
         }
@@ -648,6 +716,7 @@ private fun ProductStatus(
     text: String,
     colors: YokhanPalette,
     typography: com.yokhan.gates.shared.ui.design.YokhanTypography,
+    modifier: Modifier = Modifier,
 ) {
-    YokhanBody(text, colors, typography)
+    YokhanBody(text, colors, typography, modifier)
 }
