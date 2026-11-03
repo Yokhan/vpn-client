@@ -10,6 +10,8 @@ kotlin {
 dependencies {
     implementation(project(":shared-domain"))
     implementation("com.google.code.gson:gson:2.11.0")
+    implementation("net.java.dev.jna:jna-platform:5.19.0")
+    implementation("net.java.dev.jna:jna-platform:5.19.0")
     testImplementation(kotlin("test"))
 }
 

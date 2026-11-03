@@ -2,8 +2,8 @@
   <id>GatesVpn</id>
   <name>GATES Runtime</name>
   <description>GATES machine-wide VPN runtime broker.</description>
-  <executable>%BASE%\..\..\..\runtime\bin\java.exe</executable>
-  <arguments>-cp "%BASE%\Gates.Service.jar" com.yokhan.gates.windows.service.GatesServiceMainKt</arguments>
+  <executable>%BASE%\..\..\..\GATES.exe</executable>
+  <arguments>--runtime-service</arguments>
   <workingdirectory>%ProgramData%\GATES\Service</workingdirectory>
   <startmode>Automatic</startmode>
   <delayedAutoStart>true</delayedAutoStart>

@@ -9,6 +9,7 @@ import com.yokhan.gates.windows.service.StartTunnelRequest
 import com.yokhan.gates.windows.service.StatusRequest
 import com.yokhan.gates.windows.service.StopRequest
 import com.yokhan.gates.windows.service.ConfigDigestRequest
+import com.yokhan.gates.windows.service.ProtectionStatusRequest
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import java.io.DataInputStream
@@ -32,6 +33,7 @@ interface WindowsRuntimeControl {
     fun startTunnel(configJson: String): RuntimeCommandResult
     fun stop(): RuntimeCommandResult
     fun configurationDigest(): RuntimeCommandResult = RuntimeCommandResult(1, "Runtime configuration is unverified")
+    fun protectionStatus(): RuntimeCommandResult = RuntimeCommandResult(1, "UNAVAILABLE")
 }
 
 class WindowsRuntimeServiceClient(
@@ -55,6 +57,10 @@ class WindowsRuntimeServiceClient(
 
     override fun configurationDigest(): RuntimeCommandResult = withControlToken { token ->
         exchange(token) { proof -> ConfigDigestRequest(CURRENT_PROTOCOL_VERSION, proof) }
+    }
+
+    override fun protectionStatus(): RuntimeCommandResult = withControlToken { token ->
+        exchange(token) { proof -> ProtectionStatusRequest(CURRENT_PROTOCOL_VERSION, proof) }
     }
 
     private fun withControlToken(action: (String) -> RuntimeCommandResult): RuntimeCommandResult {

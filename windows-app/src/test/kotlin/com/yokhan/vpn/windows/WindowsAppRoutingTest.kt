@@ -133,6 +133,24 @@ class WindowsAppRoutingTest {
     }
 
     @Test
+    fun rejectedProtectedApplyRestoresGuardMetadataWithPreviousSelection() {
+        val fixture = Fixture()
+        val path = "C:\\Apps\\Browser\\browser.exe"
+        fixture.controller.writeConfig(fixture.config.copy(killSwitchEnabled = true, appProxyProcessPaths = listOf(path)))
+        fixture.service.protectionResult = RuntimeCommandResult(0, "ARMED")
+        fixture.seedConfig()
+        fixture.service.responses += RuntimeCommandResult(1, "Rejected")
+        fixture.service.responses += RuntimeCommandResult(0, "RESTARTED")
+        val result = fixture.controller.addAppRouting("C:\\Games\\game.exe", proxy = true)
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("previous settings restored"))
+        val restored = JsonParser.parseString(fixture.service.started.last()).asJsonObject
+        assertEquals(listOf(path), restored.getAsJsonObject("gates_protection")
+            .getAsJsonArray("protected_executables").map { it.asString })
+        assertEquals(listOf(path), fixture.controller.readConfig().appProxyProcessPaths)
+    }
+
+    @Test
     fun validationFailureDoesNotTouchService() {
         val fixture = Fixture(validation = RuntimeCommandResult(1, "Invalid"))
         fixture.controller.writeConfig(fixture.config)
@@ -361,6 +379,7 @@ class WindowsAppRoutingTest {
         var state = "RUNNING"
         var healthResult: RuntimeCommandResult? = null
         var digestResult: RuntimeCommandResult? = null
+        var protectionResult = RuntimeCommandResult(0, "DISABLED")
         var liveConfig: String? = Fixture.OLD_CONFIG
         var startHook: (String) -> Unit = {}
         var stopResult = RuntimeCommandResult(0, "STOPPED")
@@ -368,6 +387,7 @@ class WindowsAppRoutingTest {
         val responses = mutableListOf<RuntimeCommandResult>()
         var stops = 0
         override fun health() = healthResult ?: RuntimeCommandResult(0, state)
+        override fun protectionStatus() = protectionResult
         override fun configurationDigest() = digestResult ?: RuntimeCommandResult(0, liveConfig?.let(::runtimeConfigurationDigest) ?: "NONE")
         override fun startTunnel(configJson: String): RuntimeCommandResult {
             started += configJson

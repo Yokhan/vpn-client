@@ -3,6 +3,7 @@ package com.yokhan.gates.windows
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import com.yokhan.gates.shared.domain.ConnectionStatus
 
 class WindowsUiMessagesTest {
@@ -23,6 +24,16 @@ class WindowsUiMessagesTest {
         val message = windowsUiResultMessage("login", RuntimeCommandResult(1, "token=private; IOException C:\\user"))
         assertEquals("Не удалось получить доступ.", message)
         assertFalse(message.contains("private"))
+    }
+    @Test fun preparationTimeoutExplainsThatElevatedWorkMayStillBeRunning() {
+        val message = windowsUiResultMessage(
+            "prepare-runtime",
+            RuntimeCommandResult(1, "GATES_SETUP_STAGE=elevated_timeout; private details"),
+        )
+
+        assertTrue(message.contains("может ещё выполняться"))
+        assertTrue(message.contains("проверьте статус службы"))
+        assertFalse(message.contains("private details"))
     }
     @Test fun updateAvailabilityIsNotInstalledSuccess() {
         assertEquals("Доступно обновление.", windowsUiResultMessage("check-update", RuntimeCommandResult(0, "Update available: true")))

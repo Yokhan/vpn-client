@@ -3,12 +3,14 @@ package com.yokhan.gates.windows.service
 import java.io.IOException
 import java.nio.charset.StandardCharsets.UTF_8
 import java.security.MessageDigest
+import java.util.ArrayDeque
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -95,6 +97,148 @@ class SerializedTunnelSupervisorTest {
         assertTrue(supervisor.restorePersisted())
         assertEquals(TunnelSupervisorState.RUNNING, supervisor.state())
         assertEquals(1, launcher.launches)
+    }
+
+    @Test
+    fun delayedIdentityBecomesReadyForTheSameChildWithoutAStop() {
+        var nowNanos = 0L
+        val launcher = IdentityReadinessLauncher(
+            outcomes = ArrayDeque(listOf(
+                ProtectionPermitResult.IDENTITY_NOT_READY,
+                ProtectionPermitResult.IDENTITY_NOT_READY,
+                ProtectionPermitResult.PERMITTED,
+            )),
+        )
+        val supervisor = SerializedTunnelSupervisor(
+            launcher,
+            nowMillis = { 0L },
+            nowNanos = { nowNanos },
+            sleepMillis = { nowNanos += TimeUnit.MILLISECONDS.toNanos(it) },
+        )
+
+        assertEquals(TunnelStartResult.Started, supervisor.start(guardedConfig))
+
+        assertEquals(1, launcher.launches)
+        assertEquals(3, launcher.probeCount)
+        assertEquals(0, launcher.child.stopRequests)
+        assertTrue(launcher.child.isAlive())
+        assertEquals(1, launcher.confirmedPermits)
+    }
+
+    @Test
+    fun readinessPhaseCanSpanMultipleBoundedIdentityQueries() {
+        var nowNanos = 0L
+        val queryDurations = mutableListOf<Long>()
+        val launcher = IdentityReadinessLauncher(
+            outcomes = ArrayDeque(listOf(
+                ProtectionPermitResult.IDENTITY_NOT_READY,
+                ProtectionPermitResult.IDENTITY_NOT_READY,
+                ProtectionPermitResult.PERMITTED,
+            )),
+            afterProbe = {
+                val duration = TimeUnit.MILLISECONDS.toNanos(1_100)
+                queryDurations += duration
+                nowNanos += duration
+            },
+        )
+        val supervisor = SerializedTunnelSupervisor(
+            launcher,
+            nowMillis = { 0L },
+            nowNanos = { nowNanos },
+            sleepMillis = { nowNanos += TimeUnit.MILLISECONDS.toNanos(it) },
+        )
+
+        assertEquals(TunnelStartResult.Started, supervisor.start(guardedConfig))
+
+        assertTrue(queryDurations.all { it <= TimeUnit.SECONDS.toNanos(2) })
+        assertTrue(nowNanos > TimeUnit.SECONDS.toNanos(2))
+        assertEquals(1, launcher.launches)
+        assertEquals(3, launcher.probeCount)
+        assertEquals(0, launcher.child.stopRequests)
+        assertEquals(1, launcher.confirmedPermits)
+    }
+
+    @Test
+    fun permanentIdentityAbsenceStopsChildAtMonotonicDeadlineAndRetainsBlocks() {
+        var nowNanos = 0L
+        val launcher = IdentityReadinessLauncher()
+        val supervisor = SerializedTunnelSupervisor(
+            launcher,
+            nowMillis = { 0L },
+            nowNanos = { nowNanos },
+            sleepMillis = { nowNanos += TimeUnit.MILLISECONDS.toNanos(it) },
+        )
+
+        assertIs<IOException>(runCatching { supervisor.start(guardedConfig) }.exceptionOrNull())
+
+        assertEquals(TimeUnit.SECONDS.toNanos(5), nowNanos)
+        assertTrue(launcher.probeCount > 1)
+        assertFalse(launcher.child.isAlive())
+        assertEquals(1, launcher.child.stopRequests)
+        assertTrue(launcher.blockCalls > 0)
+        assertEquals(0, launcher.confirmedPermits)
+        assertEquals(0, launcher.releaseCalls)
+    }
+
+    @Test
+    fun earlyChildDeathStopsReadinessRetriesAndNeverPermits() {
+        var nowNanos = 0L
+        val launcher = IdentityReadinessLauncher(
+            dieAfterProbe = 1,
+        )
+        val supervisor = SerializedTunnelSupervisor(
+            launcher,
+            nowMillis = { 0L },
+            nowNanos = { nowNanos },
+            sleepMillis = { nowNanos += TimeUnit.MILLISECONDS.toNanos(it) },
+        )
+
+        assertIs<IOException>(runCatching { supervisor.start(guardedConfig) }.exceptionOrNull())
+
+        assertEquals(1, launcher.probeCount)
+        assertEquals(0, launcher.confirmedPermits)
+        assertEquals(1, launcher.child.stopRequests)
+        assertFalse(launcher.child.isAlive())
+        assertTrue(launcher.blockCalls > 0)
+    }
+
+    @Test
+    fun fatalProtectionBackendFailureIsNotRetried() {
+        val launcher = IdentityReadinessLauncher(fatalFailure = IOException("backend failure"))
+        val supervisor = SerializedTunnelSupervisor(launcher)
+
+        assertIs<IOException>(runCatching { supervisor.start(guardedConfig) }.exceptionOrNull())
+
+        assertEquals(1, launcher.probeCount)
+        assertEquals(0, launcher.confirmedPermits)
+        assertEquals(1, launcher.child.stopRequests)
+        assertTrue(launcher.blockCalls > 0)
+        assertEquals(0, launcher.releaseCalls)
+    }
+
+    @Test
+    fun interruptionPreservesInterruptAndStopsWithoutAnotherIdentityProbe() {
+        val launcher = IdentityReadinessLauncher(outcomes = ArrayDeque(listOf(ProtectionPermitResult.IDENTITY_NOT_READY)))
+        val supervisor = SerializedTunnelSupervisor(
+            launcher,
+            nowMillis = { 0L },
+            nowNanos = { 0L },
+            sleepMillis = {
+                Thread.currentThread().interrupt()
+                throw InterruptedException("interrupted")
+            },
+        )
+
+        try {
+            assertIs<IOException>(runCatching { supervisor.start(guardedConfig) }.exceptionOrNull())
+            assertTrue(Thread.currentThread().isInterrupted)
+            assertEquals(1, launcher.probeCount)
+            assertEquals(0, launcher.confirmedPermits)
+            assertEquals(1, launcher.child.stopRequests)
+            assertTrue(launcher.blockCalls > 0)
+        } finally {
+            Thread.interrupted()
+        }
     }
 
     @Test
@@ -406,9 +550,64 @@ class SerializedTunnelSupervisorTest {
         }
     }
 
+    private class IdentityReadinessLauncher(
+        private val outcomes: ArrayDeque<ProtectionPermitResult> = ArrayDeque(),
+        private val fatalFailure: Exception? = null,
+        private val afterProbe: (Int) -> Unit = {},
+        private val dieAfterProbe: Int? = null,
+    ) : TunnelLauncher {
+        var persistedConfig: ValidatedSingBoxConfig? = null
+        val child = ReadinessChild()
+        var launches = 0
+        var probeCount = 0
+        var confirmedPermits = 0
+        var blockCalls = 0
+        var releaseCalls = 0
+
+        override fun launch(config: ValidatedSingBoxConfig): TunnelChild {
+            check(persistedConfig == config)
+            launches++
+            return child
+        }
+
+        override fun persistConfig(config: ValidatedSingBoxConfig) { persistedConfig = config }
+        override fun clearPersistedConfig() { persistedConfig = null }
+        override fun permitProtection(
+            config: ValidatedSingBoxConfig,
+            confirmChildAlive: () -> Unit,
+        ): ProtectionPermitResult {
+            probeCount++
+            afterProbe(probeCount)
+            fatalFailure?.let { throw it }
+            val outcome = if (outcomes.isEmpty()) ProtectionPermitResult.IDENTITY_NOT_READY else outcomes.removeFirst()
+            if (outcome == ProtectionPermitResult.IDENTITY_NOT_READY && probeCount == dieAfterProbe) child.die()
+            if (outcome == ProtectionPermitResult.PERMITTED) {
+                confirmChildAlive()
+                confirmedPermits++
+            }
+            return outcome
+        }
+        override fun blockProtection() { blockCalls++ }
+        override fun releaseProtection() { releaseCalls++ }
+        override fun protectionStatus() = if (releaseCalls == 0) ProtectionStatus.BLOCKED else ProtectionStatus.DISABLED
+
+        class ReadinessChild : TunnelChild {
+            private var alive = true
+            var stopRequests = 0
+            override fun isAlive() = alive
+            override fun requestStop() { stopRequests++; alive = false }
+            override fun awaitStopped(timeoutMillis: Long) = !alive
+            fun die() { alive = false }
+        }
+    }
+
     private companion object {
         val configA = ValidatedSingBoxConfig("{\"route\":1}")
         val configB = ValidatedSingBoxConfig("{\"route\":2}")
+        val guardedConfig = ValidatedSingBoxConfig(
+            """{"inbounds":[{"type":"tun","address":["10.0.0.1/30"]}],"outbounds":[{"type":"direct","tag":"default"}]}""",
+            SelectedAppProtection(listOf("C:\\Apps\\browser.exe")),
+        )
 
         fun configDigest(config: ValidatedSingBoxConfig): String =
             MessageDigest.getInstance("SHA-256")

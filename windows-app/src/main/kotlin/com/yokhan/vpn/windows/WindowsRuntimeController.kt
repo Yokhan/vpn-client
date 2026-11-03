@@ -93,6 +93,7 @@ data class WindowsAppConfig(
     val restoreSystemProxyOnStop: Boolean = true,
     val autoStartOnLogin: Boolean = false,
     val runtimeMode: String = "tun",
+    val killSwitchEnabled: Boolean = false,
     val allowProxyFallback: Boolean = true,
     val listenHost: String = "127.0.0.1",
     val socksPort: Int = 2088,
@@ -641,7 +642,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.7.3"
+private const val WINDOWS_APP_VERSION = "1.7.4"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -1043,6 +1044,7 @@ class WindowsRuntimeController(
             runtimeMode = runCatching { config.runtimeMode }.getOrNull()
                 ?.takeIf { it in listOf("tun", "system-proxy", "proxy") }
                 ?: defaults.runtimeMode,
+            killSwitchEnabled = runCatching { config.killSwitchEnabled }.getOrDefault(false),
             allowProxyFallback = runCatching { config.allowProxyFallback }.getOrDefault(defaults.allowProxyFallback),
             listenHost = runCatching { config.listenHost }.getOrNull()
                 ?.takeIf { it.isNotBlank() }
@@ -1121,6 +1123,7 @@ class WindowsRuntimeController(
                 "start-proxy" -> startProxy()
                 "stop" -> stop()
                 "status" -> status()
+                "protection-status" -> runtimeService.protectionStatus()
                 "test" -> test()
                 "probe-routes" -> probeRoutes()
                 "support-bundle" -> supportBundle()
@@ -1129,6 +1132,7 @@ class WindowsRuntimeController(
                 "report-bug" -> reportBug(route.orEmpty())
                 "set-route" -> setRoute(route ?: "auto")
                 "set-runtime" -> setRuntimeMode(route ?: "tun")
+                "set-kill-switch" -> setKillSwitch(route)
                 "set-tun-routing" -> setTunRouting(route ?: "all")
                 "apps" -> appRoutingSummary()
                 "running-apps" -> runningAppsSummary()
@@ -1428,6 +1432,9 @@ class WindowsRuntimeController(
         ensureDirs()
         val config = readConfig()
         if (allowRuntimeServiceDelegation && runtimeService.health().isRunningServiceTunnel()) {
+            if (config.killSwitchEnabled && parseWindowsProtectionState(runtimeService.protectionStatus()) != WindowsProtectionState.ARMED) {
+                return RuntimeCommandResult(1, "GATES_PROTECTION_NOT_ARMED")
+            }
             return RuntimeCommandResult(
                 0,
                 "Runtime is already running in GATES Runtime service. Saved configurations apply on the next connection.",
@@ -1436,6 +1443,7 @@ class WindowsRuntimeController(
         val existingId = managedProcessId()
         val existingProcess = managedProcess()
         if (isManagedProcessRunning(existingId, existingProcess)) {
+            if (config.killSwitchEnabled) return RuntimeCommandResult(1, "GATES_PROTECTION_REQUIRES_SERVICE")
             return RuntimeCommandResult(
                 0,
                 "Runtime is already running ${runningRuntimeModeSummary()} runtime. Saved configurations apply on the next connection.",
@@ -1480,6 +1488,12 @@ class WindowsRuntimeController(
             return RuntimeCommandResult(generated.exitCode, steps.joinToString("\n") + "\n" + generated.output)
         }
         val generatedMode = generatedRuntimeModeSummary()
+        if (config.killSwitchEnabled) {
+            if (generatedMode != "tun" || !allowRuntimeServiceDelegation) {
+                return RuntimeCommandResult(1, "GATES_PROTECTION_REQUIRES_TUN")
+            }
+            return startThroughRuntimeService()
+        }
         if (shouldRequestTunElevation(config, generatedMode)) {
             if (allowRuntimeServiceDelegation) {
                 val service = startThroughRuntimeService()
@@ -1552,6 +1566,9 @@ class WindowsRuntimeController(
     @Synchronized
     private fun startProxy(): RuntimeCommandResult {
         ensureDirs()
+        if (readConfig().killSwitchEnabled) {
+            return RuntimeCommandResult(1, "GATES_PROTECTION_REQUIRES_SERVICE")
+        }
         val existing = managedProcess()
         if (existing != null && existing.isAlive) {
             return RuntimeCommandResult(0, "Already running ${runningRuntimeModeSummary()} runtime. PID ${existing.pid()}")
@@ -1718,7 +1735,9 @@ class WindowsRuntimeController(
         val processId = managedProcessId()
         val process = managedProcess()
         val serviceState = runtimeService.health()
-        val isServiceTunnelRunning = serviceState.isRunningServiceTunnel()
+        val protection = parseWindowsProtectionState(runtimeService.protectionStatus())
+        val isServiceTunnelRunning = serviceState.isRunningServiceTunnel() &&
+            (!config.killSwitchEnabled || protection == WindowsProtectionState.ARMED)
         val isRunning = isManagedProcessRunning(processId, process) || isServiceTunnelRunning
         val exit = if (isRunning) {
             curlBody(config, "https://api.ipify.org", timeoutSeconds = 15).let { result ->
@@ -1743,6 +1762,7 @@ class WindowsRuntimeController(
                 )
                 appendLine("TUN privileges: ${tunPrivilegeSummary(config)}")
                 appendLine("Runtime helper: ${runtimeHelperSummary()}")
+                appendLine("Protection: ${protection.name}")
                 appendLine("SOCKS: ${config.listenHost}:${config.socksPort}")
                 appendLine("HTTP: ${config.listenHost}:${config.httpPort}")
                 appendLine("System proxy: ${systemProxySummary()}")
@@ -1783,10 +1803,36 @@ class WindowsRuntimeController(
         val prepared = prepareRuntimeService()
         if (prepared.exitCode != 0) return prepared
         if (!generatedConfigFile.isFile) return RuntimeCommandResult(1, "Missing generated TUN config.")
-        val result = runtimeService.startTunnel(
-            generatedConfigFile.readText(StandardCharsets.UTF_8),
-        )
+        val config = readConfig()
+        if (config.killSwitchEnabled && runtimeService.protectionStatus().exitCode != 0) {
+            return RuntimeCommandResult(1, "GATES_PROTECTION_SERVICE_UNAVAILABLE")
+        }
+        val serviceConfig = windowsProtectionConfig(generatedConfigFile.readText(StandardCharsets.UTF_8), config)
+        val result = runtimeService.startTunnel(serviceConfig)
+        if (config.killSwitchEnabled && result.exitCode == 0 &&
+            parseWindowsProtectionState(runtimeService.protectionStatus()) != WindowsProtectionState.ARMED) {
+            return RuntimeCommandResult(1, "GATES_PROTECTION_NOT_ARMED")
+        }
         return mergeRuntimeServiceResults(prepared, requireRuntimeStartAcknowledgement(result))
+    }
+
+    private fun setKillSwitch(value: String?): RuntimeCommandResult {
+        val enabled = when (value) {
+            "true" -> true
+            "false" -> false
+            else -> return RuntimeCommandResult(1, "GATES_PROTECTION_INVALID_SETTING")
+        }
+        val health = runtimeService.health()
+        val digest = if (health.exitCode == 0) runtimeService.configurationDigest() else null
+        val protection = parseWindowsProtectionState(runtimeService.protectionStatus())
+        if (health.isRunningServiceTunnel() || protection.retainsProtection ||
+            (digest != null && (digest.exitCode != 0 || digest.output.trim() != "NONE")) ||
+            isManagedProcessRunning(managedProcessId(), managedProcess())) {
+            return RuntimeCommandResult(1, "GATES_PROTECTION_STOP_FIRST")
+        }
+        val updated = readConfig().copy(killSwitchEnabled = enabled)
+        if (enabled) windowsProtectionConfig("{}", updated)
+        return applyRoutingChange(updated, "Selected application protection saved for the next connection")
     }
 
     private fun stopThroughRuntimeService(): RuntimeCommandResult {
@@ -1859,6 +1905,9 @@ class WindowsRuntimeController(
             return RuntimeCommandResult(1, "Unsupported runtime mode: $mode")
         }
         val config = readConfig()
+        if (config.killSwitchEnabled && normalized != "tun") {
+            return RuntimeCommandResult(1, "GATES_PROTECTION_REQUIRES_TUN")
+        }
         return applyRoutingChange(config.copy(runtimeMode = normalized), "Runtime mode set to $normalized")
     }
 
@@ -1892,6 +1941,12 @@ class WindowsRuntimeController(
     }
 
     private fun applyRoutingChange(updated: WindowsAppConfig, message: String): RuntimeCommandResult {
+        val previousConfig = readConfig()
+        if (updated.killSwitchEnabled) {
+            runCatching { windowsProtectionConfig("{}", updated) }.getOrElse {
+                return RuntimeCommandResult(1, it.message ?: "GATES_PROTECTION_CONFIG_REJECTED")
+            }
+        }
         val serviceState = if (allowRuntimeServiceDelegation) runtimeService.health() else RuntimeCommandResult(1, "")
         val brokerConfirmedAbsent = allowRuntimeServiceDelegation && serviceState.exitCode != 0 &&
             runtimeServiceInstalled() == false
@@ -1942,7 +1997,9 @@ class WindowsRuntimeController(
             val runtimeRestore = if (applyAttempted) {
                 val oldJson = previous[generatedConfigFile]?.toString(StandardCharsets.UTF_8)
                 if (oldJson == null) RuntimeCommandResult(1, "Previous runtime config is unavailable")
-                else runCatching { requireRuntimeStartAcknowledgement(runtimeService.startTunnel(oldJson)) }
+                else runCatching {
+                    requireRuntimeStartAcknowledgement(runtimeService.startTunnel(windowsProtectionConfig(oldJson, previousConfig)))
+                }
                     .getOrElse { RuntimeCommandResult(1, "Runtime rollback failed") }
             } else RuntimeCommandResult(0, "")
             val restored = filesRestored && runtimeRestore.exitCode == 0
@@ -1981,6 +2038,7 @@ class WindowsRuntimeController(
 
     private fun probeRoutes(): RuntimeCommandResult {
         val original = readConfig()
+        if (original.killSwitchEnabled) return RuntimeCommandResult(1, "GATES_PROTECTION_REQUIRES_TUN")
         val wasRunning = isManagedProcessRunning(managedProcessId(), managedProcess())
         val rows = mutableListOf<String>()
         try {
@@ -2535,8 +2593,9 @@ class WindowsRuntimeController(
     private fun normalizeAppRouteRules(route: JsonObject, config: WindowsAppConfig) {
         val rules = route.getAsJsonArray("rules") ?: JsonArray()
         val prepend = JsonArray()
-        prepend.add(windowsLocalDirectRouteRule())
+        if (!config.killSwitchEnabled) prepend.add(windowsLocalDirectRouteRule())
         windowsAppProcessRules(config, selectedProxyOutbound(config)).forEach { prepend.add(it) }
+        if (config.killSwitchEnabled) prepend.add(windowsLocalDirectRouteRule())
         val merged = JsonArray()
         prepend.forEach { merged.add(it) }
         rules.forEach { merged.add(it) }

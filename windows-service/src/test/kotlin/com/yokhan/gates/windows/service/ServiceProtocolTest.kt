@@ -35,6 +35,15 @@ class ServiceProtocolTest {
     }
 
     @Test
+    fun protectionStatusIsAnAdditiveEmptyPayloadCommand() {
+        val frame = "2|$token|PROTECTION_STATUS|"
+        val accepted = assertIs<ProtocolParseResult.Accepted>(ServiceProtocolParser.parse(frame))
+        assertIs<ProtectionStatusRequest>(accepted.request)
+        assertEquals(frame, ServiceProtocolParser.format(accepted.request))
+        assertRejected(ServiceProtocolParser.parse("2|$token|PROTECTION_STATUS|extra"), ProtocolErrorCode.UNEXPECTED_PAYLOAD)
+    }
+
+    @Test
     fun rejectsUnexpectedPayloadsAndInvalidBase64url() {
         assertRejected(ServiceProtocolParser.parse("2|$token|STOP|payload"), ProtocolErrorCode.UNEXPECTED_PAYLOAD)
         val decoded = assertIs<ConfigPayloadResult.Rejected>(ServiceProtocolParser.decodeConfig("not base64url!"))

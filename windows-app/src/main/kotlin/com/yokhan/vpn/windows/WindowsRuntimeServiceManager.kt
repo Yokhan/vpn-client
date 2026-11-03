@@ -1,5 +1,6 @@
 package com.yokhan.gates.windows
 
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.charset.Charset
 import java.security.MessageDigest
@@ -14,6 +15,7 @@ internal data class WindowsRuntimeServiceAssets(
     val wrapper: File,
     val jar: File,
     val configuration: File,
+    val launcher: File? = null,
 )
 
 internal fun resolveWindowsRuntimeServiceAssets(
@@ -29,6 +31,7 @@ internal fun resolveWindowsRuntimeServiceAssets(
         wrapper = File(serviceDirectory, "Gates.Service.exe"),
         jar = File(serviceDirectory, "Gates.Service.jar"),
         configuration = File(serviceDirectory, "Gates.Service.xml"),
+        launcher = launcher,
     )
 }
 
@@ -81,8 +84,11 @@ class WindowsRuntimeServiceManager(
     }
 
     fun uninstall(): RuntimeCommandResult {
-        val assets = currentAssets()
-        val script = buildUninstallScript(assets)
+        val assets = validatedAssets() ?: return RuntimeCommandResult(1,
+            "Verified installed service assets are required to release protection before uninstall.")
+        val launcher = assets.launcher?.takeIf { it.isFile } ?: return RuntimeCommandResult(1,
+            "The installed GATES launcher is required for offline protection cleanup; nothing was uninstalled.")
+        val script = buildUninstallScript(assets, launcher)
         return runElevatedPowerShell(script, timeoutSeconds = 90)
     }
 
@@ -292,11 +298,22 @@ internal fun buildInstallScript(
     }
 """.trimIndent()
 
-private fun buildUninstallScript(assets: WindowsRuntimeServiceAssets?): String = """
-    ${'$'}ErrorActionPreference = 'SilentlyContinue'
-    ${if (assets == null) "" else "& ${psSingleQuoted(assets.wrapper.absolutePath)} stop; & ${psSingleQuoted(assets.wrapper.absolutePath)} uninstall"}
-    schtasks.exe /End /TN ${psSingleQuoted(GATES_RUNTIME_HELPER_TASK_NAME)}
-    schtasks.exe /Delete /TN ${psSingleQuoted(GATES_RUNTIME_HELPER_TASK_NAME)} /F
+internal fun buildUninstallScript(assets: WindowsRuntimeServiceAssets, launcherExecutable: File): String = """
+    ${'$'}ErrorActionPreference = 'Stop'
+    ${'$'}service = Get-CimInstance Win32_Service -Filter "Name='${GATES_SERVICE_NAME}'" -ErrorAction Stop
+    if (${ '$' }null -ne ${ '$' }service) {
+        ${'$'}expected = '^\s*"?' + [regex]::Escape(${psSingleQuoted(assets.wrapper.absolutePath)}) + '"?(?:\s|${'$'})'
+        if (${ '$' }service.PathName -notmatch ${ '$' }expected) { throw 'Conflicting GATES service; uninstall refused' }
+        Stop-Service -Name '${GATES_SERVICE_NAME}' -ErrorAction Stop
+        (Get-Service -Name '${GATES_SERVICE_NAME}').WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20))
+    }
+    & ${psSingleQuoted(launcherExecutable.absolutePath)} --runtime-service --cleanup-protection
+    if (${ '$' }LASTEXITCODE -ne 0) { throw 'Protection cleanup failed; service was not uninstalled' }
+    if (${ '$' }null -ne ${ '$' }service) {
+        & ${psSingleQuoted(assets.wrapper.absolutePath)} uninstall
+        if (${ '$' }LASTEXITCODE -ne 0) { throw 'GATES service uninstall failed' }
+    }
+    if (Get-Service -Name '${GATES_SERVICE_NAME}' -ErrorAction SilentlyContinue) { throw 'GATES service still exists' }
 """.trimIndent()
 
 private fun currentLauncherPath(): String? =
@@ -316,6 +333,9 @@ private const val GATES_SERVICE_NAME = "GatesVpn"
 private const val WINDOWS_SERVICE_NOT_INSTALLED_EXIT_CODE = 1060
 private const val UAC_CANCELLED_EXIT_CODE = 1223
 private const val ELEVATED_PROCESS_START_FAILED_EXIT_CODE = 1224
+private const val WINDOWS_PROCESS_TIMEOUT_EXIT_CODE = 124
+private const val MAX_SERVICE_MANAGER_OUTPUT_BYTES = 64 * 1024
+private const val OUTPUT_READER_JOIN_MILLIS = 1_000L
 private const val PINNED_WINSW_SHA256 =
     "05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da"
 private val WINDOWS_SID_PATTERN = Regex("S-1-\\d+(?:-\\d+)+")
@@ -337,6 +357,7 @@ internal fun normalizeElevatedSetupResult(result: RuntimeCommandResult): Runtime
         69 -> "setup" to "Windows service preparation failed."
         UAC_CANCELLED_EXIT_CODE -> "uac_approval" to "Administrator approval was canceled."
         ELEVATED_PROCESS_START_FAILED_EXIT_CODE -> "elevated_launch" to "Could not start the elevated Windows setup process."
+        WINDOWS_PROCESS_TIMEOUT_EXIT_CODE -> "elevated_timeout" to "The wait limit expired; the elevated operation may still be running. Check GATES service status before retrying."
         else -> "unknown" to "Elevated Windows service setup failed (exit ${result.exitCode})."
     }
     return RuntimeCommandResult(1, "GATES_SETUP_STAGE=$stage; $safeError")
@@ -352,12 +373,38 @@ private fun runWindowsServiceManagerProcess(
 ): RuntimeCommandResult {
     directory.mkdirs()
     val process = ProcessBuilder(args).directory(directory).redirectErrorStream(true).start()
+    val capturedOutput = ByteArrayOutputStream()
+    val outputReader = Thread({
+        process.inputStream.use { stream ->
+            val buffer = ByteArray(4096)
+            var retained = 0
+            while (true) {
+                val count = stream.read(buffer)
+                if (count < 0) break
+                val keep = minOf(count, MAX_SERVICE_MANAGER_OUTPUT_BYTES - retained)
+                if (keep > 0) {
+                    capturedOutput.write(buffer, 0, keep)
+                    retained += keep
+                }
+            }
+        }
+    }, "gates-service-manager-output").apply {
+        isDaemon = true
+        start()
+    }
     if (!process.waitFor(timeoutSeconds.toLong(), TimeUnit.SECONDS)) {
         process.destroyForcibly()
-        return RuntimeCommandResult(124, "Process timed out.")
+        runCatching { process.inputStream.close() }
+        outputReader.join(OUTPUT_READER_JOIN_MILLIS)
+        return RuntimeCommandResult(WINDOWS_PROCESS_TIMEOUT_EXIT_CODE, "Process wait expired; elevated child termination is unverified.")
+    }
+    outputReader.join(OUTPUT_READER_JOIN_MILLIS)
+    if (outputReader.isAlive) {
+        runCatching { process.inputStream.close() }
+        outputReader.join(OUTPUT_READER_JOIN_MILLIS)
     }
     return RuntimeCommandResult(
         process.exitValue(),
-        process.inputStream.bufferedReader().use { it.readText() }.trim(),
+        if (outputReader.isAlive) "" else capturedOutput.toString(Charset.defaultCharset()).trim(),
     )
 }

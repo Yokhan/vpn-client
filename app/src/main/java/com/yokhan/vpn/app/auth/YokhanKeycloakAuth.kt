@@ -1,4 +1,4 @@
-﻿package com.yokhan.gates.app.auth
+package com.yokhan.gates.app.auth
 
 import android.app.PendingIntent
 import android.annotation.SuppressLint
@@ -88,8 +88,9 @@ object YokhanKeycloakAuth {
             } catch (error: Exception) {
                 Log.w(LOG_TAG, "config_sync_failed type=${error.javaClass.simpleName}")
                 activity.showDashboardMessage(R.string.yokhan_auth_sync_failed)
-                // The next explicit tap opens the browser; an outage does not discard saved keys.
-                mutableSessionAvailable.value = false
+                if (AuthSyncRecoveryPolicy.shouldOpenLogin(mutableSessionAvailable.value, error)) {
+                    mutableSessionAvailable.value = false
+                }
             } finally {
                 mutableBusy.value = false
             }
@@ -275,8 +276,7 @@ object YokhanKeycloakAuth {
                             if (!activity.isFinishing && !activity.isDestroyed) activity.onYokhanAuthImportComplete(count)
                         }
                     } catch (e: Exception) {
-                        Log.w(LOG_TAG, "config_import_failed ${e.javaClass.simpleName}: ${e.message}")
-                        Logs.w(e)
+                        Log.w(LOG_TAG, "config_import_failed type=${e.javaClass.simpleName}")
                         withContext(Dispatchers.Main) {
                             if (!activity.isFinishing && !activity.isDestroyed) activity.showDashboardMessage(
                                 activity.getString(R.string.yokhan_auth_import_failed, e.message ?: ""),
@@ -316,7 +316,7 @@ object YokhanKeycloakAuth {
         authService: AuthorizationService,
     ): Int = withContext(Dispatchers.IO) {
         val accessToken = storedAccessToken(context, authService)
-            ?: error(context.getString(R.string.yokhan_auth_missing_session))
+            ?: throw MissingStoredAuthSessionException()
         debugLog { "fresh_token_ok" }
 
         val payload = runCatching { fetchAuthenticatedManifestPayload(context, accessToken) }

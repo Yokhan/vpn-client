@@ -34,6 +34,7 @@ internal fun recordWindowsCommandResult(root: File, command: String, result: Run
 
 private val WINDOWS_RECORDED_COMMANDS = setOf(
     "connect", "stop", "prepare-runtime", "install-service", "set-route", "set-runtime",
+    "set-kill-switch",
     "add-app-proxy", "add-app-direct", "remove-app-proxy", "remove-app-direct", "set-tun-routing",
     "login", "import-app", "import-sub",
 )

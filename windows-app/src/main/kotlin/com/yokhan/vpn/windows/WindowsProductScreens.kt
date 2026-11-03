@@ -84,6 +84,9 @@ internal fun WindowsSettingsScreen(
     onInstallUpdate: (() -> Unit)? = null,
     autoUploadRecoveryReports: Boolean = true,
     onAutoUploadRecoveryReportsChange: ((Boolean) -> Unit)? = null,
+    killSwitchEnabled: Boolean = false,
+    protectionMessage: String = "",
+    onKillSwitchChange: ((Boolean) -> Unit)? = null,
 ) {
     YokhanRouteFrame(
         title = "Настройки",
@@ -135,6 +138,18 @@ internal fun WindowsSettingsScreen(
                         modifier = Modifier.testTag("settings.runtime.$mode"),
                     ) { Text(label) }
                 }
+            }
+        }
+
+        if (onKillSwitchChange != null) {
+            YokhanRouteCard("Защита при обрыве", colors, typography) {
+                Row(Modifier.fillMaxWidth().testTag("settings.kill-switch"),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(killSwitchEnabled, onKillSwitchChange, enabled = !busy)
+                    Text("Защищать EXE из списка «Через VPN»", Modifier.weight(1f),
+                        color = colors.primary, fontFamily = typography.text)
+                }
+                if (protectionMessage.isNotBlank()) YokhanCaption(protectionMessage, colors, typography)
             }
         }
 

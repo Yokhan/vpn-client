@@ -64,5 +64,6 @@ class WindowsRuntimeServiceTest {
 
         assertEquals("Gates.Service.exe", assets?.wrapper?.name)
         assertTrue(assets?.wrapper?.path?.contains("app${File.separator}resources") == true)
+        assertEquals("GATES.exe", assets?.launcher?.name)
     }
 }

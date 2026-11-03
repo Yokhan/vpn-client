@@ -14,6 +14,7 @@ private const val SERVICE_LOG_FILE = "service.log"
 private const val CONTROL_TOKEN_FILE = "control.token"
 
 data class WindowsServicePaths(
+    val launcherExecutable: Path,
     val runtimeExecutable: Path,
     val dataDirectory: Path,
     val configFile: Path,
@@ -38,8 +39,10 @@ object WindowsServicePathContract {
             WINDOWS_DIRECTORY,
             SING_BOX_EXECUTABLE,
         )
+        val launcherExecutable = Path.of(programFiles, PRODUCT_DIRECTORY, "GATES.exe")
         val dataDirectory = Path.of(programData, PRODUCT_DIRECTORY, SERVICE_DIRECTORY)
         return WindowsServicePaths(
+            launcherExecutable = launcherExecutable,
             runtimeExecutable = runtimeExecutable,
             dataDirectory = dataDirectory,
             configFile = dataDirectory.resolve(ACTIVE_CONFIG_FILE),

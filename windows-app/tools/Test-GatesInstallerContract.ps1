@@ -129,6 +129,13 @@ if ([IO.Path]::GetExtension($resolvedPath) -ine '.msi') {
     throw "Expected an .msi package: $resolvedPath"
 }
 
+$serviceXmlPath = Join-Path $PSScriptRoot '..\..\windows-service\src\main\resources\Gates.Service.xml'
+[xml]$serviceConfiguration = Get-Content -LiteralPath $serviceXmlPath -Raw
+if ($serviceConfiguration.service.executable -cne '%BASE%\..\..\..\GATES.exe' -or
+    $serviceConfiguration.service.arguments -cne '--runtime-service') {
+    throw 'GATES service must use the installed GATES.exe runtime launcher.'
+}
+
 $installer = $null
 $database = $null
 try {
@@ -151,6 +158,9 @@ try {
     }
 
     $fileLocations = Get-MsiFileLocations -Database $database
+    if (-not $fileLocations.ContainsKey('GATES.exe') -or '' -notin $fileLocations['GATES.exe']) {
+        throw 'MSI is missing GATES.exe, the configured service launcher.'
+    }
     $requiredFiles = [ordered]@{
         'GATES.exe' = ''
         'Gates.Service.exe' = 'app/resources/gates-service'

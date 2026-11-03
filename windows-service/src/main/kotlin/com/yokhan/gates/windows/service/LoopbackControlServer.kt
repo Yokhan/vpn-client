@@ -49,6 +49,7 @@ class SerializedServiceHandler(
         is StopRequest -> handleStop()
         is StatusRequest -> successResponse(supervisor.state().name)
         is ConfigDigestRequest -> successResponse(supervisor.configurationDigest() ?: "NONE")
+        is ProtectionStatusRequest -> successResponse(supervisor.protectionStatus().name)
     }
 
     private fun handleStop(): String = try {
@@ -66,7 +67,9 @@ class SerializedServiceHandler(
             is ConfigPayloadResult.Accepted -> decoded.configBytes
             is ConfigPayloadResult.Rejected -> return errorResponse(decoded.error.code.name)
         }
-        val config = when (val validated = SingBoxConfigValidator.validate(payload)) {
+        val config = when (val validated = SingBoxConfigValidator.validate(
+            payload, supervisor.coreExecutablePath(), supervisor.reservedProtectionPaths(),
+        )) {
             is ConfigValidationResult.Accepted -> validated.config
             is ConfigValidationResult.Rejected -> return errorResponse(validated.error.code.name)
         }

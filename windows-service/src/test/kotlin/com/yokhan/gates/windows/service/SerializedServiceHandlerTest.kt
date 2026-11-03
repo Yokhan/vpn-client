@@ -66,6 +66,20 @@ class SerializedServiceHandlerTest {
     }
 
     @Test
+    fun protectionStatusUsesTheExistingControlAuthentication() {
+        val supervisor = object : TunnelLauncher {
+            override fun launch(config: ValidatedSingBoxConfig): TunnelChild = FakeTunnelChild()
+            override fun protectionStatus(): ProtectionStatus = ProtectionStatus.BLOCKED
+        }
+        val handler = SerializedServiceHandler(SerializedTunnelSupervisor(supervisor), token)
+        val proof = ControlAuthentication.clientProof(token, clientNonce, serverNonce)
+        val foreign = ControlAuthentication.clientProof("b".repeat(64), clientNonce, serverNonce)
+
+        assertEquals("2|OK|BLOCKED", handler.handle("2|$proof|PROTECTION_STATUS|", clientNonce, serverNonce))
+        assertEquals("2|ERROR|UNAUTHORIZED", handler.handle("2|$foreign|PROTECTION_STATUS|", clientNonce, serverNonce))
+    }
+
+    @Test
     fun persistenceFailureDuringStopReturnsSanitizedError() {
         val launcher = object : TunnelLauncher {
             override fun launch(config: ValidatedSingBoxConfig): TunnelChild = FakeTunnelChild()

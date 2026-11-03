@@ -16,6 +16,7 @@ class WindowsServicePathContractTest {
             "C:\\Program Files\\GATES\\app\\resources\\yokhan-runtime\\windows\\sing-box.exe",
             paths.runtimeExecutable.toString(),
         )
+        assertEquals("C:\\Program Files\\GATES\\GATES.exe", paths.launcherExecutable.toString())
         assertEquals("C:\\ProgramData\\GATES\\Service", paths.dataDirectory.toString())
         assertEquals("C:\\ProgramData\\GATES\\Service\\active.json", paths.configFile.toString())
         assertEquals("C:\\ProgramData\\GATES\\Service\\service.log", paths.logFile.toString())

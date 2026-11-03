@@ -33,6 +33,7 @@ private const val SERVER_PORT_KEY = "server_port"
 
 data class ValidatedSingBoxConfig(
     val canonicalJson: String,
+    val protection: SelectedAppProtection? = null,
 )
 
 enum class ConfigErrorCode {
@@ -54,6 +55,7 @@ enum class ConfigErrorCode {
     DUPLICATE_TAG,
     MISSING_SERVER_PORT,
     INVALID_SERVER_PORT,
+    INVALID_PROTECTION_METADATA,
 }
 
 data class ConfigValidationError(
@@ -69,7 +71,11 @@ sealed interface ConfigValidationResult {
 object SingBoxConfigValidator {
     private val gson = Gson()
 
-    fun validate(configBytes: ByteArray): ConfigValidationResult {
+    fun validate(
+        configBytes: ByteArray,
+        coreExecutablePath: String? = null,
+        reservedExecutablePaths: Set<String>? = emptySet(),
+    ): ConfigValidationResult {
         if (configBytes.size > MAX_CONFIG_BYTES) return reject(ConfigErrorCode.CONFIG_TOO_LARGE, "Config exceeds 256 KiB")
         val root = try {
             parseStrictJson(decodeUtf8(configBytes))
@@ -79,13 +85,77 @@ object SingBoxConfigValidator {
             return reject(ConfigErrorCode.MALFORMED_JSON, "Invalid JSON")
         }
         if (!root.isJsonObject) return reject(ConfigErrorCode.ROOT_NOT_OBJECT, "Config root must be an object")
-        return validateRoot(root.asJsonObject)
+        return validateRoot(root.asJsonObject, coreExecutablePath, reservedExecutablePaths)
     }
 
-    private fun validateRoot(root: JsonObject): ConfigValidationResult {
+    private fun validateRoot(
+        root: JsonObject,
+        coreExecutablePath: String?,
+        reservedExecutablePaths: Set<String>?,
+    ): ConfigValidationResult {
+        val protection = when (val result = parseProtection(root, coreExecutablePath, reservedExecutablePaths)) {
+            is ProtectionParse.Accepted -> result.protection
+            is ProtectionParse.Rejected -> return ConfigValidationResult.Rejected(result.error)
+        }
+        root.remove("gates_protection")
         val topLevelError = validateTopLevelSections(root) ?: validateTree(root, mutableSetOf()) ?: validateInbounds(root) ?: validateOutbounds(root)
         if (topLevelError != null) return ConfigValidationResult.Rejected(topLevelError)
-        return ConfigValidationResult.Accepted(ValidatedSingBoxConfig(gson.toJson(root)))
+        return ConfigValidationResult.Accepted(ValidatedSingBoxConfig(gson.toJson(root), protection))
+    }
+
+    private fun parseProtection(
+        root: JsonObject,
+        coreExecutablePath: String?,
+        reservedExecutablePaths: Set<String>?,
+    ): ProtectionParse {
+        if (!root.has("gates_protection")) return ProtectionParse.Accepted(null)
+        val value = root.get("gates_protection")
+        if (value == null || !value.isJsonObject) return invalidProtection()
+        if (reservedExecutablePaths == null) return invalidProtection()
+        val metadata = value.asJsonObject
+        if (metadata.keySet() != setOf("schema", "protected_executables")) return invalidProtection()
+        val schema = metadata.get("schema")
+        if (schema == null || !schema.isJsonPrimitive || !schema.asJsonPrimitive.isNumber ||
+            runCatching { schema.asBigDecimal.scale() <= 0 && schema.asBigDecimal.compareTo(BigDecimal.ONE) == 0 }
+                .getOrDefault(false).not()) return invalidProtection()
+        val executables = metadata.get("protected_executables")
+        if (executables == null || !executables.isJsonArray || executables.asJsonArray.size() == 0 || executables.asJsonArray.size() > 128) {
+            return invalidProtection()
+        }
+        val paths = mutableListOf<String>()
+        executables.asJsonArray.forEach { item ->
+            if (!item.isJsonPrimitive || !item.asJsonPrimitive.isString) return invalidProtection()
+            val path = item.asString
+            if (!isAbsoluteLocalWindowsExe(path)) return invalidProtection()
+            if (coreExecutablePath != null && sameWindowsPath(path, coreExecutablePath)) {
+                return invalidProtection()
+            }
+            if (reservedExecutablePaths.any { sameWindowsPath(path, it) }) return invalidProtection()
+            if (paths.any { it.equals(path, ignoreCase = true) }) return invalidProtection()
+            paths += path
+        }
+        return ProtectionParse.Accepted(SelectedAppProtection(paths))
+    }
+
+    private fun isAbsoluteLocalWindowsExe(path: String): Boolean =
+        Regex("^[A-Za-z]:\\\\").containsMatchIn(path) &&
+            path.none { it.code < 0x20 || it in "<>\"|?*" } &&
+            path.split('\\').drop(1).none { component ->
+                component == "." || component == ".." || ':' in component ||
+                    Regex("(?i)^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\..*)?$").matches(component)
+            } &&
+            path.substringAfterLast('\\').endsWith(".exe", ignoreCase = true)
+
+    private fun sameWindowsPath(left: String, right: String): Boolean =
+        left.replace('/', '\\').trimEnd('\\').equals(right.replace('/', '\\').trimEnd('\\'), ignoreCase = true)
+
+    private fun invalidProtection() = ProtectionParse.Rejected(
+        ConfigValidationError(ConfigErrorCode.INVALID_PROTECTION_METADATA, "gates_protection is invalid"),
+    )
+
+    private sealed interface ProtectionParse {
+        data class Accepted(val protection: SelectedAppProtection?) : ProtectionParse
+        data class Rejected(val error: ConfigValidationError) : ProtectionParse
     }
 
     private fun validateTopLevelSections(root: JsonObject): ConfigValidationError? {

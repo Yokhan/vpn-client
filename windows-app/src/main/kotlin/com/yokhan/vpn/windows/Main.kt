@@ -87,6 +87,8 @@ import com.yokhan.gates.shared.ui.design.yokhanPalette
 import com.yokhan.gates.shared.ui.design.yokhanTypography
 import com.yokhan.gates.shared.ui.navigation.GatesBottomNavigation
 import com.yokhan.gates.shared.ui.navigation.GatesNavigationItem
+import com.yokhan.gates.windows.service.isGatesRuntimeServiceIdentitySystem
+import com.yokhan.gates.windows.service.runGatesServiceProcess
 import com.yokhan.gates.windows.qa.WindowsQaState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CompletableDeferred
@@ -112,6 +114,29 @@ private val ProductionDashboardVisibility = DashboardUiVisibility(
 )
 
 fun main(args: Array<String>) {
+    when (classifyGatesRuntimeLauncherArgs(args.toList())) {
+        GatesRuntimeLauncherCommand.SERVICE -> {
+            if (!isGatesRuntimeServiceIdentitySystem()) {
+                System.err.println("GATES service mode requires the Windows LocalSystem identity.")
+                Runtime.getRuntime().halt(5)
+            }
+            val exitCode = runGatesServiceProcess(emptyArray())
+            System.out.flush()
+            System.err.flush()
+            Runtime.getRuntime().halt(exitCode)
+        }
+        GatesRuntimeLauncherCommand.CLEANUP_PROTECTION -> {
+            val exitCode = runGatesServiceProcess(arrayOf("--cleanup-protection"))
+            System.out.flush()
+            System.err.flush()
+            Runtime.getRuntime().halt(exitCode)
+        }
+        GatesRuntimeLauncherCommand.INVALID -> {
+            System.err.println("Unsupported GATES runtime service arguments.")
+            Runtime.getRuntime().halt(64)
+        }
+        GatesRuntimeLauncherCommand.NOT_SERVICE -> Unit
+    }
     val qa = if (windowsQaRequested(args)) WindowsQaSession(realAccess = args.single() == "--qa-access") else null
     if (args.firstOrNull() == "--cli") {
         val exitCode = runCli(args.drop(1))
@@ -159,6 +184,17 @@ fun main(args: Array<String>) {
                 WindowsApp(window, qa)
             }
         }
+    }
+}
+
+internal enum class GatesRuntimeLauncherCommand { NOT_SERVICE, SERVICE, CLEANUP_PROTECTION, INVALID }
+
+internal fun classifyGatesRuntimeLauncherArgs(args: List<String>): GatesRuntimeLauncherCommand {
+    if (args.firstOrNull() != "--runtime-service") return GatesRuntimeLauncherCommand.NOT_SERVICE
+    return when (args) {
+        listOf("--runtime-service") -> GatesRuntimeLauncherCommand.SERVICE
+        listOf("--runtime-service", "--cleanup-protection") -> GatesRuntimeLauncherCommand.CLEANUP_PROTECTION
+        else -> GatesRuntimeLauncherCommand.INVALID
     }
 }
 
@@ -326,6 +362,8 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
     var bugMessage by remember { mutableStateOf("") }
     var reportReturnTo by remember { mutableStateOf("dashboard") }
     var runtimeMode by remember { mutableStateOf("tun") }
+    var killSwitchEnabled by remember { mutableStateOf(false) }
+    var protectionState by remember { mutableStateOf(WindowsProtectionState.UNAVAILABLE) }
     var autoUploadRecoveryReports by remember { mutableStateOf(true) }
     var recoveryPreferenceLoaded by remember { mutableStateOf(false) }
     var updateAvailable by remember { mutableStateOf(false) }
@@ -500,12 +538,13 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
             availableRoutes = snapshot.routes
             appRoutingState = snapshot.appRouting
             runtimeMode = snapshot.config.runtimeMode
+            killSwitchEnabled = snapshot.config.killSwitchEnabled
             autoUploadRecoveryReports = snapshot.config.autoUploadRecoveryReports
             recoveryPreferenceLoaded = true
             autoCheckUpdates = snapshot.config.autoCheckUpdates
             snapshotLoaded = true
             if (qa == null && runtimeMode == "tun") {
-                lastMessage = "Подготовка службы туннеля…"
+                lastMessage = "Проверка службы GATES…"
                 val prepared = withContext(Dispatchers.IO) { controller.run("prepare-runtime") }
                 lastMessage = if (prepared.exitCode == 0) "" else windowsUiResultMessage("prepare-runtime", prepared)
             }
@@ -562,6 +601,21 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
         while (true) {
             withContext(Dispatchers.IO) { runCatching { delivery.runOnce(autoUploadRecoveryReports) } }
             delay(60_000)
+        }
+    }
+
+    LaunchedEffect(qa, killSwitchEnabled) {
+        if (qa != null) return@LaunchedEffect
+        while (true) {
+            val observed = withContext(Dispatchers.IO) {
+                parseWindowsProtectionState(controller.run("protection-status"))
+            }
+            protectionState = observed
+            if (!busy && (observed in setOf(WindowsProtectionState.BLOCKED, WindowsProtectionState.ERROR) ||
+                    (killSwitchEnabled && observed == WindowsProtectionState.UNAVAILABLE))) {
+                connectionStatus = ConnectionStatus.Disconnected
+            }
+            delay(5_000)
         }
     }
 
@@ -622,6 +676,10 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                     roomNetMessage = ""
                 }
                 if (command == "set-runtime" && result.exitCode == 0) runtimeMode = argument ?: "tun"
+                if (command == "set-kill-switch" && result.exitCode == 0) killSwitchEnabled = argument == "true"
+                protectionState = withContext(Dispatchers.IO) {
+                    parseWindowsProtectionState(controller.run("protection-status"))
+                }
                 if (command == "check-update" && result.exitCode == 0) {
                     updateAvailable = result.output.contains("Update available: true")
                 }
@@ -897,6 +955,11 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                         palette = windowPalette,
                         spaceActive = windowSpaceActive,
                         runtimeMode = runtimeMode,
+                        killSwitchEnabled = killSwitchEnabled,
+                        protectionMessage = windowsProtectionLabel(protectionState),
+                        onKillSwitchChange = if (qa == null) ({ enabled ->
+                            launchRuntime("Защита", "set-kill-switch", argument = enabled.toString())
+                        }) else null,
                         autoUploadRecoveryReports = autoUploadRecoveryReports,
                         onAutoUploadRecoveryReportsChange = if (qa == null) { enabled ->
                             scope.launch {
@@ -996,13 +1059,14 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                             state = state,
                             drawBackgroundEffects = qa?.backgroundEffects?.value ?: true,
                             profiles = profiles,
-                            labels = DashboardUiLabels.Russian,
+                            labels = windowsProtectionDashboardLabels(protectionState, killSwitchEnabled,
+                                connectionStatus == ConnectionStatus.Connected),
                             actions = DashboardUiActions(
                                 onToggleConnection = {
                                     if (qa != null) {
                                         lastMessage = "Операция недоступна в тестовом режиме."
                                     } else if (!busy) {
-                                        if (connectionStatus == ConnectionStatus.Connected) {
+                                        if (connectionStatus == ConnectionStatus.Connected || protectionState.retainsProtection) {
                                             connectionStatus = ConnectionStatus.Disconnecting
                                             launchRuntime("Отключение", "stop", nextStatus = ConnectionStatus.Disconnected)
                                         } else {

@@ -9,6 +9,24 @@ import kotlin.test.assertTrue
 class WindowsRuntimeServiceManagerTest {
 
     @Test
+    fun uninstallStopsServiceAndVerifiesProtectionCleanupBeforeRemovingService() {
+        val assets = WindowsRuntimeServiceAssets(
+            File("C:/Program Files/GATES/app/resources/gates-service/Gates.Service.exe"),
+            File("C:/Program Files/GATES/app/resources/gates-service/Gates.Service.jar"),
+            File("service.xml"),
+        )
+        val script = buildUninstallScript(assets, File("C:/Program Files/GATES/GATES.exe"))
+        assertTrue(script.indexOf("WaitForStatus('Stopped'") < script.indexOf("--cleanup-protection"))
+        assertTrue(script.indexOf("--cleanup-protection") < script.indexOf("${assets.wrapper.absolutePath}' uninstall"))
+        assertTrue(script.contains("--runtime-service --cleanup-protection"))
+        assertFalse(script.contains("java.exe"))
+        assertTrue(script.contains("Protection cleanup failed; service was not uninstalled"))
+        assertTrue(script.contains("Conflicting GATES service; uninstall refused"))
+        assertFalse(script.contains("netsh"))
+        assertFalse(script.contains("SilentlyContinue'"))
+    }
+
+    @Test
     fun servicePresenceDistinguishesMissingFromUnknownScmFailures() {
         fun presenceFor(exitCode: Int): Boolean? = WindowsRuntimeServiceManager(
             processRunner = { args, _, _ ->
@@ -97,5 +115,28 @@ class WindowsRuntimeServiceManagerTest {
         assertTrue(result.output.contains("start_service"))
         assertTrue(result.output.contains("could not be started"))
         assertFalse(result.output.contains("token"))
+    }
+
+    @Test
+    fun elevatedWaitTimeoutDoesNotClaimTheElevatedChildWasCancelled() {
+        val result = normalizeElevatedSetupResult(
+            RuntimeCommandResult(124, "Process wait expired; elevated child termination is unverified."),
+        )
+
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("GATES_SETUP_STAGE=elevated_timeout"))
+        assertTrue(result.output.contains("may still be running"))
+    }
+
+    @Test
+    fun runtimeServiceLauncherAcceptsOnlyExactServiceAndCleanupArguments() {
+        assertEquals(GatesRuntimeLauncherCommand.SERVICE,
+            classifyGatesRuntimeLauncherArgs(listOf("--runtime-service")))
+        assertEquals(GatesRuntimeLauncherCommand.CLEANUP_PROTECTION,
+            classifyGatesRuntimeLauncherArgs(listOf("--runtime-service", "--cleanup-protection")))
+        assertEquals(GatesRuntimeLauncherCommand.INVALID,
+            classifyGatesRuntimeLauncherArgs(listOf("--runtime-service", "--cleanup-protection", "extra")))
+        assertEquals(GatesRuntimeLauncherCommand.NOT_SERVICE,
+            classifyGatesRuntimeLauncherArgs(listOf("--runtime-service-extra")))
     }
 }

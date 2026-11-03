@@ -16,6 +16,7 @@ enum class ServiceCommand(val wireValue: String) {
     STOP("STOP"),
     STATUS("STATUS"),
     CONFIG_DIGEST("CONFIG_DIGEST"),
+    PROTECTION_STATUS("PROTECTION_STATUS"),
 }
 
 sealed interface ServiceRequest {
@@ -51,6 +52,13 @@ data class ConfigDigestRequest(
     override val authProof: String,
 ) : ServiceRequest {
     override val command = ServiceCommand.CONFIG_DIGEST
+}
+
+data class ProtectionStatusRequest(
+    override val version: Int,
+    override val authProof: String,
+) : ServiceRequest {
+    override val command = ServiceCommand.PROTECTION_STATUS
 }
 
 enum class ProtocolErrorCode {
@@ -128,6 +136,7 @@ object ServiceProtocolParser {
             ServiceCommand.STOP.wireValue -> parseEmptyPayload(version, authProof, ServiceCommand.STOP, parts[3])
             ServiceCommand.STATUS.wireValue -> parseEmptyPayload(version, authProof, ServiceCommand.STATUS, parts[3])
             ServiceCommand.CONFIG_DIGEST.wireValue -> parseEmptyPayload(version, authProof, ServiceCommand.CONFIG_DIGEST, parts[3])
+            ServiceCommand.PROTECTION_STATUS.wireValue -> parseEmptyPayload(version, authProof, ServiceCommand.PROTECTION_STATUS, parts[3])
             else -> reject(ProtocolErrorCode.UNSUPPORTED_COMMAND, "Command is not permitted")
         }
     }
@@ -151,6 +160,7 @@ object ServiceProtocolParser {
             ServiceCommand.STOP -> StopRequest(version, authProof)
             ServiceCommand.STATUS -> StatusRequest(version, authProof)
             ServiceCommand.CONFIG_DIGEST -> ConfigDigestRequest(version, authProof)
+            ServiceCommand.PROTECTION_STATUS -> ProtectionStatusRequest(version, authProof)
             ServiceCommand.START_TUNNEL -> error("START_TUNNEL requires a payload")
         }
         return ProtocolParseResult.Accepted(request)
