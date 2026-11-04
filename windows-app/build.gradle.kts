@@ -34,12 +34,12 @@ val defaultRuntimeDir = rootProject.projectDir.parentFile
     .resolve("YokhanIndependentVPN")
     .resolve(".tmp")
     .resolve("sing-box")
-    .resolve("sing-box-1.13.12-windows-amd64")
+    .resolve("sing-box-1.14.4-windows-amd64")
 
 val windowsRuntimeDir = providers.environmentVariable("YOKHAN_SING_BOX_DIR")
     .map { file(it) }
     .orElse(defaultRuntimeDir)
-val windowsPackageVersion = "1.7.6"
+val windowsPackageVersion = "1.7.7"
 val windowsUpdateSignerSha1 = providers.environmentVariable("GATES_WINDOWS_UPDATE_SIGNER_SHA1").orElse("")
 val winswVersion = "2.12.0"
 val winswSha256 = "05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da"
@@ -48,8 +48,8 @@ val serviceFatJarFile = rootProject.layout.projectDirectory
     .file("windows-service/build/libs/windows-service-all.jar")
 val nativeAppResourcesRoot = layout.buildDirectory.dir("generated/native-app-resources")
 val pinnedRuntimeHashes = mapOf(
-    "sing-box.exe" to "64b1dfaed6fa758295233fd0bec8b32cf2115f29773adbf38e0f026c3c7986f2",
-    "libcronet.dll" to "c7434cfa93c3041321dd19111c4de6c52b8a9531a65661ba45425d3c51ec69e2",
+    "sing-box.exe" to "8f30682ee198855440d2a7fe070d5d3653793b2d01bb8c85eea88f93bbe7c8b9",
+    "libcronet.dll" to "3217c6260fbca5f16072e0b79735742f40109a63bb0ff88fd6b96dd6b54a2928",
     "LICENSE" to "bb3805862b583aee73ad6f7805ec634747a37257a637a3069857843f05ea589c",
 )
 
