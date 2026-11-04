@@ -50,14 +50,14 @@ class WindowsAccessTest {
     @Test
     fun accountAutoCandidatesIncludeEveryValidProxyAndExcludeDirect() {
         val outbounds = JsonParser.parseString(
-            """{"outbounds":[{"type":"direct","tag":"direct"},{"type":"vless","tag":"nl-tcp","server":"45.134.174.246","server_port":41567},{"type":"hysteria2","tag":"hy2","server":"hy2.example","server_port":443},{"type":"selector","tag":"auto"},{"type":"vless","tag":"broken","server":"invalid.example","server_port":70000}]}""",
+            """{"outbounds":[{"type":"direct","tag":"direct"},{"type":"vless","tag":"nl-tcp","server":"45.134.174.246","server_port":41567},{"type":"hysteria2","tag":"hy2","server":"hy2.example","server_port":443},{"type":"hysteria2","tag":"se-hy2","server":"se.example","server_port":4443},{"type":"selector","tag":"auto"},{"type":"vless","tag":"broken","server":"invalid.example","server_port":70000}]}""",
         ).asJsonObject.getAsJsonArray("outbounds")
         val proxyRoutes = validWindowsProxyRouteTags(outbounds)
 
         assertTrue(hasImportedTunnelProfile("""{"outbounds":[{"type":"vless","tag":"nl-tcp","server":"45.134.174.246","server_port":41567}]}"""))
-        assertEquals(listOf("nl-tcp", "hy2"), proxyRoutes)
+        assertEquals(listOf("nl-tcp", "hy2", "se-hy2"), proxyRoutes)
         assertEquals(
-            listOf("hy2", "nl-tcp"),
+            listOf("hy2", "nl-tcp", "se-hy2"),
             windowsAutoRouteCandidates(listOf("bridge", "relay", "naive", "hy2"), proxyRoutes, true),
         )
         assertFalse("direct" in windowsAutoRouteCandidates(listOf("direct"), listOf("direct", "nl-tcp"), true))
@@ -89,6 +89,7 @@ class WindowsAccessTest {
         assertEquals("nl-tcp", config.activeRoute)
         assertEquals(listOf("nl-tcp"), config.physicalBindRoutes)
         assertTrue(isWindowsProxyRouteId("nl-tcp"))
+        assertTrue(isWindowsProxyRouteId("se-hy2"))
         assertFalse(isWindowsProxyRouteId("direct"))
     }
 

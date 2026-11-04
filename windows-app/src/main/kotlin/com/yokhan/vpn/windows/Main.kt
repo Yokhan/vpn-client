@@ -1269,6 +1269,7 @@ private fun activeRouteLabel(route: String): String =
         "naive" -> "Naive"
         "hy2" -> "HY2"
         "nl-tcp" -> "NL VLESS"
+        "se-hy2" -> "SE Stockholm"
         else -> route
     }
 
@@ -1282,6 +1283,6 @@ private fun routeProtocolLabel(route: String): String =
     when (route) {
         "bridge", "relay", "nl-tcp" -> "VLESS"
         "naive" -> "HTTPS"
-        "hy2" -> "HYSTERIA2"
+        "hy2", "se-hy2" -> "HYSTERIA2"
         else -> "AUTO"
     }

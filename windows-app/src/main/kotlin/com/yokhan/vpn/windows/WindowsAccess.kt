@@ -4,7 +4,7 @@ import com.google.gson.JsonParser
 import com.google.gson.JsonArray
 import java.net.URI
 
-private val WINDOWS_PROXY_ROUTE_IDS = setOf("bridge", "relay", "naive", "hy2", "nl-tcp")
+private val WINDOWS_PROXY_ROUTE_IDS = setOf("bridge", "relay", "naive", "hy2", "nl-tcp", "se-hy2")
 
 internal fun isWindowsProxyRouteId(value: String): Boolean =
     value.trim().lowercase() in WINDOWS_PROXY_ROUTE_IDS
