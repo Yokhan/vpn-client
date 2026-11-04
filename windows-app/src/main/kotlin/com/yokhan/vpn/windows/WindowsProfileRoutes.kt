@@ -21,6 +21,7 @@ internal fun windowsProfileRoutes(json: String): List<WindowsProfileRoute> = run
             tag = tag,
             label = when (tag) {
                 "nl-tcp" -> "NL VLESS"
+                "se-hy2" -> "SE Stockholm"
                 "hy2" -> "Hysteria2"
                 "bridge" -> "Bridge"
                 "relay" -> "Relay"

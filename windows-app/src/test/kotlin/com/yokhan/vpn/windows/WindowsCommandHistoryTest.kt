@@ -21,4 +21,28 @@ class WindowsCommandHistoryTest {
         assertFalse(text.contains("private"))
         assertFalse(text.contains("secret"))
     }
+
+    @Test fun recordsOnlyBoundedAccessMetadata() {
+        val root = Files.createTempDirectory("gates-command-access").toFile()
+        recordWindowsCommandResult(
+            root,
+            "login",
+            RuntimeCommandResult(
+                403,
+                "SECRET_DETAIL",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.PROFILE,
+                    WindowsAccessCode.ACCESS_NOT_LINKED,
+                    403,
+                ),
+            ),
+        )
+        val text = root.resolve("logs/operations.json").readText()
+        val row = JsonParser.parseString(text).asJsonArray.last().asJsonObject
+        assertEquals("profile", row.get("accessStage").asString)
+        assertEquals("ACCESS_NOT_LINKED", row.get("accessCode").asString)
+        assertEquals(403, row.get("accessHttpStatus").asInt)
+        assertFalse(text.contains("SECRET_DETAIL"))
+        assertFalse(text.contains("SEEDED"))
+    }
 }

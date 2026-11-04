@@ -26,6 +26,12 @@ internal fun recordWindowsCommandResult(root: File, command: String, result: Run
                 addProperty("exitCode", result.exitCode)
                 windowsUiFailureCode(command, result)?.let { addProperty("failureCode", it) }
                 windowsRuntimeSetupStage(result)?.let { addProperty("setupStage", it) }
+                result.accessFailure?.let { failure ->
+                    addProperty("accessStage", failure.stage.name.lowercase())
+                    addProperty("accessCode", failure.code.name)
+                    failure.httpStatus?.let { addProperty("accessHttpStatus", it) }
+                }
+                if (result.accessPending) addProperty("accessPending", true)
             })
             store.writeAtomic(file, entries.toString().toByteArray(Charsets.UTF_8))
         }
@@ -36,5 +42,5 @@ private val WINDOWS_RECORDED_COMMANDS = setOf(
     "connect", "stop", "prepare-runtime", "install-service", "set-route", "set-runtime",
     "set-kill-switch",
     "add-app-proxy", "add-app-direct", "remove-app-proxy", "remove-app-direct", "set-tun-routing",
-    "login", "import-app", "import-sub",
+    "login", "import-app", "import-sub", WINDOWS_ACCESS_REQUEST_COMMAND,
 )

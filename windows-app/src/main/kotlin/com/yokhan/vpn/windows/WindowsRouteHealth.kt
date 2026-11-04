@@ -92,7 +92,7 @@ fun preferredWindowsRouteForTelemetry(
 ): String = orderWindowsRoutesByHealth(candidateRoutes, snapshot).firstOrNull().orEmpty()
 
 fun detectWindowsRuntimeRoute(logText: String): String {
-    val pattern = Regex("outbound/[^\\r\\n\\[]+\\[(bridge|relay|naive|hy2|nl-tcp)]", RegexOption.IGNORE_CASE)
+    val pattern = Regex("outbound/[^\\r\\n\\[]+\\[(bridge|relay|naive|hy2|nl-tcp|se-hy2)]", RegexOption.IGNORE_CASE)
     return pattern.findAll(logText).lastOrNull()?.groupValues?.get(1)?.lowercase().orEmpty()
 }
 
@@ -135,6 +135,6 @@ private fun normalizeRouteId(value: String): String =
 private fun normalizeStatus(value: String): String =
     value.trim().lowercase().ifBlank { "unknown" }
 
-private val KNOWN_ROUTE_IDS = setOf("bridge", "relay", "naive", "hy2", "nl-tcp")
+private val KNOWN_ROUTE_IDS = setOf("bridge", "relay", "naive", "hy2", "nl-tcp", "se-hy2")
 private val BLOCKED_ROUTE_STATUSES = setOf("blocked", "down", "disabled")
 private const val DEFAULT_UNKNOWN_ROUTE_SCORE = 50

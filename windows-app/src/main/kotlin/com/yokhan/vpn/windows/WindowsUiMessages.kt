@@ -30,9 +30,13 @@ internal fun windowsUiResultMessage(command: String, result: RuntimeCommandResul
             "GATES_INVALID_APP" -> return "Выберите файл .exe или укажите имя процесса, например browser.exe."
             "GATES_CONNECT_FAILED" -> return "Не удалось подключиться. Код: GATES_CONNECT_FAILED."
         }
+        result.accessFailure?.let { failure ->
+            windowsUiAccessFailureMessage(command, failure)?.let { return it }
+        }
     }
     if (result.exitCode != 0) return when (command) {
         "login", "import-app" -> if (result.exitCode == 401) "Сессия истекла. Войдите снова." else "Не удалось получить доступ."
+        "access-request" -> "Не удалось отправить заявку на доступ."
         "import-sub" -> "Не удалось добавить подписку."
         "report-bug" -> "Не удалось отправить отчёт."
         "check-update" -> "Не удалось проверить обновления."
@@ -42,6 +46,7 @@ internal fun windowsUiResultMessage(command: String, result: RuntimeCommandResul
     }
     return when (command) {
         "login", "import-app" -> "Доступ обновлён."
+        "access-request" -> "Заявка на доступ отправлена. Ожидайте одобрения."
         "import-sub" -> "Подписка добавлена."
         "report-bug" -> "Отчёт отправлен."
         "check-update" -> when {
@@ -78,3 +83,59 @@ internal fun windowsRuntimeSetupStage(result: RuntimeCommandResult): String? =
             "preserve_active_service", "remove_legacy_task", "install_service", "start_service",
             "service_health", "uac_approval", "elevated_launch", "elevated_timeout", "setup", "unknown")
     }
+
+/**
+ * Actionable access message from bounded metadata.
+ * Returns null for unknown codes so the existing command fallback still applies.
+ */
+internal fun windowsUiAccessFailureMessage(command: String, failure: WindowsAccessFailure): String? {
+    val completedSignIn = command == "login" && failure.stage == WindowsAccessStage.PROFILE
+    return when (failure.code) {
+        WindowsAccessCode.ACCESS_NOT_LINKED ->
+            if (completedSignIn) "Вход выполнен, но доступ GATES не привязан к аккаунту. Войдите под другим аккаунтом или запросите доступ."
+            else "Доступ GATES не привязан к аккаунту. Войдите под другим аккаунтом или запросите доступ."
+        WindowsAccessCode.ACCESS_PENDING ->
+            "Заявка на доступ ожидает одобрения. Нажмите «Проверить статус» после одобрения."
+        WindowsAccessCode.USER_NOT_FOUND ->
+            "Аккаунт не найден на сервере GATES. Проверьте, что вход выполнен под нужным аккаунтом, или запросите доступ."
+        WindowsAccessCode.DEVICE_NOT_FOUND ->
+            "Устройство не найдено в аккаунте. Проверьте имя устройства или обратитесь в поддержку."
+        WindowsAccessCode.ROOM_FORBIDDEN ->
+            "Для аккаунта недоступна выбранная комната. Проверьте настройки комнаты."
+        WindowsAccessCode.APP_ROUTE_UNAVAILABLE ->
+            "Сервер не смог подготовить маршруты. Сохранённая конфигурация не изменена. Повторите позже."
+        WindowsAccessCode.RATE_LIMITED ->
+            "Слишком много попыток. Подождите и повторите."
+        WindowsAccessCode.SERVER_ERROR ->
+            "Сервер временно недоступен. Повторите позже."
+        WindowsAccessCode.TRANSPORT_ERROR ->
+            "Нет связи с сервером. Проверьте интернет и повторите."
+        WindowsAccessCode.NOT_FOUND ->
+            "Аккаунт или устройство не найдено на сервере GATES."
+        WindowsAccessCode.CONFLICT ->
+            "Конфликт настроек комнаты или маршрута. Повторите позже."
+        WindowsAccessCode.AUTH_REQUIRED ->
+            "Сессия входа истекла. Войдите снова."
+        WindowsAccessCode.AUTH_UNAVAILABLE ->
+            "Сервер входа временно недоступен. Проверьте соединение и повторите."
+        WindowsAccessCode.AUTH_FORBIDDEN ->
+            "Сервер отклонил вход для этого аккаунта."
+        WindowsAccessCode.AUTH_START_FAILED ->
+            "Не удалось начать вход. Проверьте соединение и повторите."
+        WindowsAccessCode.AUTH_DENIED ->
+            "Вход отклонён в браузере. Попробуйте снова."
+        WindowsAccessCode.AUTH_EXPIRED ->
+            "Код входа устарел. Начните вход заново."
+        WindowsAccessCode.AUTH_TIMEOUT ->
+            "Время ожидания входа истекло. Начните вход заново."
+        WindowsAccessCode.PROFILE_INVALID ->
+            "Сервер вернул конфигурацию без поддерживаемого профиля GATES. Сохранённая конфигурация не изменена."
+        WindowsAccessCode.PROFILE_STORE_FAILED ->
+            "Не удалось сохранить конфигурацию. Сохранённая конфигурация не изменена."
+        WindowsAccessCode.REQUEST_OPEN ->
+            "Заявка на доступ уже ожидает одобрения."
+        WindowsAccessCode.REQUEST_FAILED ->
+            "Не удалось отправить заявку на доступ. Повторите позже."
+        WindowsAccessCode.UNKNOWN -> null
+    }
+}

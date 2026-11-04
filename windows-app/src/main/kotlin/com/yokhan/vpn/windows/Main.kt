@@ -377,6 +377,8 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
     var accessReturnTo by remember { mutableStateOf("dashboard") }
     var manualSubscription by remember { mutableStateOf("") }
     var authJob by remember { mutableStateOf<Job?>(null) }
+    var accessFailure by remember { mutableStateOf<WindowsAccessFailure?>(null) }
+    var accessPending by remember { mutableStateOf(false) }
     val authorizationPrompt by if (qa == null || qa.realAccess) controller.authorizationPrompt.collectAsState()
         else remember { mutableStateOf<WindowsAuthorizationPrompt?>(null) }
     val authorizationPhase by if (qa == null || qa.realAccess) controller.authorizationPhase.collectAsState()
@@ -465,8 +467,8 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                             runningApps = listOf(WindowsProcessCandidate(0, "game.exe", "C:\\QA\\game.exe"))
                             appRoutingState = AppRoutingState(true, listOf("game.exe"), emptyList(), listOf("browser.exe"), emptyList())
                         }
-                        "fixture.signedout" -> { sessionState = WindowsSessionState(false, false, false, ""); showAccess = true }
-                        "fixture.signedin" -> { sessionState = WindowsSessionState(true, true, true, ""); showAccess = true }
+                        "fixture.signedout" -> { sessionState = WindowsSessionState(false, false, false, ""); accessFailure = null; accessPending = false; showAccess = true }
+                        "fixture.signedin" -> { sessionState = WindowsSessionState(true, true, true, ""); accessFailure = null; accessPending = false; showAccess = true }
                         "fixture.update" -> { updateAvailable = true; lastMessage = "Доступно обновление." }
                         "fixture.effects-off" -> qa.backgroundEffects.value = false
                         "fixture.effects-on" -> qa.backgroundEffects.value = true
@@ -735,7 +737,17 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
         }
     }
 
-    fun launchAuthSetup() {
+    fun applyAccessOutcome(command: String, result: RuntimeCommandResult) {
+        lastMessage = windowsUiResultMessage(command, result)
+        if (command == WINDOWS_ACCESS_RESTART_COMMAND || command == WINDOWS_ACCESS_RETRY_COMMAND ||
+            command == WINDOWS_ACCESS_REQUEST_COMMAND
+        ) {
+            accessFailure = result.accessFailure
+            accessPending = result.accessPending || result.accessFailure?.code == WindowsAccessCode.ACCESS_PENDING
+        }
+    }
+
+    fun launchAuthSetup(forceLogin: Boolean = false) {
         if (qa != null && !qa.realAccess) { lastMessage = "Операция недоступна в тестовом режиме."; return }
         authJob = scope.launch {
             if (busy) return@launch
@@ -744,9 +756,8 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                 onFailure = { lastMessage = it },
             ) {
                 val currentSession = withContext(Dispatchers.IO) { controller.sessionState() }
-                val command = if (currentSession.signedIn) "import-app" else "login"
-                val label = if (currentSession.signedIn) "Доступ" else "Вход"
-                lastMessage = if (command == "login") {
+                val command = windowsAccessCommand(currentSession.signedIn, forceLogin)
+                lastMessage = if (command == WINDOWS_ACCESS_RESTART_COMMAND) {
                     "Открываю браузер для входа."
                 } else {
                     "Получаю личную конфигурацию."
@@ -762,8 +773,33 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                 activeRoute = snapshot.config.activeRoute
                 availableRoutes = snapshot.routes
                 appRoutingState = snapshot.appRouting
-                lastMessage = windowsUiResultMessage(command, result)
+                applyAccessOutcome(command, result)
                 if (result.exitCode == 0 && sessionState.ready) showAccess = false
+            }
+        }
+    }
+
+    fun launchRequestAccess() {
+        if (qa != null && !qa.realAccess) { lastMessage = "Операция недоступна в тестовом режиме."; return }
+        authJob = scope.launch {
+            if (busy) return@launch
+            runWindowsUiAction(
+                setBusy = { busy = it },
+                onFailure = { lastMessage = it },
+            ) {
+                lastMessage = "Отправляю заявку на доступ."
+                val result = withContext(Dispatchers.IO) { controller.run(WINDOWS_ACCESS_REQUEST_COMMAND) }
+                val snapshot = loadWindowsUiSnapshot(
+                    readConfig = controller::readConfig,
+                    readSession = controller::sessionState,
+                    readAppRouting = controller::appRoutingState,
+                    readRoutes = controller::availableRoutes,
+                )
+                sessionState = snapshot.session
+                activeRoute = snapshot.config.activeRoute
+                availableRoutes = snapshot.routes
+                appRoutingState = snapshot.appRouting
+                applyAccessOutcome(WINDOWS_ACCESS_REQUEST_COMMAND, result)
             }
         }
     }
@@ -789,6 +825,8 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                 lastMessage = windowsUiResultMessage("import-sub", result)
                 if (result.exitCode == 0) {
                     manualSubscription = ""
+                    accessFailure = null
+                    accessPending = false
                     showAccess = false
                 }
             }
@@ -984,6 +1022,8 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                             showSettingsDialog = false
                             accessReturnTo = "settings"
                             lastMessage = ""
+                            accessFailure = null
+                            accessPending = false
                             showAccess = true
                         },
                         onApps = {
@@ -1015,6 +1055,7 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                         signedIn = sessionState.signedIn,
                         busy = busy,
                         message = when (authorizationPhase) {
+                            WindowsAuthorizationPhase.Starting -> "Начинаю вход в браузере."
                             WindowsAuthorizationPhase.Waiting -> "Подтвердите вход в браузере."
                             WindowsAuthorizationPhase.ReceivingProfile -> "Получаю личную конфигурацию."
                             else -> lastMessage
@@ -1039,6 +1080,21 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                         onCancelAuthorization = {
                             if (controller.cancelPendingAuthorization { authJob?.cancel() }) lastMessage = "Вход отменён."
                         },
+                        profileReady = sessionState.ready,
+                        accountLabel = sessionState.accountLabel,
+                        accessPending = accessPending,
+                        onRetryConfig = if (sessionState.signedIn) {
+                            { launchAuthSetup() }
+                        } else null,
+                        onRestartLogin = if (sessionState.signedIn) {
+                            { launchAuthSetup(forceLogin = true) }
+                        } else null,
+                        onRequestAccess = if (sessionState.signedIn && !accessPending &&
+                            (accessFailure?.code == WindowsAccessCode.ACCESS_NOT_LINKED ||
+                                accessFailure?.code == WindowsAccessCode.USER_NOT_FOUND)
+                        ) {
+                            { launchRequestAccess() }
+                        } else null,
                     )
                 }
                 return@Box
@@ -1269,6 +1325,7 @@ private fun activeRouteLabel(route: String): String =
         "naive" -> "Naive"
         "hy2" -> "HY2"
         "nl-tcp" -> "NL VLESS"
+        "se-hy2" -> "SE Stockholm"
         else -> route
     }
 
@@ -1282,6 +1339,6 @@ private fun routeProtocolLabel(route: String): String =
     when (route) {
         "bridge", "relay", "nl-tcp" -> "VLESS"
         "naive" -> "HTTPS"
-        "hy2" -> "HYSTERIA2"
+        "hy2", "se-hy2" -> "HYSTERIA2"
         else -> "AUTO"
     }

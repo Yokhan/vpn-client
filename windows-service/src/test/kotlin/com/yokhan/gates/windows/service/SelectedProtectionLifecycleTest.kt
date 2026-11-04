@@ -31,6 +31,48 @@ class SelectedProtectionLifecycleTest {
     }
 
     @Test
+    fun persistFailureAfterArmWithoutChildBlocksUntilExplicitStopReleases() {
+        val launcher = RecordingProtectedLauncher().apply { failPersist = true }
+        val supervisor = SerializedTunnelSupervisor(launcher)
+
+        assertIs<IOException>(runCatching { supervisor.start(guardedConfig) }.exceptionOrNull())
+
+        assertTrue(launcher.events.indexOf("arm") in 0 until launcher.events.indexOf("persist"))
+        assertFalse("launch" in launcher.events)
+        assertFalse("permit" in launcher.events)
+        assertEquals(ProtectionStatus.BLOCKED, supervisor.protectionStatus())
+
+        assertEquals(TunnelStopResult.AlreadyStopped, supervisor.stop())
+        assertTrue("release" in launcher.events)
+        assertEquals(ProtectionStatus.DISABLED, supervisor.protectionStatus())
+    }
+
+    @Test
+    fun persistFailureAfterArmWithFailedClearKeepsBlocksUntilLaterStopSucceeds() {
+        val launcher = RecordingProtectedLauncher().apply {
+            failPersist = true
+            failClear = true
+        }
+        val supervisor = SerializedTunnelSupervisor(launcher)
+
+        assertIs<IOException>(runCatching { supervisor.start(guardedConfig) }.exceptionOrNull())
+
+        assertTrue(launcher.events.indexOf("arm") in 0 until launcher.events.indexOf("persist"))
+        assertFalse("launch" in launcher.events)
+        assertFalse("permit" in launcher.events)
+        assertEquals(ProtectionStatus.BLOCKED, supervisor.protectionStatus())
+
+        assertIs<IOException>(runCatching { supervisor.stop() }.exceptionOrNull())
+        assertFalse("release" in launcher.events)
+        assertEquals(ProtectionStatus.BLOCKED, supervisor.protectionStatus())
+
+        launcher.failClear = false
+        assertEquals(TunnelStopResult.AlreadyStopped, supervisor.stop())
+        assertTrue("release" in launcher.events)
+        assertEquals(ProtectionStatus.DISABLED, supervisor.protectionStatus())
+    }
+
+    @Test
     fun detectedDeathBlocksBeforeRecoveryAndShutdownNeverReleases() {
         val launcher = RecordingProtectedLauncher()
         val supervisor = SerializedTunnelSupervisor(launcher)
@@ -155,6 +197,7 @@ class SelectedProtectionLifecycleTest {
         var persisted: ValidatedSingBoxConfig? = null
         var failArm = false
         var failClear = false
+        var failPersist = false
         var keepChildAliveOnStop = false
         var failLaunchAt: Int? = null
         var failPermitAt: Int? = null
@@ -171,6 +214,7 @@ class SelectedProtectionLifecycleTest {
 
         override fun persistConfig(config: ValidatedSingBoxConfig) {
             events += "persist"
+            if (failPersist) throw IOException("persist failed")
             persisted = config
         }
 

@@ -47,6 +47,8 @@ data class RuntimeCommandResult(
     val exitCode: Int,
     val output: String,
     val recoveryFailureStage: RecoveryFailureStage? = null,
+    val accessFailure: WindowsAccessFailure? = null,
+    val accessPending: Boolean = false,
 )
 
 data class AppRoutingState(
@@ -68,6 +70,7 @@ data class WindowsSessionState(
     val hasImportedConfig: Boolean,
     val ready: Boolean,
     val summary: String,
+    val accountLabel: String = "",
 )
 
 private const val GATES_WINDOWS_AUTH_CLIENT_ID = "gates-windows"
@@ -152,6 +155,16 @@ private data class WindowsAuthState(
     val refreshToken: String = "",
     val expiresAtEpochSecond: Long = 0,
     val requiresReauthentication: Boolean = false,
+    val accountSubject: String? = null,
+    val accountLabel: String? = null,
+)
+
+private data class WindowsDeviceAuthorization(
+    val deviceCode: String,
+    val userCode: String,
+    val verificationUri: String,
+    val expiresIn: Long,
+    val intervalSeconds: Long,
 )
 
 private data class SystemProxySnapshot(
@@ -642,7 +655,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.7.4"
+private const val WINDOWS_APP_VERSION = "1.7.5"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -846,6 +859,7 @@ class WindowsRuntimeController(
             hasImportedConfig = hasImportedConfig,
             ready = hasImportedConfig,
             summary = authSummary(),
+            accountLabel = auth?.accountLabel.orEmpty(),
         )
     }
 
@@ -1116,6 +1130,7 @@ class WindowsRuntimeController(
                     runInterruptible(Dispatchers.IO) { login { context.ensureActive() } }
                 }
                 "import-app" -> importAuthenticatedAppConfig()
+                "access-request" -> requestAppAccess()
                 "import-sub" -> importSubscription(route)
                 "generate" -> generateConfig()
                 "check" -> checkConfig()
@@ -1189,69 +1204,169 @@ class WindowsRuntimeController(
         checkActive()
         ensureDirs()
         val config = readConfig()
-        val metadata = fetchJson("${config.authIssuer}/.well-known/openid-configuration", secureAuth = true)
-        require(metadata.get("issuer")?.asString?.trimEnd('/') == config.authIssuer.trimEnd('/')) {
-            "Authorization issuer mismatch"
+        val metadata = try {
+            fetchJson("${config.authIssuer}/.well-known/openid-configuration", secureAuth = true)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return RuntimeCommandResult(
+                1,
+                "Authorization server metadata is unavailable.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.AUTHORIZATION,
+                    WindowsAccessCode.AUTH_START_FAILED,
+                ),
+            )
         }
-        val deviceEndpoint = validatedWindowsAuthEndpoint(config.authIssuer, metadata.get("device_authorization_endpoint")?.asString
-            ?.takeIf { it.isNotBlank() }
-            ?: "${config.authIssuer}/protocol/openid-connect/auth/device")
-        val tokenEndpoint = validatedWindowsAuthEndpoint(config.authIssuer, metadata.get("token_endpoint")?.asString
-            ?.takeIf { it.isNotBlank() }
-            ?: error("Keycloak metadata has no token endpoint"))
+        if (metadata.get("issuer")?.asString?.trimEnd('/') != config.authIssuer.trimEnd('/')) {
+            return RuntimeCommandResult(
+                1,
+                "Authorization issuer mismatch",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.AUTHORIZATION,
+                    WindowsAccessCode.AUTH_START_FAILED,
+                ),
+            )
+        }
+        val (deviceEndpoint, tokenEndpoint) = runCatching {
+            val device = validatedWindowsAuthEndpoint(config.authIssuer, metadata.get("device_authorization_endpoint")?.asString
+                ?.takeIf { it.isNotBlank() }
+                ?: "${config.authIssuer}/protocol/openid-connect/auth/device")
+            val token = validatedWindowsAuthEndpoint(config.authIssuer, metadata.get("token_endpoint")?.asString
+                ?.takeIf { it.isNotBlank() }
+                ?: error("Keycloak metadata has no token endpoint"))
+            device to token
+        }.getOrElse {
+            return RuntimeCommandResult(
+                1,
+                "Authorization endpoints are invalid.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.AUTHORIZATION,
+                    WindowsAccessCode.AUTH_START_FAILED,
+                ),
+            )
+        }
         val pkce = newPkcePair()
-        val deviceResponse = postForm(
-            deviceEndpoint,
-            mapOf(
-                "client_id" to config.authClientId,
-                "scope" to "openid profile email",
-                "code_challenge" to pkce.challenge,
-                "code_challenge_method" to "S256",
-            ),
-        )
+        val deviceResponse = try {
+            postForm(
+                deviceEndpoint,
+                mapOf(
+                    "client_id" to config.authClientId,
+                    "scope" to "openid profile email",
+                    "code_challenge" to pkce.challenge,
+                    "code_challenge_method" to "S256",
+                ),
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return RuntimeCommandResult(
+                1,
+                "Login start failed.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.AUTHORIZATION,
+                    WindowsAccessCode.AUTH_START_FAILED,
+                ),
+            )
+        }
         if (deviceResponse.statusCode() !in 200..299) {
             return RuntimeCommandResult(
                 deviceResponse.statusCode(),
                 "Login start failed: HTTP ${deviceResponse.statusCode()}",
+                accessFailure = windowsAccessFailure(WindowsAccessStage.AUTHORIZATION, deviceResponse.statusCode()),
             )
         }
 
-        val body = JsonParser.parseString(deviceResponse.body()).asJsonObject
-        val deviceCode = body.get("device_code")?.asString ?: error("device_code is missing")
-        val userCode = body.get("user_code")?.asString.orEmpty()
-        val verificationUri = validatedWindowsAuthEndpoint(config.authIssuer, body.get("verification_uri_complete")?.asString
-            ?: body.get("verification_uri")?.asString
-            ?: error("verification_uri is missing"))
-        val expiresIn = (body.get("expires_in")?.asLong ?: 600L).coerceIn(1L, 900L)
-        var intervalSeconds = (body.get("interval")?.asLong ?: 5L).coerceIn(2L, 30L)
+        val device = runCatching {
+            val body = JsonParser.parseString(deviceResponse.body()).asJsonObject
+            WindowsDeviceAuthorization(
+                deviceCode = body.get("device_code")?.asString ?: error("device_code is missing"),
+                userCode = body.get("user_code")?.asString.orEmpty(),
+                verificationUri = validatedWindowsAuthEndpoint(config.authIssuer, body.get("verification_uri_complete")?.asString
+                    ?: body.get("verification_uri")?.asString
+                    ?: error("verification_uri is missing")),
+                expiresIn = (body.get("expires_in")?.asLong ?: 600L).coerceIn(1L, 900L),
+                intervalSeconds = (body.get("interval")?.asLong ?: 5L).coerceIn(2L, 30L),
+            )
+        }.getOrElse {
+            return RuntimeCommandResult(
+                1,
+                "Login start failed: invalid authorization response.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.AUTHORIZATION,
+                    WindowsAccessCode.AUTH_START_FAILED,
+                ),
+            )
+        }
+        var intervalSeconds = device.intervalSeconds
 
         checkActive()
-        authorizationPrompt.value = WindowsAuthorizationPrompt(verificationUri, userCode)
+        authorizationPrompt.value = WindowsAuthorizationPrompt(device.verificationUri, device.userCode)
         authorizationPhase.value = WindowsAuthorizationPhase.Waiting
-        val opened = openUri(verificationUri)
+        val opened = openUri(device.verificationUri)
         val startedAt = Instant.now().epochSecond
-        val deadline = startedAt + expiresIn
+        val deadline = startedAt + device.expiresIn
         while (Instant.now().epochSecond < deadline) {
             checkActive()
             val pauseMillis = intervalSeconds.coerceIn(2L, 60L) * 1000L
             authorizationPause?.invoke(pauseMillis) ?: Thread.sleep(pauseMillis)
             checkActive()
-            val tokenResponse = postForm(
-                tokenEndpoint,
-                mapOf(
-                    "grant_type" to "urn:ietf:params:oauth:grant-type:device_code",
-                    "device_code" to deviceCode,
-                    "client_id" to config.authClientId,
-                    "code_verifier" to pkce.verifier,
-                ),
-            )
+            val tokenResponse = try {
+                postForm(
+                    tokenEndpoint,
+                    mapOf(
+                        "grant_type" to "urn:ietf:params:oauth:grant-type:device_code",
+                        "device_code" to device.deviceCode,
+                        "client_id" to config.authClientId,
+                        "code_verifier" to pkce.verifier,
+                    ),
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                return RuntimeCommandResult(
+                    1,
+                    "Login token exchange failed.",
+                    accessFailure = WindowsAccessFailure(
+                        WindowsAccessStage.TOKEN,
+                        WindowsAccessCode.TRANSPORT_ERROR,
+                    ),
+                )
+            }
             if (tokenResponse.statusCode() in 200..299) {
                 synchronized(authorizationCommitLock) {
                     checkActive()
                     authorizationPrompt.value = null
                     authorizationPhase.value = WindowsAuthorizationPhase.ReceivingProfile
                 }
-                saveAuthState(config, tokenEndpoint, JsonParser.parseString(tokenResponse.body()).asJsonObject)
+                val tokenPayload = runCatching {
+                    JsonParser.parseString(tokenResponse.body()).asJsonObject
+                }.getOrElse {
+                    return RuntimeCommandResult(
+                        1,
+                        "Login token response is invalid.",
+                        accessFailure = WindowsAccessFailure(
+                            WindowsAccessStage.TOKEN,
+                            WindowsAccessCode.UNKNOWN,
+                        ),
+                    )
+                }
+                try {
+                    saveAuthState(config, tokenEndpoint, tokenPayload, readAuthState(config))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    return RuntimeCommandResult(
+                        1,
+                        "Login token could not be stored.",
+                        accessFailure = WindowsAccessFailure(
+                            WindowsAccessStage.TOKEN,
+                            WindowsAccessCode.UNKNOWN,
+                        ),
+                    )
+                }
+                checkActive()
+                refreshAccountLabel(config, metadata, tokenPayload)
                 checkActive()
                 val imported = importAuthenticatedAppConfig()
                 return RuntimeCommandResult(
@@ -1263,6 +1378,8 @@ class WindowsRuntimeController(
                         }
                         append(imported.output)
                     }.trim(),
+                    accessFailure = imported.accessFailure,
+                    accessPending = imported.accessPending,
                 )
             }
 
@@ -1272,11 +1389,20 @@ class WindowsRuntimeController(
             when (error) {
                 "authorization_pending" -> Unit
                 "slow_down" -> intervalSeconds += 5
-                "access_denied" -> return RuntimeCommandResult(1, "Login was denied.")
-                "expired_token" -> return RuntimeCommandResult(1, "Login expired. Start sign in again.")
+                "access_denied" -> return RuntimeCommandResult(
+                    1,
+                    "Login was denied.",
+                    accessFailure = WindowsAccessFailure(WindowsAccessStage.AUTHORIZATION, WindowsAccessCode.AUTH_DENIED),
+                )
+                "expired_token" -> return RuntimeCommandResult(
+                    1,
+                    "Login expired. Start sign in again.",
+                    accessFailure = WindowsAccessFailure(WindowsAccessStage.AUTHORIZATION, WindowsAccessCode.AUTH_EXPIRED),
+                )
                 else -> return RuntimeCommandResult(
                     tokenResponse.statusCode(),
                     "Login token exchange failed: HTTP ${tokenResponse.statusCode()}",
+                    accessFailure = windowsTokenAccessFailure(tokenResponse.statusCode(), tokenResponse.body()),
                 )
             }
         }
@@ -1287,6 +1413,7 @@ class WindowsRuntimeController(
                 append("Login timed out.")
                 if (!opened) append(" Browser could not be opened.")
             },
+            accessFailure = WindowsAccessFailure(WindowsAccessStage.AUTHORIZATION, WindowsAccessCode.AUTH_TIMEOUT),
         )
         } finally {
             authorizationPrompt.value = null
@@ -1297,8 +1424,31 @@ class WindowsRuntimeController(
     private fun importAuthenticatedAppConfig(): RuntimeCommandResult {
         ensureDirs()
         val config = readConfig()
-        val token = freshAccessToken(config)
-            ?: return RuntimeCommandResult(401, "Sign in first.")
+        val token = try {
+            freshAccessToken(config)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            return RuntimeCommandResult(
+                1,
+                "Session refresh failed.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.PROFILE,
+                    windowsSessionRefreshFailure(error),
+                ),
+            )
+        }
+        if (token == null) {
+            return RuntimeCommandResult(
+                401,
+                "Sign in first.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.PROFILE,
+                    WindowsAccessCode.AUTH_REQUIRED,
+                    401,
+                ),
+            )
+        }
         val query = mutableMapOf(
             "platform" to WINDOWS_PLATFORM,
             "device" to config.authDevice,
@@ -1316,12 +1466,165 @@ class WindowsRuntimeController(
             .timeout(Duration.ofSeconds(30))
             .GET()
             .build()
-        val response = httpClient(allowRedirects = false).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        val response = try {
+            httpClient(allowRedirects = false).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return RuntimeCommandResult(
+                1,
+                "App config request failed: transport error.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.PROFILE,
+                    WindowsAccessCode.TRANSPORT_ERROR,
+                ),
+            )
+        }
         if (response.statusCode() !in 200..299) {
             if (response.statusCode() == 401) requireReauthentication(config)
-            return RuntimeCommandResult(response.statusCode(), "App config fetch failed: HTTP ${response.statusCode()}")
+            val backendCode = windowsBackendAccessCode(response.body())
+            var failure = windowsAccessFailure(WindowsAccessStage.PROFILE, response.statusCode(), backendCode)
+            if (failure.code == WindowsAccessCode.ACCESS_NOT_LINKED) {
+                failure = probeAppAccess(config, token, failure)
+            }
+            return RuntimeCommandResult(
+                response.statusCode(),
+                "App config fetch failed: HTTP ${response.statusCode()}" +
+                    backendCode?.let { " ($it)" }.orEmpty(),
+                accessFailure = failure,
+                accessPending = failure.code == WindowsAccessCode.ACCESS_PENDING,
+            )
         }
-        return storeImportedProfile("account", response.body())
+        val stored = storeImportedProfile("account", response.body())
+        return if (stored.exitCode == 0) stored else stored.copy(
+            accessFailure = windowsProfileAccessFailure(stored.output),
+        )
+    }
+
+    /** Distinguish an open access request from a genuinely unlinked account. */
+    private fun probeAppAccess(
+        config: WindowsAppConfig,
+        token: String,
+        original: WindowsAccessFailure,
+    ): WindowsAccessFailure {
+        val request = HttpRequest.newBuilder(URI.create(appEndpoint(config, "/api/app/me")))
+            .header("Accept", "application/json")
+            .header("Authorization", "Bearer $token")
+            .header("X-Yokhan-Device", config.authDevice)
+            .header("X-Yokhan-Client", "GATES-Windows")
+            .header("X-Yokhan-App-Version", WINDOWS_APP_VERSION)
+            .timeout(Duration.ofSeconds(12))
+            .GET()
+            .build()
+        val response = try {
+            httpClient(allowRedirects = false).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return original
+        }
+        if (response.statusCode() in 200..299) {
+            val pending = runCatching {
+                JsonParser.parseString(response.body()).asJsonObject.get("status")?.asString
+            }.getOrNull() == "pending"
+            return if (pending) {
+                WindowsAccessFailure(WindowsAccessStage.PROFILE, WindowsAccessCode.ACCESS_PENDING, response.statusCode())
+            } else {
+                original
+            }
+        }
+        if (response.statusCode() == 401) {
+            requireReauthentication(config)
+            return WindowsAccessFailure(WindowsAccessStage.PROFILE, WindowsAccessCode.AUTH_REQUIRED, 401)
+        }
+        val probed = windowsAccessFailure(
+            WindowsAccessStage.PROFILE,
+            response.statusCode(),
+            windowsBackendAccessCode(response.body()),
+        )
+        return if (probed.code in setOf(
+                WindowsAccessCode.ACCESS_NOT_LINKED,
+                WindowsAccessCode.USER_NOT_FOUND,
+                WindowsAccessCode.DEVICE_NOT_FOUND,
+                WindowsAccessCode.ROOM_FORBIDDEN,
+            )
+        ) {
+            probed
+        } else {
+            original
+        }
+    }
+
+    private fun requestAppAccess(): RuntimeCommandResult {
+        ensureDirs()
+        val config = readConfig()
+        val token = try {
+            freshAccessToken(config)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            return RuntimeCommandResult(
+                1,
+                "Session refresh failed.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.ACCESS_REQUEST,
+                    windowsSessionRefreshFailure(error),
+                ),
+            )
+        }
+        if (token == null) {
+            return RuntimeCommandResult(
+                401,
+                "Sign in first.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.ACCESS_REQUEST,
+                    WindowsAccessCode.AUTH_REQUIRED,
+                    401,
+                ),
+            )
+        }
+        val payload = JsonObject().apply { addProperty("device", config.authDevice) }
+        val request = HttpRequest.newBuilder(URI.create(appEndpoint(config, "/api/app/access-request")))
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer $token")
+            .header("X-Yokhan-Device", config.authDevice)
+            .header("X-Yokhan-Client", "GATES-Windows")
+            .header("X-Yokhan-App-Version", WINDOWS_APP_VERSION)
+            .timeout(Duration.ofSeconds(20))
+            .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(payload), StandardCharsets.UTF_8))
+            .build()
+        val response = try {
+            httpClient(allowRedirects = false).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return RuntimeCommandResult(
+                1,
+                "Access request failed: transport error.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.ACCESS_REQUEST,
+                    WindowsAccessCode.TRANSPORT_ERROR,
+                ),
+            )
+        }
+        if (response.statusCode() !in 200..299) {
+            if (response.statusCode() == 401) requireReauthentication(config)
+            val backendCode = windowsBackendAccessCode(response.body())
+            val failure = windowsAccessFailure(WindowsAccessStage.ACCESS_REQUEST, response.statusCode(), backendCode)
+            return RuntimeCommandResult(
+                response.statusCode(),
+                "Access request failed: HTTP ${response.statusCode()}" +
+                    backendCode?.let { " ($it)" }.orEmpty(),
+                accessFailure = failure,
+                accessPending = failure.code == WindowsAccessCode.ACCESS_PENDING,
+            )
+        }
+        return RuntimeCommandResult(
+            0,
+            "Access request is pending.",
+            accessPending = true,
+        )
     }
 
     private fun importSubscription(input: String? = null): RuntimeCommandResult {
@@ -2775,9 +3078,12 @@ class WindowsRuntimeController(
         ).any { it in text }
     }
 
-    private fun httpClient(allowRedirects: Boolean = true): HttpClient =
+    private fun httpClient(
+        allowRedirects: Boolean = true,
+        connectTimeout: Duration = Duration.ofSeconds(12),
+    ): HttpClient =
         if (!allowRedirects && authHttpClient != null) authHttpClient else HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(12))
+            .connectTimeout(connectTimeout)
             .followRedirects(if (allowRedirects) HttpClient.Redirect.NORMAL else HttpClient.Redirect.NEVER)
             .build()
 
@@ -2807,19 +3113,92 @@ class WindowsRuntimeController(
         return httpClient(allowRedirects = false).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
     }
 
-    private fun saveAuthState(config: WindowsAppConfig, tokenEndpoint: String, tokenPayload: JsonObject, previousRefreshToken: String = "") {
+    private fun saveAuthState(
+        config: WindowsAppConfig,
+        tokenEndpoint: String,
+        tokenPayload: JsonObject,
+        previous: WindowsAuthState? = null,
+    ) {
         val expiresIn = tokenPayload.get("expires_in")?.asLong ?: 300L
         val accessToken = tokenPayload.get("access_token")?.asString.orEmpty()
         require(accessToken.isNotBlank()) { "Authorization token is missing" }
+        val subject = windowsTokenSubject(
+            tokenPayload.get("id_token")?.asString?.takeIf { it.isNotBlank() } ?: accessToken,
+        ).orEmpty()
+        val sameSubject = subject.isNotBlank() && subject == previous?.accountSubject
         val state = WindowsAuthState(
             issuer = config.authIssuer,
             clientId = config.authClientId,
             tokenEndpoint = tokenEndpoint,
             accessToken = accessToken,
-            refreshToken = tokenPayload.get("refresh_token")?.asString?.takeIf { it.isNotBlank() } ?: previousRefreshToken,
+            refreshToken = tokenPayload.get("refresh_token")?.asString?.takeIf { it.isNotBlank() }
+                ?: if (sameSubject) previous?.refreshToken.orEmpty() else "",
             expiresAtEpochSecond = Instant.now().epochSecond + expiresIn,
+            accountSubject = subject,
+            accountLabel = if (sameSubject) previous?.accountLabel else null,
         )
         authStateStore.write(gson.toJson(state))
+    }
+
+    /**
+     * Best-effort display label from trusted same-issuer UserInfo.
+     * Never blocks access setup, never logs identity, and requires the UserInfo `sub` to match the token.
+     */
+    private fun refreshAccountLabel(config: WindowsAppConfig, metadata: JsonObject, tokenPayload: JsonObject) {
+        try {
+            refreshAccountLabelBestEffort(config, metadata, tokenPayload)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // The optional display label must never block a successful token exchange.
+        }
+    }
+
+    private fun refreshAccountLabelBestEffort(config: WindowsAppConfig, metadata: JsonObject, tokenPayload: JsonObject) {
+        val endpoint = metadata.get("userinfo_endpoint")?.asString?.takeIf { it.isNotBlank() } ?: return
+        val validated = runCatching { validatedWindowsAuthEndpoint(config.authIssuer, endpoint) }.getOrNull() ?: return
+        val accessToken = tokenPayload.get("access_token")?.asString?.takeIf { it.isNotBlank() } ?: return
+        val subject = windowsTokenSubject(
+            tokenPayload.get("id_token")?.asString?.takeIf { it.isNotBlank() } ?: accessToken,
+        ) ?: return
+        val request = HttpRequest.newBuilder(URI.create(validated))
+            .header("Accept", "application/json")
+            .header("Authorization", "Bearer $accessToken")
+            .timeout(Duration.ofSeconds(3))
+            .GET()
+            .build()
+        val future = try {
+            httpClient(allowRedirects = false, connectTimeout = Duration.ofSeconds(3))
+                .sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return
+        }
+        val response = try {
+            future.get(3, TimeUnit.SECONDS)
+        } catch (cancelled: InterruptedException) {
+            future.cancel(true)
+            Thread.currentThread().interrupt()
+            return
+        } catch (_: Exception) {
+            future.cancel(true)
+            return
+        }
+        if (response.statusCode() !in 200..299) return
+        val body = runCatching { JsonParser.parseString(response.body()).asJsonObject }.getOrNull() ?: return
+        if (body.get("sub")?.asString != subject) return
+        val label = windowsAccountLabel(
+            body.get("preferred_username")?.asString,
+            body.get("name")?.asString,
+            body.get("email")?.asString,
+        ) ?: return
+        authStateStore.transaction {
+            val current = readAuthState(config) ?: return@transaction
+            if (current.accountSubject == subject && current.accountLabel != label) {
+                authStateStore.write(gson.toJson(current.copy(accountLabel = label)))
+            }
+        }
     }
 
     private fun readAuthState(config: WindowsAppConfig): WindowsAuthState? = authStateStore.transaction {
@@ -2864,7 +3243,7 @@ class WindowsRuntimeController(
             error("Token refresh failed: HTTP ${response.statusCode()}")
         }
         val tokenPayload = JsonParser.parseString(response.body()).asJsonObject
-        saveAuthState(config, state.tokenEndpoint, tokenPayload, state.refreshToken)
+        saveAuthState(config, state.tokenEndpoint, tokenPayload, state)
         tokenPayload.get("access_token")?.asString?.takeIf { it.isNotBlank() }
     }
 

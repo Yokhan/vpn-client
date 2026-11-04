@@ -53,6 +53,12 @@ fun GatesAccessScreen(
     authorizationPending: Boolean = false,
     onOpenAuthorization: (() -> Unit)? = null,
     onCancelAuthorization: (() -> Unit)? = null,
+    profileReady: Boolean = true,
+    accountLabel: String = "",
+    accessPending: Boolean = false,
+    onRetryConfig: (() -> Unit)? = null,
+    onRestartLogin: (() -> Unit)? = null,
+    onRequestAccess: (() -> Unit)? = null,
 ) {
     var manualMode by rememberSaveable { mutableStateOf(false) }
     val back: (() -> Unit)? = when {
@@ -108,9 +114,36 @@ fun GatesAccessScreen(
                     Modifier.fillMaxWidth().testTag("form.action.import"))
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
-                    YokhanRouteButton(if (signedIn) "Обновить доступ" else "Войти через браузер",
-                        true, !busy, palette, typography, onLogin,
-                        Modifier.fillMaxWidth().testTag("form.action.login"))
+                    if (signedIn && accountLabel.isNotBlank()) {
+                        YokhanCaption("Аккаунт: $accountLabel", palette, typography)
+                    }
+                    if (!signedIn) {
+                        YokhanRouteButton("Войти через браузер", true, !busy, palette, typography, onLogin,
+                            Modifier.fillMaxWidth().testTag("form.action.login"))
+                    } else {
+                        val retry = onRetryConfig ?: onLogin
+                        if (onRequestAccess != null && !accessPending) {
+                            YokhanRouteButton("Запросить доступ", true, !busy, palette, typography,
+                                onRequestAccess, Modifier.fillMaxWidth().testTag("form.action.request-access"))
+                            YokhanRouteButton(if (accessPending) "Проверить статус" else "Проверить доступ",
+                                false, !busy, palette, typography, retry,
+                                Modifier.fillMaxWidth().testTag("form.action.retry-config"))
+                        } else {
+                            val label = when {
+                                accessPending -> "Проверить статус"
+                                !profileReady -> "Повторить получение"
+                                else -> "Обновить доступ"
+                            }
+                            val tag = if (profileReady && !accessPending) "form.action.login"
+                                else "form.action.retry-config"
+                            YokhanRouteButton(label, true, !busy, palette, typography, retry,
+                                Modifier.fillMaxWidth().testTag(tag))
+                        }
+                        if (onRestartLogin != null) {
+                            YokhanRouteButton("Войти заново", false, !busy, palette, typography,
+                                onRestartLogin, Modifier.fillMaxWidth().testTag("form.action.restart-login"))
+                        }
+                    }
                     YokhanRouteButton("Добавить подписку", false, !busy, palette, typography,
                         { manualMode = true }, Modifier.fillMaxWidth().testTag("form.action.manual"))
                 }

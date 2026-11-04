@@ -45,4 +45,28 @@ class WindowsUiMessagesTest {
         assertFalse(state.shouldAnimateSpace)
         assertFalse(state.isConnectionTestRunning)
     }
+    @Test fun accessFailuresAreActionableAndSecretFree() {
+        val unlinked = windowsUiResultMessage(
+            "login",
+            RuntimeCommandResult(403, "SECRET_DETAIL", accessFailure =
+                WindowsAccessFailure(WindowsAccessStage.PROFILE, WindowsAccessCode.ACCESS_NOT_LINKED, 403)),
+        )
+        assertTrue(unlinked.contains("не привязан"))
+        assertTrue(unlinked.contains("запросите доступ", ignoreCase = true))
+        assertFalse(unlinked.contains("SECRET_DETAIL"))
+        val pending = windowsUiResultMessage(
+            "import-app",
+            RuntimeCommandResult(403, "SECRET_DETAIL", accessFailure =
+                WindowsAccessFailure(WindowsAccessStage.PROFILE, WindowsAccessCode.ACCESS_PENDING, 403)),
+        )
+        assertTrue(pending.contains("ожидает одобрения"))
+        assertFalse(pending.contains("SECRET_DETAIL"))
+        val limited = windowsUiResultMessage(
+            "login",
+            RuntimeCommandResult(429, "SECRET_DETAIL", accessFailure =
+                WindowsAccessFailure(WindowsAccessStage.AUTHORIZATION, WindowsAccessCode.RATE_LIMITED, 429)),
+        )
+        assertTrue(limited.contains("Подождите"))
+        assertFalse(limited.contains("SECRET_DETAIL"))
+    }
 }
