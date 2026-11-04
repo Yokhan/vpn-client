@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "repository": "SagerNet/sing-box",
+  "version": "1.14.4",
+  "tag": "v1.14.4",
+  "commit": "c005f35300ce76427dc285481ec5695f5b179cd2",
+  "approvedAt": "2026-11-04",
+  "windows": {
+    "asset": "sing-box-1.14.4-windows-amd64.zip",
+    "url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-windows-amd64.zip",
+    "archiveSha256": "99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df",
+    "files": {
+      "sing-box.exe": "8f30682ee198855440d2a7fe070d5d3653793b2d01bb8c85eea88f93bbe7c8b9",
+      "libcronet.dll": "3217c6260fbca5f16072e0b79735742f40109a63bb0ff88fd6b96dd6b54a2928",
+      "LICENSE": "bb3805862b583aee73ad6f7805ec634747a37257a637a3069857843f05ea589c"
+    }
+  },
+  "android": {
+    "source": "SagerNet/sing-box",
+    "version": "1.14.4",
+    "commit": "c005f35300ce76427dc285481ec5695f5b179cd2",
+    "buildTags": [
+      "with_conntrack",
+      "with_gvisor",
+      "with_quic",
+      "with_wireguard",
+      "with_utls",
+      "with_clash_api",
+      "with_naive_outbound"
+    ],
+    "nativeNaive": true
+  },
+  "notes": "Approved upstream pin. A newer upstream release is a review trigger, not an automatic merge. Android migration to upstream libbox and native Naive is tracked separately."
+}

@@ -1,0 +1,29 @@
+name: sing-box version watch
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sing-box-version-watch
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check upstream sing-box pin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check approved pin against upstream latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-sing-box-version.mjs --fail-on-new
