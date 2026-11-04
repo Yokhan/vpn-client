@@ -12,18 +12,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/matsuridayo/libneko/protect_server"
-	"github.com/matsuridayo/libneko/speedtest"
-	"github.com/sagernet/sing-box/adapter"
-	"github.com/sagernet/sing-box/boxapi"
-	"github.com/sagernet/sing-box/experimental/libbox/platform"
-	"github.com/sagernet/sing-box/protocol/group"
-
 	box "github.com/sagernet/sing-box"
+	"github.com/sagernet/sing-box/adapter"
+	"github.com/sagernet/sing-box/adapter/certificate"
 	"github.com/sagernet/sing-box/common/conntrack"
 	"github.com/sagernet/sing-box/common/dialer"
 	"github.com/sagernet/sing-box/constant"
+	"github.com/sagernet/sing-box/experimental/v2rayapi"
 	"github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing-box/protocol/group"
 	"github.com/sagernet/sing/service"
 	"github.com/sagernet/sing/service/pause"
 )
@@ -71,10 +68,9 @@ type BoxInstance struct {
 	access sync.Mutex
 
 	*box.Box
-	cancel context.CancelFunc
-	state  int
-
-	v2api        *boxapi.SbV2rayServer
+	cancel       context.CancelFunc
+	state        int
+	statsService *v2rayapi.StatsService
 	selector     *group.Selector
 	pauseManager pause.Manager
 }
@@ -87,9 +83,10 @@ func NewSingBoxInstance(config string, localTransport LocalDNSTransport) (b *Box
 	ctx = box.Context(ctx,
 		nekoboxAndroidInboundRegistry(), nekoboxAndroidOutboundRegistry(), nekoboxAndroidEndpointRegistry(),
 		nekoboxAndroidDNSTransportRegistry(localTransport), nekoboxAndroidServiceRegistry(),
+		certificate.NewRegistry(),
 	)
 	ctx = service.ContextWithDefaultRegistry(ctx)
-	service.MustRegister[platform.Interface](ctx, boxPlatformInterfaceInstance)
+	service.MustRegister[adapter.PlatformInterface](ctx, boxPlatformInterfaceInstance)
 
 	// parse options
 	var options option.Options
@@ -171,7 +168,6 @@ func (b *BoxInstance) Sleep() {
 	if b.pauseManager != nil {
 		b.pauseManager.DevicePause()
 	}
-	// _ = b.Box.Router().ResetNetwork()
 }
 
 func (b *BoxInstance) Wake() {
@@ -188,22 +184,37 @@ func (b *BoxInstance) SetAsMain() {
 func (b *BoxInstance) SetV2rayStats(outbounds string) {
 	b.access.Lock()
 	defer b.access.Unlock()
-	if b.v2api != nil {
+	if b.statsService != nil {
 		log.Println("duplicate call of SetV2rayStats")
 		return
 	}
-	b.v2api = boxapi.NewSbV2rayServer(option.V2RayStatsServiceOptions{
+	b.statsService = v2rayapi.NewStatsService(option.V2RayStatsServiceOptions{
 		Enabled:   true,
 		Outbounds: strings.Split(outbounds, "\n"),
 	})
-	b.Box.Router().AppendTracker(b.v2api.StatsService())
+	if b.statsService != nil {
+		b.Box.Router().AppendTracker(b.statsService)
+	}
 }
 
 func (b *BoxInstance) QueryStats(tag, direct string) int64 {
-	if b.v2api == nil {
+	if b.statsService == nil {
 		return 0
 	}
-	return b.v2api.QueryStats(fmt.Sprintf("outbound>>>%s>>>traffic>>>%s", tag, direct))
+	name := fmt.Sprintf("outbound>>>%s>>>traffic>>>%s", tag, direct)
+	response, err := b.statsService.QueryStats(context.Background(), &v2rayapi.QueryStatsRequest{
+		Patterns: []string{name},
+		Reset_:   true,
+	})
+	if err != nil {
+		return 0
+	}
+	for _, stat := range response.GetStat() {
+		if stat.GetName() == name {
+			return stat.GetValue()
+		}
+	}
+	return 0
 }
 
 func (b *BoxInstance) SelectOutbound(tag string) bool {
@@ -216,34 +227,31 @@ func (b *BoxInstance) SelectOutbound(tag string) bool {
 func UrlTest(i *BoxInstance, link string, timeout int32) (latency int32, err error) {
 	defer device.DeferPanicToError("box.UrlTest", func(err_ error) { err = err_ })
 	var connectionTracker adapter.ConnectionTracker
-	// test i
 	if i != nil {
-		if i.v2api != nil {
-			connectionTracker = i.v2api.StatsService()
+		if i.statsService != nil {
+			connectionTracker = i.statsService
 		}
-		return speedtest.UrlTest(boxapi.CreateProxyHttpClient(i.Box, connectionTracker), link, timeout, speedtest.UrlTestStandard_RTT)
+		return urlTest(createProxyHTTPClient(i.Box, connectionTracker), link, timeout, urlTestStandardRTT)
 	}
-	// test direct
 	if mainInstance == nil {
-		return speedtest.UrlTest(boxapi.CreateProxyHttpClient(nil, nil), link, timeout, speedtest.UrlTestStandard_RTT)
+		return urlTest(createProxyHTTPClient(nil, nil), link, timeout, urlTestStandardRTT)
 	}
-	// test mainInstance
-	if mainInstance.v2api != nil {
-		connectionTracker = mainInstance.v2api.StatsService()
+	if mainInstance.statsService != nil {
+		connectionTracker = mainInstance.statsService
 	}
-	return speedtest.UrlTest(boxapi.CreateProxyHttpClient(mainInstance.Box, connectionTracker), link, timeout, speedtest.UrlTestStandard_RTT)
+	return urlTest(createProxyHTTPClient(mainInstance.Box, connectionTracker), link, timeout, urlTestStandardRTT)
 }
 
 var protectCloser io.Closer
 
 func goServeProtect(start bool) {
 	if protectCloser != nil {
-		protectCloser.Close()
+		_ = protectCloser.Close()
 		protectCloser = nil
 	}
 	if start {
-		protectCloser = protect_server.ServeProtect("protect_path", false, 0, func(fd int) {
-			intfBox.AutoDetectInterfaceControl(int32(fd))
+		protectCloser = serveProtect("protect_path", func(fd int) {
+			_ = intfBox.AutoDetectInterfaceControl(int32(fd))
 		})
 	}
 }

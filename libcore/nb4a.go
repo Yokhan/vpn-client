@@ -11,9 +11,6 @@ import (
 
 	"log"
 
-	"github.com/matsuridayo/libneko/neko_common"
-	"github.com/matsuridayo/libneko/neko_log"
-	"github.com/sagernet/sing-box/nekoutils"
 	"github.com/sagernet/sing-box/option"
 	"golang.org/x/sys/unix"
 )
@@ -26,7 +23,7 @@ func NekoLogPrintln(s string) {
 }
 
 func NekoLogClear() {
-	neko_log.LogWriter.Truncate()
+	logWriter.Truncate()
 }
 
 func ForceGc() {
@@ -40,7 +37,6 @@ func InitCore(process, cachePath, internalAssets, externalAssets string,
 	defer device.DeferPanicToError("InitCore", func(err error) { log.Println(err) })
 	isBgProcess = strings.HasSuffix(process, ":bg")
 
-	neko_common.RunMode = neko_common.RunMode_NekoBoxForAndroid
 	intfNB4A = if1
 	intfBox = if2
 	useProcfs = intfBox.UseProcFS()
@@ -48,8 +44,8 @@ func InitCore(process, cachePath, internalAssets, externalAssets string,
 
 	// Working dir
 	tmp := filepath.Join(cachePath, "../no_backup")
-	os.MkdirAll(tmp, 0755)
-	os.Chdir(tmp)
+	_ = os.MkdirAll(tmp, 0o755)
+	_ = os.Chdir(tmp)
 
 	// sing-box fs
 	resourcePaths = append(resourcePaths, externalAssets)
@@ -60,12 +56,9 @@ func InitCore(process, cachePath, internalAssets, externalAssets string,
 	if maxLogSizeKb < 50 {
 		maxLogSizeKb = 50
 	}
-	neko_log.LogWriterDisable = !logEnable
-	neko_log.TruncateOnStart = isBgProcess
-	neko_log.SetupLog(int(maxLogSizeKb)*1024, filepath.Join(cachePath, "neko.log"))
-
-	// nekoutils
-	nekoutils.Selector_OnProxySelected = intfNB4A.Selector_OnProxySelected
+	logWriterDisable = !logEnable
+	truncateOnStart = isBgProcess
+	setupLog(int(maxLogSizeKb)*1024, filepath.Join(cachePath, "neko.log"))
 
 	// Set up some component
 	go func() {
