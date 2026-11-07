@@ -5,13 +5,16 @@ import com.google.gson.JsonArray
 
 internal const val GATES_AUTH_ISSUER = "https://auth.yokhan.xyz/realms/yokhan"
 internal const val GATES_APP_API_BASE_URL = "https://app.yokhan.xyz/gates"
-internal const val GATES_DOWNLOAD_PAGE_URL = "https://app.yokhan.xyz/hub/gates"
+internal const val GATES_DOWNLOAD_PAGE_URL = "https://fitness.yokhan.xyz/download"
 internal const val GATES_BUG_REPORT_URL = "$GATES_APP_API_BASE_URL/api/app/bug-report"
 private const val LEGACY_WINDOWS_AUTH_ISSUER = "https://auth.yokhanfitness.ru/realms/yokhan"
 private const val LEGACY_WINDOWS_APP_API_BASE_URL = "https://cloak.yokhanfitness.ru"
 
 internal fun migrateWindowsDownloadPage(value: String): String =
-    if (value.trimEnd('/') == "https://yokhanfitness.ru/hub/gates") GATES_DOWNLOAD_PAGE_URL else value
+    if (value.trimEnd('/') in setOf(
+            "https://yokhanfitness.ru/hub/gates",
+            "https://app.yokhan.xyz/hub/gates",
+        )) GATES_DOWNLOAD_PAGE_URL else value
 
 internal fun migrateWindowsReportUrl(value: String): String =
     if (value.trimEnd('/') in setOf(

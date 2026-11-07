@@ -250,10 +250,50 @@ tasks.register("checkWindowsReleaseMetadata") {
     }
 }
 
+val forbiddenHubDownloadChannelTokens = listOf("/hub", "hub/gates")
+
+tasks.register("checkWindowsNoHubDownloadChannel") {
+    description = "Fails if the Windows PowerShell client, production config, or config example reference the retired Hub download channel."
+
+    // The canonical Kotlin constant (GATES_DOWNLOAD_PAGE_URL) and legacy URL
+    // migration are verified by WindowsEndpointMigrationTest; the migration
+    // function must keep the legacy /hub/gates literals as its inputs, so those
+    // are intentionally excluded from this substring scan.
+    val windowsClientDir = providers.environmentVariable("GATES_WINDOWS_CLIENT_DIR")
+        .map { file(it) }
+        .orElse(rootProject.projectDir.parentFile.parentFile.resolve("YokhanIndependentVPN").resolve("windows-client"))
+
+    doLast {
+        val offenders = mutableListOf<String>()
+
+        val scannedFiles = listOf(
+            "app-config.json.example",
+            "GATES.ps1",
+            "runtime/app-config.json",
+        ).map { relative -> File(windowsClientDir.get(), relative) }
+
+        scannedFiles.filter { it.isFile }
+            .sortedBy { it.path }
+            .forEach { file ->
+                file.readLines().forEachIndexed { index, line ->
+                    if (forbiddenHubDownloadChannelTokens.any { line.contains(it) }) {
+                        offenders += "${file.path}:${index + 1}: ${line.trim()}"
+                    }
+                }
+            }
+
+        check(offenders.isEmpty()) {
+            "Windows production config and config examples must not reference the retired Hub download channel:\n" +
+                offenders.joinToString(separator = "\n")
+        }
+    }
+}
+
 tasks.named("check") {
     dependsOn("checkWindowsUiUsesDesignTokens")
     dependsOn("checkWindowsTextEncoding")
     dependsOn("checkWindowsReleaseMetadata")
+    dependsOn("checkWindowsNoHubDownloadChannel")
 }
 
 compose.desktop {

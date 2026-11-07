@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
-import com.yokhan.gates.app.GATES_DOWNLOAD_PAGE_URL
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -41,6 +40,42 @@ internal fun isTrustedApkIdentity(
 
 private fun String.normalizeFingerprint(): String =
     replace(":", "").trim().lowercase()
+
+internal data class YokhanReleaseAsset(
+    val name: String,
+    val url: String,
+)
+
+internal data class YokhanReleaseInfo(
+    val latestVersion: String,
+    val channel: String,
+    val releaseUrl: String,
+    val mandatory: Boolean,
+    val minSupportedVersion: String,
+    val updateAvailable: Boolean?,
+    val apkAsset: YokhanReleaseAsset?,
+)
+
+internal fun buildReleaseApiUrl(
+    baseUrl: String,
+    channel: String,
+    version: String,
+    packageId: String,
+): String {
+    val base = baseUrl.trim().trimEnd('/')
+    require(base.isNotBlank()) { "YOKHAN_APP_API_BASE_URL is not configured." }
+    val effectiveChannel = channel.trim().ifBlank { "stable" }
+    val encodedVersion = URLEncoder.encode(version, "UTF-8")
+    val encodedPackage = URLEncoder.encode(packageId, "UTF-8")
+    val encodedChannel = URLEncoder.encode(effectiveChannel, "UTF-8")
+    return "$base/api/app/release?platform=android&version=$encodedVersion" +
+        "&package_id=$encodedPackage&channel=$encodedChannel&protocol=2"
+}
+
+internal fun resolveReleaseDownloadUrl(
+    apiReleaseUrl: String?,
+    canonicalDownloadUrl: String,
+): String = apiReleaseUrl?.trim()?.takeIf { it.isNotBlank() } ?: canonicalDownloadUrl.trim()
 
 object YokhanAppUpdater {
 
@@ -100,14 +135,15 @@ object YokhanAppUpdater {
                 val response = client.newRequest().apply {
                     setURL(releaseApiUrl(checkPreview))
                 }.execute()
-                val release = JSONObject(Util.getStringBox(response.contentString))
-                val releaseName = release.optString("latest_version")
-                    .ifBlank { release.optString("name") }
-                    .ifBlank { release.optString("release_name") }
-                val releaseUrl = release.optString("html_url")
-                    .ifBlank { release.optString("release_url") }
-                    .ifBlank { GATES_DOWNLOAD_PAGE_URL }
-                val haveUpdate = hasUpdate(release, releaseName, checkPreview)
+                val release = parseReleaseInfo(
+                    JSONObject(Util.getStringBox(response.contentString))
+                )
+                val releaseName = release.latestVersion
+                val releaseUrl = resolveReleaseDownloadUrl(
+                    release.releaseUrl,
+                    BuildConfig.YOKHAN_APP_DOWNLOAD_URL,
+                )
+                val haveUpdate = hasUpdate(release, checkPreview)
 
                 runOnMainDispatcher {
                     if (haveUpdate) {
@@ -115,7 +151,8 @@ object YokhanAppUpdater {
                             context = context,
                             releaseName = releaseName,
                             releaseUrl = releaseUrl,
-                            apkAsset = release.findPreferredApkAsset(),
+                            apkAsset = release.apkAsset,
+                            mandatory = release.mandatory,
                         )
                     } else if (notifyNoUpdate) {
                         Toast.makeText(context, R.string.check_update_no, Toast.LENGTH_SHORT).show()
@@ -134,10 +171,34 @@ object YokhanAppUpdater {
         }
     }
 
-    private fun hasUpdate(release: JSONObject, releaseName: String, checkPreview: Boolean): Boolean {
-        if (release.has("update_available") && !release.isNull("update_available")) {
-            return release.optBoolean("update_available", false)
+    private fun parseReleaseInfo(json: JSONObject): YokhanReleaseInfo {
+        val latestVersion = json.optString("latest_version")
+            .ifBlank { json.optString("name") }
+            .ifBlank { json.optString("release_name") }
+        val channel = json.optString("channel")
+        val releaseUrl = json.optString("release_url")
+            .ifBlank { json.optString("html_url") }
+        val mandatory = json.optBoolean("mandatory", false)
+        val minSupportedVersion = json.optString("min_supported_version")
+        val updateAvailable = if (json.has("update_available") && !json.isNull("update_available")) {
+            json.optBoolean("update_available", false)
+        } else {
+            null
         }
+        return YokhanReleaseInfo(
+            latestVersion = latestVersion,
+            channel = channel,
+            releaseUrl = releaseUrl,
+            mandatory = mandatory,
+            minSupportedVersion = minSupportedVersion,
+            updateAvailable = updateAvailable,
+            apkAsset = json.findPreferredApkAsset(),
+        )
+    }
+
+    private fun hasUpdate(release: YokhanReleaseInfo, checkPreview: Boolean): Boolean {
+        release.updateAvailable?.let { return it }
+        val releaseName = release.latestVersion
         if (releaseName.isBlank()) return false
         return if (isPreview) {
             if (checkPreview) {
@@ -154,7 +215,8 @@ object YokhanAppUpdater {
         context: Context,
         releaseName: String,
         releaseUrl: String,
-        apkAsset: ReleaseAsset?,
+        apkAsset: YokhanReleaseAsset?,
+        mandatory: Boolean,
     ) {
         MaterialAlertDialogBuilder(context)
             .setTitle(R.string.update_dialog_title)
@@ -165,6 +227,7 @@ object YokhanAppUpdater {
                     releaseName,
                 )
             )
+            .setCancelable(!mandatory)
             .setPositiveButton(R.string.download) { _, _ ->
                 if (apkAsset != null) {
                     downloadAndInstallUpdate(context, apkAsset)
@@ -172,17 +235,19 @@ object YokhanAppUpdater {
                     openReleasePage(context, releaseUrl)
                 }
             }
-            .setNegativeButton(R.string.no, null)
+            .apply {
+                if (!mandatory) setNegativeButton(R.string.no, null)
+            }
             .show()
     }
 
-    private fun JSONObject.findPreferredApkAsset(): ReleaseAsset? {
+    private fun JSONObject.findPreferredApkAsset(): YokhanReleaseAsset? {
         optJSONObject("asset")?.let { asset ->
             val name = asset.optString("name")
             val url = asset.optString("download_url")
                 .ifBlank { asset.optString("browser_download_url") }
             if (name.endsWith(".apk", ignoreCase = true) && url.isNotBlank()) {
-                return ReleaseAsset(name = name, url = url)
+                return YokhanReleaseAsset(name = name, url = url)
             }
         }
 
@@ -192,7 +257,7 @@ object YokhanAppUpdater {
                 val name = asset.optString("name")
                 val url = asset.optString("browser_download_url")
                 if (name.endsWith(".apk", ignoreCase = true) && url.isNotBlank()) {
-                    ReleaseAsset(name = name, url = url)
+                    YokhanReleaseAsset(name = name, url = url)
                 } else {
                     null
                 }
@@ -208,7 +273,7 @@ object YokhanAppUpdater {
         return apkAssets.first()
     }
 
-    private fun downloadAndInstallUpdate(context: Context, asset: ReleaseAsset) {
+    private fun downloadAndInstallUpdate(context: Context, asset: YokhanReleaseAsset) {
         val appContext = context.applicationContext
         runOnIoDispatcher {
             val client = Libcore.newHttpClient().apply {
@@ -321,24 +386,18 @@ object YokhanAppUpdater {
         context.startActivity(Intent(Intent.ACTION_VIEW, releaseUrl.toUri()))
     }
 
-    private fun ReleaseAsset.safeFileName(): String {
+    private fun YokhanReleaseAsset.safeFileName(): String {
         return name.replace(Regex("[^A-Za-z0-9._-]"), "_")
     }
 
-    private data class ReleaseAsset(
-        val name: String,
-        val url: String,
-    )
-
     private fun releaseApiUrl(checkPreview: Boolean): String {
-        val base = BuildConfig.YOKHAN_APP_API_BASE_URL.trimEnd('/').ifBlank {
-            "https://cloak.yokhanfitness.ru"
-        }
         val version = if (checkPreview) BuildConfig.PRE_VERSION_NAME else BuildConfig.VERSION_NAME
-        val encodedVersion = URLEncoder.encode(version, "UTF-8")
-        val encodedPackage = URLEncoder.encode(BuildConfig.APPLICATION_ID, "UTF-8")
-        return "$base/api/app/release?platform=android&version=$encodedVersion" +
-            "&package_id=$encodedPackage&protocol=2"
+        return buildReleaseApiUrl(
+            baseUrl = BuildConfig.YOKHAN_APP_API_BASE_URL,
+            channel = BuildConfig.YOKHAN_UPDATE_CHANNEL,
+            version = version,
+            packageId = BuildConfig.APPLICATION_ID,
+        )
     }
 
     private const val APK_MIME_TYPE = "application/vnd.android.package-archive"

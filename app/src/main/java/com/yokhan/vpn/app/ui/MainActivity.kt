@@ -1,7 +1,6 @@
 package com.yokhan.gates.app.ui
 
 import android.Manifest.permission.POST_NOTIFICATIONS
-import com.yokhan.gates.app.GATES_DOWNLOAD_PAGE_URL
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -324,7 +323,7 @@ class MainActivity : ThemedActivity(),
             }
             .setNeutralButton(android.R.string.cancel, null)
             .setNeutralButton(R.string.action_learn_more) { _, _ ->
-                launchCustomTab(GATES_DOWNLOAD_PAGE_URL)
+                launchCustomTab(BuildConfig.YOKHAN_APP_DOWNLOAD_URL)
             }
             .show()
     }
@@ -464,7 +463,7 @@ class MainActivity : ThemedActivity(),
                 displayFragment(LogcatFragment())
             }
             YokhanShellRoute.Faq -> {
-                launchCustomTab(GATES_DOWNLOAD_PAGE_URL)
+                launchCustomTab(BuildConfig.YOKHAN_APP_DOWNLOAD_URL)
                 return false
             }
 

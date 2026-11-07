@@ -107,6 +107,6 @@ class WindowsUpdateDistributionTest {
     }
 
     companion object {
-        private const val DOWNLOAD_PAGE = "https://app.yokhan.xyz/hub/gates"
+        private const val DOWNLOAD_PAGE = "https://fitness.yokhan.xyz/download"
     }
 }

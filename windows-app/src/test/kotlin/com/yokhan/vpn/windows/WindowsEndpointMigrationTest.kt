@@ -54,6 +54,18 @@ class WindowsEndpointMigrationTest {
         assertEquals("https://custom.example/download", migrateWindowsDownloadPage("https://custom.example/download"))
     }
 
+    @Test
+    fun downloadPageCanonicalUrlMigratesBothLegacyHubUrls() {
+        assertEquals("https://fitness.yokhan.xyz/download", GATES_DOWNLOAD_PAGE_URL)
+        assertFalse(GATES_DOWNLOAD_PAGE_URL.contains("/hub"))
+
+        assertEquals(GATES_DOWNLOAD_PAGE_URL, migrateWindowsDownloadPage("https://yokhanfitness.ru/hub/gates"))
+        assertEquals(GATES_DOWNLOAD_PAGE_URL, migrateWindowsDownloadPage("https://app.yokhan.xyz/hub/gates"))
+        assertEquals(GATES_DOWNLOAD_PAGE_URL, migrateWindowsDownloadPage("https://yokhanfitness.ru/hub/gates/"))
+        assertEquals(GATES_DOWNLOAD_PAGE_URL, migrateWindowsDownloadPage("https://app.yokhan.xyz/hub/gates/"))
+        assertEquals("https://custom.example/download", migrateWindowsDownloadPage("https://custom.example/download"))
+    }
+
     private class Fixture {
         val root = Files.createTempDirectory("gates-endpoint-migration").toFile()
         val controller = WindowsRuntimeController(appDir = root)

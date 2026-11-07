@@ -1,7 +1,6 @@
 package com.yokhan.gates.app.ui
 
 import android.os.Bundle
-import com.yokhan.gates.app.GATES_DOWNLOAD_PAGE_URL
 import android.view.View
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -22,6 +21,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.yokhan.gates.shared.ui.design.YokhanPalette
 import com.yokhan.gates.shared.ui.design.YokhanSpacing
 import com.yokhan.gates.shared.ui.design.YokhanTypography
+import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
@@ -166,7 +166,7 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
                 actions = listOf(
                     YokhanRouteAction(
                         title = "GitHub",
-                        onClick = { requireContext().launchCustomTab(GATES_DOWNLOAD_PAGE_URL) },
+                        onClick = { requireContext().launchCustomTab(BuildConfig.YOKHAN_APP_DOWNLOAD_URL) },
                     ),
                 ),
                 colors = colors,

@@ -12,6 +12,9 @@ import kotlin.system.exitProcess
 
 private val Project.android get() = extensions.getByName<ApplicationExtension>("android")
 
+private fun buildConfigQuoted(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 private lateinit var metadata: Properties
 private lateinit var localProperties: Properties
 
@@ -163,12 +166,20 @@ fun Project.setupApp() {
     val pkgName = requireMetadata().getProperty("PACKAGE_NAME")
     val verName = requireMetadata().getProperty("VERSION_NAME")
     val verCode = (requireMetadata().getProperty("VERSION_CODE").toInt()) * 5
+    val downloadUrl = System.getenv("YOKHAN_APP_DOWNLOAD_URL")
+        ?.takeIf { it.isNotBlank() }
+        ?: "https://fitness.yokhan.xyz/download"
+    val updateChannel = System.getenv("YOKHAN_UPDATE_CHANNEL")
+        ?.takeIf { it.isNotBlank() }
+        ?: "stable"
     android.apply {
         defaultConfig {
             applicationId = pkgName
             versionCode = verCode
             versionName = verName
             buildConfigField("String", "PRE_VERSION_NAME", "\"\"")
+            buildConfigField("String", "YOKHAN_APP_DOWNLOAD_URL", buildConfigQuoted(downloadUrl))
+            buildConfigField("String", "YOKHAN_UPDATE_CHANNEL", buildConfigQuoted(updateChannel))
         }
     }
     setupAppCommon()

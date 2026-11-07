@@ -1,7 +1,6 @@
 package com.yokhan.gates.app.ui
 
 import android.app.Activity
-import com.yokhan.gates.app.GATES_DOWNLOAD_PAGE_URL
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -22,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.yokhan.gates.app.update.YokhanAppUpdater
 import com.yokhan.gates.shared.ui.design.YokhanSpacing
+import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.ktx.launchCustomTab
@@ -136,7 +136,7 @@ class AboutFragment : YokhanComposeRouteFragment() {
                     typography = typography,
                 )
                 YokhanBody(
-                    text = GATES_DOWNLOAD_PAGE_URL.removePrefix("https://"),
+                    text = BuildConfig.YOKHAN_APP_DOWNLOAD_URL.removePrefix("https://"),
                     colors = colors,
                     typography = typography,
                     modifier = Modifier.padding(top = 5.dp),
@@ -146,7 +146,7 @@ class AboutFragment : YokhanComposeRouteFragment() {
                         YokhanRouteAction(
                             title = stringResource(R.string.project),
                             primary = true,
-                            onClick = { requireContext().launchCustomTab(YOKHAN_REPO_URL) },
+                            onClick = { requireContext().launchCustomTab(BuildConfig.YOKHAN_APP_DOWNLOAD_URL) },
                         ),
                     ),
                     colors = colors,
@@ -233,8 +233,4 @@ class AboutFragment : YokhanComposeRouteFragment() {
         val license: String,
         val showBatteryCard: Boolean,
     )
-
-    private companion object {
-        const val YOKHAN_REPO_URL = GATES_DOWNLOAD_PAGE_URL
-    }
 }

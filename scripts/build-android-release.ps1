@@ -11,8 +11,12 @@ foreach($name in @('GATES_ANDROID_KEYSTORE_FILE','GATES_ANDROID_KEYSTORE_PASSWOR
 }
 $env:GATES_SIGNING_VERIFY_PASSWORD=$env:GATES_ANDROID_KEYSTORE_PASSWORD
 try {
-    $certificate=& "$env:JAVA_HOME\bin\keytool.exe" -list -v -keystore $env:GATES_ANDROID_KEYSTORE_FILE -storepass:env GATES_SIGNING_VERIFY_PASSWORD -alias $env:GATES_ANDROID_KEY_ALIAS 2>&1
-    if($LASTEXITCODE -ne 0){throw 'Cannot verify the configured signing certificate.'}
+    $keytoolOut = Join-Path $env:TEMP ("gates-keytool-" + [guid]::NewGuid().ToString('N') + '.txt')
+    & cmd.exe /c "`"$env:JAVA_HOME\bin\keytool.exe`" -list -v -keystore `"$env:GATES_ANDROID_KEYSTORE_FILE`" -storepass:env GATES_SIGNING_VERIFY_PASSWORD -alias `"$env:GATES_ANDROID_KEY_ALIAS`" > `"$keytoolOut`" 2>&1"
+    $keytoolExit = $LASTEXITCODE
+    $certificate = Get-Content -LiteralPath $keytoolOut -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $keytoolOut -Force -ErrorAction SilentlyContinue
+    if($keytoolExit -ne 0){throw 'Cannot verify the configured signing certificate.'}
     $line=($certificate|Select-String 'SHA256:'|Select-Object -First 1).Line
     if(!$line -or ($line.Split(':',2)[1] -replace '[:\s]','').ToLowerInvariant() -ne $expected){throw 'Refuse release build with an unexpected signing certificate.'}
 } finally {$env:GATES_SIGNING_VERIFY_PASSWORD=$null}
@@ -23,6 +27,8 @@ $env:YOKHAN_KEYCLOAK_CLIENT_ID='gates-android'
 $env:YOKHAN_KEYCLOAK_REDIRECT_SCHEME='gates'
 $env:YOKHAN_KEYCLOAK_REDIRECT_URI='gates://auth/callback'
 $env:YOKHAN_APP_API_BASE_URL='https://app.yokhan.xyz/gates'
+$env:YOKHAN_APP_DOWNLOAD_URL='https://fitness.yokhan.xyz/download'
+$env:YOKHAN_UPDATE_CHANNEL='stable'
 if($env:YOKHAN_ROUTE_MANIFEST_ENABLED -notin @('true','1') -or
    $env:YOKHAN_ROUTE_MANIFEST_VERSION -ne '2' -or
    [string]::IsNullOrWhiteSpace($env:YOKHAN_ROUTE_MANIFEST_PUBLIC_KEYS)) {
