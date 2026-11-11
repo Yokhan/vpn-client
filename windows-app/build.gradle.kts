@@ -39,7 +39,7 @@ val defaultRuntimeDir = rootProject.projectDir.parentFile
 val windowsRuntimeDir = providers.environmentVariable("YOKHAN_SING_BOX_DIR")
     .map { file(it) }
     .orElse(defaultRuntimeDir)
-val windowsPackageVersion = "1.7.6"
+val windowsPackageVersion = "1.7.12"
 val windowsUpdateSignerSha1 = providers.environmentVariable("GATES_WINDOWS_UPDATE_SIGNER_SHA1").orElse("")
 val winswVersion = "2.12.0"
 val winswSha256 = "05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da"
@@ -51,6 +51,7 @@ val pinnedRuntimeHashes = mapOf(
     "sing-box.exe" to "64b1dfaed6fa758295233fd0bec8b32cf2115f29773adbf38e0f026c3c7986f2",
     "libcronet.dll" to "c7434cfa93c3041321dd19111c4de6c52b8a9531a65661ba45425d3c51ec69e2",
     "LICENSE" to "bb3805862b583aee73ad6f7805ec634747a37257a637a3069857843f05ea589c",
+    "xray.exe" to "d5b558191cccb1e92a5772b68b8cab67717b26f634b0f15153215f65ae982a7e",
 )
 
 val verifyPinnedWindowsRuntime by tasks.registering {
@@ -64,6 +65,12 @@ val verifyPinnedWindowsRuntime by tasks.registering {
                 .digest(file.readBytes())
                 .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
             check(actualHash == expectedHash) { "Pinned Windows runtime SHA-256 mismatch: $name" }
+        }
+        val xrayPinFile = File(windowsRuntimeDir.get(), "xray.sha256")
+        check(xrayPinFile.isFile) { "Pinned Windows runtime file is missing: xray.sha256" }
+        val xrayPin = xrayPinFile.readText(Charsets.US_ASCII).trim().lowercase()
+        check(xrayPin == pinnedRuntimeHashes.getValue("xray.exe")) {
+            "xray.sha256 must contain the pinned xray.exe SHA-256"
         }
     }
 }
@@ -89,7 +96,7 @@ val downloadPinnedWinSw by tasks.registering {
 tasks.named<ProcessResources>("processResources") {
     dependsOn(":windows-service:fatJar", downloadPinnedWinSw, verifyPinnedWindowsRuntime)
     from(windowsRuntimeDir) {
-        include("sing-box.exe", "libcronet.dll", "LICENSE")
+        include("sing-box.exe", "libcronet.dll", "LICENSE", "xray.exe", "xray.sha256", "LICENSE-Xray-core")
         into("yokhan-runtime/windows")
     }
     from(serviceFatJarFile) {
@@ -108,7 +115,7 @@ val prepareGatesNativeResources by tasks.registering(Sync::class) {
     dependsOn(":windows-service:fatJar", downloadPinnedWinSw, verifyPinnedWindowsRuntime)
     into(nativeAppResourcesRoot.map { it.dir("windows") })
     from(windowsRuntimeDir) {
-        include("sing-box.exe", "libcronet.dll", "LICENSE")
+        include("sing-box.exe", "libcronet.dll", "LICENSE", "xray.exe", "xray.sha256", "LICENSE-Xray-core")
         into("yokhan-runtime/windows")
     }
     from(serviceFatJarFile) {

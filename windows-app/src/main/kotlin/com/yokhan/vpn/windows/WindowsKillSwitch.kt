@@ -63,6 +63,28 @@ internal fun windowsProtectionConfig(configJson: String, config: WindowsAppConfi
     return root.toString()
 }
 
+/**
+ * Builds the JSON sent to the Windows Runtime service: sing-box config plus the
+ * optional selected-app protection block and the optional XHTTP sidecar spec.
+ *
+ * The generated `runtime/config.json` stays a pure sing-box document so local
+ * `sing-box check` and proxy mode keep working; transport metadata is merged
+ * only at the service boundary.
+ */
+internal fun windowsServiceTransportConfig(
+    configJson: String,
+    xhttpSpecJson: String?,
+    config: WindowsAppConfig,
+): String {
+    var result = configJson
+    if (config.killSwitchEnabled) result = windowsProtectionConfig(result, config)
+    if (xhttpSpecJson.isNullOrBlank()) return result
+    val root = JsonParser.parseString(result).asJsonObject
+    require(!root.has("gates_xhttp")) { "GATES_XHTTP_CONFIG_CONFLICT" }
+    root.add("gates_xhttp", JsonParser.parseString(xhttpSpecJson))
+    return root.toString()
+}
+
 private fun isWindowsProtectionExe(path: String): Boolean {
     if (!Regex("^[A-Za-z]:\\\\").containsMatchIn(path) || !path.endsWith(".exe", true)) return false
     if (path.drop(2).any { it.isISOControl() || it in "<>:\"|?*/" }) return false

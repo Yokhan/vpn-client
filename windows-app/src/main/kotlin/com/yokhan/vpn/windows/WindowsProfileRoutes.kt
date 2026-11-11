@@ -20,18 +20,20 @@ internal fun windowsProfileRoutes(json: String): List<WindowsProfileRoute> = run
         WindowsProfileRoute(
             tag = tag,
             label = when (tag) {
-                "nl-tcp" -> "NL VLESS"
+                "nl-tcp" -> "Finland VLESS (r1)"
                 "se-hy2" -> "SE Stockholm"
                 "hy2" -> "Hysteria2"
                 "bridge" -> "Bridge"
                 "relay" -> "Relay"
                 "naive" -> "Naive"
+                "xhttp" -> "XHTTP (Xray)"
                 else -> tag
             },
-            protocol = when (item.get("type")?.asString) {
-                "vless" -> "VLESS / TCP"
-                "hysteria2" -> "HY2 / UDP"
-                "naive" -> "HTTPS"
+            protocol = when {
+                item.getAsJsonObject("transport")?.get("type")?.asString == "xhttp" -> "VLESS / XHTTP"
+                item.get("type")?.asString == "vless" -> "VLESS / TCP"
+                item.get("type")?.asString == "hysteria2" -> "HY2 / UDP"
+                item.get("type")?.asString == "naive" -> "HTTPS"
                 else -> ""
             },
             server = item.get("server")?.asString.orEmpty(),

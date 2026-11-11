@@ -169,6 +169,9 @@ try {
         'sing-box.exe' = 'app/resources/yokhan-runtime/windows'
         'libcronet.dll' = 'app/resources/yokhan-runtime/windows'
         'LICENSE' = 'app/resources/yokhan-runtime/windows'
+        'xray.exe' = 'app/resources/yokhan-runtime/windows'
+        'xray.sha256' = 'app/resources/yokhan-runtime/windows'
+        'LICENSE-Xray-core' = 'app/resources/yokhan-runtime/windows'
     }
     $missingFiles = @(
         foreach ($file in $requiredFiles.GetEnumerator()) {

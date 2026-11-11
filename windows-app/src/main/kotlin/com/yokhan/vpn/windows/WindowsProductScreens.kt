@@ -11,8 +11,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -37,6 +43,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -49,7 +57,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yokhan.gates.shared.ui.design.YokhanPalette
 import com.yokhan.gates.shared.ui.design.YokhanRadius
+import com.yokhan.gates.shared.ui.design.YokhanRed
 import com.yokhan.gates.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.shared.ui.design.YokhanStroke
 import com.yokhan.gates.shared.ui.route.YokhanBody
 import com.yokhan.gates.shared.ui.route.YokhanAdaptiveActionPair
 import com.yokhan.gates.shared.ui.route.YokhanCaption
@@ -262,6 +272,8 @@ internal fun WindowsAppRoutingScreen(
         if (query.isEmpty()) runningApps
         else runningApps.filter { it.name.contains(query, true) || it.path.contains(query, true) }
     }
+    val proxyValues = remember(state) { state.proxyProcessPaths + state.proxyProcessNames }
+    val directValues = remember(state) { state.directProcessPaths + state.directProcessNames }
 
     YokhanRouteLazyFrame(
         title = "Приложения",
@@ -388,50 +400,82 @@ internal fun WindowsAppRoutingScreen(
             }
         }
 
-        YokhanSectionLabel("Через GATES", colors, typography)
-        RoutingRuleList(
-            values = state.proxyProcessPaths + state.proxyProcessNames,
-            tagPrefix = "routing.proxy.remove",
-            busy = busy,
-            colors = colors,
-            typography = typography,
-            onRemove = onRemoveProxy,
-        )
-        YokhanSectionLabel("Напрямую", colors, typography)
-        RoutingRuleList(
-            values = state.directProcessPaths + state.directProcessNames,
-            tagPrefix = "routing.direct.remove",
-            busy = busy,
-            colors = colors,
-            typography = typography,
-            onRemove = onRemoveDirect,
-        )
+        }
+        }
 
-        YokhanSectionLabel("Запущенные", colors, typography)
-        ProductTextInput(
-            value = searchText,
-            onValueChange = { searchText = it },
-            placeholder = "Поиск процессов",
-            colors = colors,
-            typography = typography,
-            fieldTag = "routing.search",
-            clearTag = "routing.search.clear",
-        )
+        item(key = "routing-add-tile") {
+            AppAddTile(
+                busy = busy,
+                colors = colors,
+                typography = typography,
+                onPickExe = { onPickExe(true) },
+            )
         }
-        }
-        when {
-            refreshingProcesses && busy -> item { ProductStatus("Загрузка процессов…", colors, typography) }
-            runningApps.isEmpty() -> item { ProductStatus("Нет запущенных процессов", colors, typography) }
-            matchingApps.isEmpty() -> item { ProductStatus("Совпадений не найдено", colors, typography) }
-            else -> itemsIndexed(matchingApps, key = { index, app -> "$index:${app.pid}:${app.path}" }) { index, app ->
-                RunningProcessRow(
-                    app = app,
-                    index = index,
+
+        item(key = "routing-proxy-grid") {
+            Column(verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
+                YokhanSectionLabel("Через GATES", colors, typography)
+                ConfiguredAppGrid(
+                    values = proxyValues,
+                    status = WindowsAppRouteStatus.PROXY,
+                    tagPrefix = "routing.proxy.remove",
                     busy = busy,
                     colors = colors,
                     typography = typography,
-                    onAddProxy = { onAddProxy(windowsProcessRoutingValue(app.name, app.path)) },
-                    onAddDirect = { onAddDirect(windowsProcessRoutingValue(app.name, app.path)) },
+                    onRemove = onRemoveProxy,
+                )
+            }
+        }
+
+        item(key = "routing-direct-grid") {
+            Column(verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
+                YokhanSectionLabel("Напрямую", colors, typography)
+                ConfiguredAppGrid(
+                    values = directValues,
+                    status = WindowsAppRouteStatus.DIRECT,
+                    tagPrefix = "routing.direct.remove",
+                    busy = busy,
+                    colors = colors,
+                    typography = typography,
+                    onRemove = onRemoveDirect,
+                )
+            }
+        }
+
+        item(key = "routing-running-header") {
+            Column(verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
+                YokhanSectionLabel("Запущенные", colors, typography)
+                ProductTextInput(
+                    value = searchText,
+                    onValueChange = { searchText = it },
+                    placeholder = "Поиск процессов",
+                    colors = colors,
+                    typography = typography,
+                    fieldTag = "routing.search",
+                    clearTag = "routing.search.clear",
+                )
+            }
+        }
+
+        when {
+            refreshingProcesses && busy -> item(key = "routing-loading") {
+                ProductStatus("Загрузка процессов…", colors, typography)
+            }
+            runningApps.isEmpty() -> item(key = "routing-empty") {
+                ProductStatus("Нет запущенных процессов", colors, typography)
+            }
+            matchingApps.isEmpty() -> item(key = "routing-no-match") {
+                ProductStatus("Совпадений не найдено", colors, typography)
+            }
+            else -> item(key = "routing-running-grid") {
+                RunningAppGrid(
+                    apps = matchingApps,
+                    state = state,
+                    busy = busy,
+                    colors = colors,
+                    typography = typography,
+                    onAddProxy = onAddProxy,
+                    onAddDirect = onAddDirect,
                 )
             }
         }
@@ -493,8 +537,9 @@ internal fun WindowsBugReportScreen(
 }
 
 @Composable
-private fun RoutingRuleList(
+private fun ConfiguredAppGrid(
     values: List<String>,
+    status: WindowsAppRouteStatus,
     tagPrefix: String,
     busy: Boolean,
     colors: YokhanPalette,
@@ -505,26 +550,101 @@ private fun RoutingRuleList(
         ProductStatus("Пусто", colors, typography)
         return
     }
-    values.forEachIndexed { index, value ->
-        Row(
-            modifier = Modifier.fillMaxWidth().yokhanOutlinedSurface(colors)
-                .padding(horizontal = YokhanSpacing.ControlHorizontal, vertical = YokhanSpacing.CompactGap),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
-        ) {
-            Text(
-                text = value,
-                color = colors.primary,
-                fontFamily = typography.mono,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val columns = if (maxWidth >= 520.dp) 2 else 1
+        Column(verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
+            values.chunked(columns).forEachIndexed { rowIndex, rowValues ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
+                ) {
+                    rowValues.forEachIndexed { colIndex, value ->
+                        ConfiguredAppCard(
+                            value = value,
+                            status = status,
+                            index = rowIndex * columns + colIndex,
+                            tagPrefix = tagPrefix,
+                            busy = busy,
+                            colors = colors,
+                            typography = typography,
+                            onRemove = onRemove,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    repeat(columns - rowValues.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RunningAppGrid(
+    apps: List<WindowsProcessCandidate>,
+    state: AppRoutingState,
+    busy: Boolean,
+    colors: YokhanPalette,
+    typography: com.yokhan.gates.shared.ui.design.YokhanTypography,
+    onAddProxy: (String) -> Unit,
+    onAddDirect: (String) -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val columns = if (maxWidth >= 520.dp) 2 else 1
+        Column(verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
+            apps.chunked(columns).forEachIndexed { rowIndex, rowApps ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
+                ) {
+                    rowApps.forEachIndexed { colIndex, app ->
+                        val index = rowIndex * columns + colIndex
+                        RunningAppCard(
+                            app = app,
+                            status = windowsAppRouteStatus(app.name, app.path, state),
+                            index = index,
+                            busy = busy,
+                            colors = colors,
+                            typography = typography,
+                            onAddProxy = { onAddProxy(windowsProcessRoutingValue(app.name, app.path)) },
+                            onAddDirect = { onAddDirect(windowsProcessRoutingValue(app.name, app.path)) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    repeat(columns - rowApps.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConfiguredAppCard(
+    value: String,
+    status: WindowsAppRouteStatus,
+    index: Int,
+    tagPrefix: String,
+    busy: Boolean,
+    colors: YokhanPalette,
+    typography: com.yokhan.gates.shared.ui.design.YokhanTypography,
+    onRemove: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val displayName = windowsAppDisplayName(value)
+    val shortPath = windowsAppShortPath(value)
+    AppCardFrame(
+        iconPath = shortPath,
+        name = displayName,
+        path = shortPath,
+        status = status,
+        colors = colors,
+        typography = typography,
+        modifier = modifier,
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             ProductIconAction(
                 icon = Icons.Filled.Close,
                 tooltip = "Убрать правило",
-                description = "Убрать правило $value",
+                description = "Убрать правило $displayName",
                 enabled = !busy,
                 tag = "$tagPrefix.$index",
                 colors = colors,
@@ -534,32 +654,27 @@ private fun RoutingRuleList(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RunningProcessRow(
+private fun RunningAppCard(
     app: WindowsProcessCandidate,
+    status: WindowsAppRouteStatus,
     index: Int,
     busy: Boolean,
     colors: YokhanPalette,
     typography: com.yokhan.gates.shared.ui.design.YokhanTypography,
     onAddProxy: () -> Unit,
     onAddDirect: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth().yokhanOutlinedSurface(colors)
-            .padding(YokhanSpacing.ControlHorizontal),
-        verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
+    AppCardFrame(
+        iconPath = app.path,
+        name = app.name,
+        path = app.path,
+        status = status,
+        colors = colors,
+        typography = typography,
+        modifier = modifier,
     ) {
-        YokhanMonoValue(app.name, colors, typography, sizeSp = 12)
-        Text(
-            text = app.path,
-            color = colors.secondary,
-            fontFamily = typography.mono,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth(),
-        )
         Row(horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
             ProductAddAction(
                 label = "Через GATES",
@@ -582,6 +697,130 @@ private fun RunningProcessRow(
                 modifier = Modifier.weight(1f),
             )
         }
+    }
+}
+
+@Composable
+private fun AppCardFrame(
+    iconPath: String,
+    name: String,
+    path: String,
+    status: WindowsAppRouteStatus,
+    colors: YokhanPalette,
+    typography: com.yokhan.gates.shared.ui.design.YokhanTypography,
+    modifier: Modifier = Modifier,
+    actions: @Composable () -> Unit,
+) {
+    Column(
+        modifier = modifier.yokhanOutlinedSurface(colors).padding(YokhanSpacing.ControlHorizontal),
+        verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
+        ) {
+            AppIcon(iconPath)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    color = colors.primary,
+                    fontFamily = typography.mono,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (path.isNotBlank()) {
+                    Text(
+                        text = path,
+                        color = colors.secondary,
+                        fontFamily = typography.mono,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        AppStatusBadge(status, colors, typography)
+        actions()
+    }
+}
+
+@Composable
+private fun AppIcon(path: String, modifier: Modifier = Modifier) {
+    val bitmap = remember(path) {
+        if (path.isBlank()) WindowsAppIcons.fallback() else WindowsAppIcons.icon(path)
+    }
+    Image(
+        bitmap = bitmap,
+        contentDescription = null,
+        modifier = modifier.size(34.dp).clip(RoundedCornerShape(YokhanRadius.Small)),
+    )
+}
+
+@Composable
+private fun AppStatusBadge(
+    status: WindowsAppRouteStatus,
+    colors: YokhanPalette,
+    typography: com.yokhan.gates.shared.ui.design.YokhanTypography,
+    modifier: Modifier = Modifier,
+) {
+    val (label, tint) = when (status) {
+        WindowsAppRouteStatus.PROXY -> "Через GATES" to colors.accent
+        WindowsAppRouteStatus.DIRECT -> "Мимо туннеля" to YokhanRed
+        WindowsAppRouteStatus.UNSET -> "Не настроено" to colors.tertiary
+    }
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(YokhanRadius.Pill))
+            .border(YokhanStroke.Thin, tint.copy(alpha = 0.55f), RoundedCornerShape(YokhanRadius.Pill))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.StatusDot),
+    ) {
+        Box(Modifier.size(6.dp).clip(CircleShape).background(tint))
+        Text(
+            text = label,
+            color = tint,
+            fontFamily = typography.mono,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppAddTile(
+    busy: Boolean,
+    colors: YokhanPalette,
+    typography: com.yokhan.gates.shared.ui.design.YokhanTypography,
+    onPickExe: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .heightIn(min = YokhanSpacing.ControlMinHeight)
+            .yokhanOutlinedSurface(colors, radius = YokhanRadius.Pill)
+            .clickable(enabled = !busy, role = Role.Button, onClick = onPickExe)
+            .testTag("routing.add")
+            .semantics { contentDescription = "Добавить приложение" }
+            .padding(horizontal = YokhanSpacing.ControlHorizontal, vertical = YokhanSpacing.ControlVertical),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(Icons.Filled.Add, contentDescription = null, tint = colors.primary, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(YokhanSpacing.CompactGap))
+        Text(
+            text = "Добавить приложение",
+            color = colors.primary,
+            fontFamily = typography.mono,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
     }
 }
 

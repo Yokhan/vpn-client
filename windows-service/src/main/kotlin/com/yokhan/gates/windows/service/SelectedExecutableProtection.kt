@@ -1,5 +1,7 @@
 package com.yokhan.gates.windows.service
 
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.sun.jna.Native
 import com.sun.jna.WString
@@ -345,13 +347,41 @@ private fun isIpv6LinkLocal(normalized: String): Boolean {
     return firstByte == 0xfe && (secondByte and 0xc0) == 0x80
 }
 
-internal fun runtimeConfigJson(config: ValidatedSingBoxConfig, alias: String?): String {
+internal fun runtimeConfigJson(
+    config: ValidatedSingBoxConfig,
+    alias: String?,
+    transportDirectProcessPaths: List<String> = emptyList(),
+): String {
     val root = JsonParser.parseString(config.canonicalJson).asJsonObject
     if (alias != null) {
         val tun = root.getAsJsonArray("inbounds").first { it.asJsonObject.get("type")?.asString == "tun" }.asJsonObject
         tun.addProperty("interface_name", alias)
     }
+    if (config.sidecar != null && transportDirectProcessPaths.isNotEmpty()) {
+        prependDirectProcessRules(root, transportDirectProcessPaths)
+    }
     return com.google.gson.Gson().toJson(root)
+}
+
+/**
+ * Puts a transport-owned executable ahead of every user rule. sing-box
+ * evaluates route rules in order, so the exact path of the XHTTP helper is
+ * direct-routed even when the user added a conflicting name-wide or path rule.
+ * Exact `process_path` is used instead of a global `process_name`, so only the
+ * verified installation is released from the tunnel.
+ */
+internal fun prependDirectProcessRules(root: JsonObject, processPaths: List<String>) {
+    val paths = processPaths.map(String::trim).filter(String::isNotBlank).distinct()
+    if (paths.isEmpty()) return
+    val route = root.getAsJsonObject("route") ?: JsonObject().also { root.add("route", it) }
+    val rules = JsonArray()
+    rules.add(JsonObject().apply {
+        add("process_path", JsonArray().also { array -> paths.forEach(array::add) })
+        addProperty("outbound", "direct")
+    })
+    route.getAsJsonArray("rules")?.forEach(rules::add)
+    route.add("rules", rules)
+    route.addProperty("find_process", true)
 }
 
 private const val IDENTITY_QUERY_TIMEOUT_MILLIS = 2_000L

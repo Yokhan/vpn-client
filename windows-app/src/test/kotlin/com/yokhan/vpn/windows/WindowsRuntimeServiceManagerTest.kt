@@ -59,6 +59,11 @@ class WindowsRuntimeServiceManagerTest {
         assertTrue(script.contains("service.PathName -notmatch"))
         assertTrue(script.contains("service.State -eq 'Running'"))
         assertTrue(script.contains("GATES_TOKEN_STATE=preserved"))
+        assertTrue(script.contains("GATES_SERVICE_STATE=running_matching"))
+        assertTrue(script.contains("GATES_SERVICE_STATE=restarting"))
+        assertTrue(script.contains("Invoke-GatesNative 'taskkill.exe'"))
+        assertTrue(script.contains("Get-Process xray, sing-box"))
+        assertTrue(script.contains("if (-not (\$wrapperChanged -or \$launcherChanged))"))
         assertTrue(script.contains("if (-not \$serviceInstalled)"))
         assertTrue(script.contains("function Invoke-GatesNative"))
         assertTrue(script.contains("PSNativeCommandUseErrorActionPreference = \$false"))
@@ -68,7 +73,7 @@ class WindowsRuntimeServiceManagerTest {
         assertTrue(script.contains("nativeExitCode = \$LASTEXITCODE"))
         assertTrue(script.contains("'start_service' { 68; break }"))
         assertTrue(script.contains("taskQueryExit = Invoke-GatesNative 'schtasks.exe'"))
-        assertFalse(Regex("(?im)^\\s*(?:&|Invoke-GatesNative).*\\b(?:stop|uninstall)\\b").containsMatchIn(script))
+        assertFalse(Regex("(?im)^\\s*(?:&|Invoke-GatesNative).*\\buninstall\\b").containsMatchIn(script))
         assertTrue(script.contains("exit \$failureCode"))
     }
 

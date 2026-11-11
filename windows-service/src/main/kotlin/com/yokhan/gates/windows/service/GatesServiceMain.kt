@@ -78,9 +78,16 @@ private fun runService() {
             val serviceProcessExecutablePath = ProcessHandle.current().info().command().orElse(null)?.let {
                 runCatching { java.nio.file.Path.of(it).toAbsolutePath().normalize().toString() }.getOrNull()
             }
+            val xraySidecar = own(XrayProcessSidecar(paths)) { it.stop() }
             val supervisor = own(
                 SerializedTunnelSupervisor(
-                    SingBoxProcessLauncher(paths, protection, selectedProtectionAlias(controlToken), serviceProcessExecutablePath),
+                    SingBoxProcessLauncher(
+                        paths,
+                        protection,
+                        selectedProtectionAlias(controlToken),
+                        serviceProcessExecutablePath,
+                        xraySidecar,
+                    ),
                 ),
             ) { it.shutdown() }
             runCatching(supervisor::restorePersisted)

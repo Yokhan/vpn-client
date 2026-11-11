@@ -8,6 +8,8 @@ private const val RESOURCES_DIRECTORY = "resources"
 private const val RUNTIME_DIRECTORY = "yokhan-runtime"
 private const val WINDOWS_DIRECTORY = "windows"
 private const val SING_BOX_EXECUTABLE = "sing-box.exe"
+private const val XRAY_EXECUTABLE = "xray.exe"
+private const val XHTTP_DIRECTORY = "xhttp"
 private const val SERVICE_DIRECTORY = "Service"
 private const val ACTIVE_CONFIG_FILE = "active.json"
 private const val SERVICE_LOG_FILE = "service.log"
@@ -20,6 +22,8 @@ data class WindowsServicePaths(
     val configFile: Path,
     val logFile: Path,
     val controlTokenFile: Path,
+    val xrayExecutable: Path = runtimeExecutable.resolveSibling(XRAY_EXECUTABLE),
+    val xhttpDirectory: Path = dataDirectory.resolve(XHTTP_DIRECTORY),
 )
 
 object WindowsServicePathContract {

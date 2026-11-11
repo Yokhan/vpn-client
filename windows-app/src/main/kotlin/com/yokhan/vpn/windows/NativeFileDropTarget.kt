@@ -10,7 +10,7 @@ import java.io.File
 
 class NativeFileDropTarget(
     private val component: Component,
-    private val onExeFiles: (List<File>) -> Unit,
+    private val onAppFiles: (List<File>) -> Unit,
 ) {
     private var dropTarget: DropTarget? = null
 
@@ -29,13 +29,13 @@ class NativeFileDropTarget(
                         event.acceptDrop(DnDConstants.ACTION_COPY)
                         @Suppress("UNCHECKED_CAST")
                         val dropped = event.transferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>
-                        dropped.filter { it.isFile && it.extension.equals("exe", ignoreCase = true) }
+                        dropped.filter { it.isFile && isWindowsAppTargetPath(it.absolutePath) }
                     }.getOrElse {
                         event.rejectDrop()
                         return
                     }
                     if (files.isNotEmpty()) {
-                        onExeFiles(files)
+                        onAppFiles(files)
                     }
                     event.dropComplete(files.isNotEmpty())
                 }

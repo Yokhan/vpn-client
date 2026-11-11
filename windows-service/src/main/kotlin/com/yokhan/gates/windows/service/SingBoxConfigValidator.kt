@@ -14,8 +14,9 @@ import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 
 private val ALLOWED_TOP_LEVEL_SECTIONS = setOf("log", "dns", "ntp", "inbounds", "outbounds", "route")
-private val ALLOWED_OUTBOUND_TYPES = setOf("vless", "hysteria2", "naive", "direct", "block", "urltest", "selector")
+private val ALLOWED_OUTBOUND_TYPES = setOf("vless", "hysteria2", "naive", "socks", "direct", "block", "urltest", "selector")
 private val REMOTE_OUTBOUND_TYPES = setOf("vless", "hysteria2", "naive")
+private const val LOOPBACK_SOCKS_SERVER = "127.0.0.1"
 private val FORBIDDEN_KEYS = setOf(
     "file",
     "output",
@@ -34,6 +35,7 @@ private const val SERVER_PORT_KEY = "server_port"
 data class ValidatedSingBoxConfig(
     val canonicalJson: String,
     val protection: SelectedAppProtection? = null,
+    val sidecar: XhttpSidecarSpec? = null,
 )
 
 enum class ConfigErrorCode {
@@ -56,6 +58,9 @@ enum class ConfigErrorCode {
     MISSING_SERVER_PORT,
     INVALID_SERVER_PORT,
     INVALID_PROTECTION_METADATA,
+    INVALID_SOCKS_OUTBOUND,
+    INVALID_XHTTP_SIDECAR,
+    XHTTP_PHYSICAL_BIND_REQUIRED,
 }
 
 data class ConfigValidationError(
@@ -98,9 +103,25 @@ object SingBoxConfigValidator {
             is ProtectionParse.Rejected -> return ConfigValidationResult.Rejected(result.error)
         }
         root.remove("gates_protection")
+        val sidecar = when (val result = XhttpSidecarSpecParser.parse(root)) {
+            is XhttpSidecarParseResult.Accepted -> result.spec
+            is XhttpSidecarParseResult.Rejected -> return ConfigValidationResult.Rejected(result.error)
+        }
+        root.remove("gates_xhttp")
+        if (sidecar == null) {
+            val outbounds = root.getAsJsonArray("outbounds")
+            val hasSocks = outbounds?.any { outbound ->
+                outbound.isJsonObject && primitiveString(outbound.asJsonObject.get(TYPE_KEY)) == "socks"
+            } == true
+            if (hasSocks) {
+                return ConfigValidationResult.Rejected(
+                    error(ConfigErrorCode.INVALID_SOCKS_OUTBOUND, "SOCKS outbounds require XHTTP sidecar metadata"),
+                )
+            }
+        }
         val topLevelError = validateTopLevelSections(root) ?: validateTree(root, mutableSetOf()) ?: validateInbounds(root) ?: validateOutbounds(root)
         if (topLevelError != null) return ConfigValidationResult.Rejected(topLevelError)
-        return ConfigValidationResult.Accepted(ValidatedSingBoxConfig(gson.toJson(root), protection))
+        return ConfigValidationResult.Accepted(ValidatedSingBoxConfig(gson.toJson(root), protection, sidecar))
     }
 
     private fun parseProtection(
@@ -227,6 +248,21 @@ object SingBoxConfigValidator {
             if (tag.isNullOrBlank()) return error(ConfigErrorCode.INVALID_TAG, "Each outbound requires a non-blank tag")
             if (type in REMOTE_OUTBOUND_TYPES && !isValidPort(objectValue.get(SERVER_PORT_KEY))) {
                 return error(ConfigErrorCode.MISSING_SERVER_PORT, "Outbound '$tag' requires a valid server_port")
+            }
+            if (type == "socks") {
+                if (primitiveString(objectValue.get("server")) != LOOPBACK_SOCKS_SERVER) {
+                    return error(ConfigErrorCode.INVALID_SOCKS_OUTBOUND, "SOCKS outbound '$tag' must target loopback")
+                }
+                if (!isValidPort(objectValue.get(SERVER_PORT_KEY))) {
+                    return error(ConfigErrorCode.INVALID_SOCKS_OUTBOUND, "SOCKS outbound '$tag' requires a valid server_port")
+                }
+                if (objectValue.has("username") || objectValue.has("password")) {
+                    return error(ConfigErrorCode.INVALID_SOCKS_OUTBOUND, "SOCKS outbound '$tag' must not carry credentials")
+                }
+                val version = primitiveString(objectValue.get("version"))
+                if (version != null && version != "5") {
+                    return error(ConfigErrorCode.INVALID_SOCKS_OUTBOUND, "SOCKS outbound '$tag' must use SOCKS5")
+                }
             }
         }
         return null

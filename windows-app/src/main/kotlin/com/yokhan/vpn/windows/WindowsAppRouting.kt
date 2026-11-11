@@ -52,6 +52,43 @@ private fun hasInvalidWindowsPathSegment(value: String): Boolean {
 internal fun windowsProcessRoutingValue(name: String, path: String): String =
     parseWindowsAppRoutingTarget(path)?.label ?: name
 
+internal enum class WindowsAppRouteStatus { PROXY, DIRECT, UNSET }
+
+/**
+ * Classifies a running process against the configured rules using the same
+ * precedence as [windowsAppProcessRules]: exact path (proxy, then direct)
+ * before name-wide (direct, then proxy).
+ */
+internal fun windowsAppRouteStatus(
+    name: String,
+    path: String,
+    state: AppRoutingState,
+): WindowsAppRouteStatus {
+    val proxyPaths = state.proxyProcessPaths.asSequence().map { it.lowercase() }.toSet()
+    val directPaths = state.directProcessPaths.asSequence().map { it.lowercase() }.toSet()
+    val proxyNames = state.proxyProcessNames.asSequence().map { it.lowercase() }.toSet()
+    val directNames = state.directProcessNames.asSequence().map { it.lowercase() }.toSet()
+    val processPath = path.lowercase()
+    val processName = name.lowercase()
+    return when {
+        processPath.isNotBlank() && processPath in proxyPaths -> WindowsAppRouteStatus.PROXY
+        processPath.isNotBlank() && processPath in directPaths -> WindowsAppRouteStatus.DIRECT
+        processName in directNames -> WindowsAppRouteStatus.DIRECT
+        processName in proxyNames -> WindowsAppRouteStatus.PROXY
+        else -> WindowsAppRouteStatus.UNSET
+    }
+}
+
+/** Human label for a configured value, preferring the file name of a path. */
+internal fun windowsAppDisplayName(value: String): String =
+    parseWindowsAppRoutingTarget(value)?.let { target ->
+        if (target.processPath.isNotBlank()) File(target.processPath).name else target.processName
+    }?.takeIf { it.isNotBlank() } ?: value
+
+/** The short path for a configured value, blank for name-only rules. */
+internal fun windowsAppShortPath(value: String): String =
+    parseWindowsAppRoutingTarget(value)?.processPath.orEmpty()
+
 internal fun updateWindowsAppRouting(
     config: WindowsAppConfig,
     target: WindowsAppRoutingTarget,

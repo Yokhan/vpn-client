@@ -9,7 +9,7 @@ class WindowsProfileRoutesTest {
     @Test fun routeListComesFromTheImportedProfileNotTheLegacyCatalog() {
         val routes = windowsProfileRoutes("""{"outbounds":[{"type":"direct","tag":"direct"},{"type":"vless","tag":"nl-tcp","server":"test.example","server_port":443,"uuid":"private-value"},{"type":"hysteria2","tag":"hy2","server":"test.example","server_port":443,"password":"private-value"},{"type":"hysteria2","tag":"se-hy2","server":"se.example","server_port":4443,"password":"private-value"}]}""")
         assertEquals(listOf("nl-tcp", "hy2", "se-hy2"), routes.map { it.tag })
-        assertEquals("NL VLESS", routes.first().label)
+        assertEquals("Finland VLESS (r1)", routes.first().label)
         assertEquals("SE Stockholm", routes.last().label)
         assertFalse(routes.toString().contains("private-value"))
         assertEquals("auto", windowsRouteTagForProfileId(1, routes))

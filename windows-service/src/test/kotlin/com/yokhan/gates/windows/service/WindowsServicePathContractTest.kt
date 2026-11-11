@@ -21,5 +21,10 @@ class WindowsServicePathContractTest {
         assertEquals("C:\\ProgramData\\GATES\\Service\\active.json", paths.configFile.toString())
         assertEquals("C:\\ProgramData\\GATES\\Service\\service.log", paths.logFile.toString())
         assertEquals("C:\\ProgramData\\GATES\\Service\\control.token", paths.controlTokenFile.toString())
+        assertEquals(
+            "C:\\Program Files\\GATES\\app\\resources\\yokhan-runtime\\windows\\xray.exe",
+            paths.xrayExecutable.toString(),
+        )
+        assertEquals("C:\\ProgramData\\GATES\\Service\\xhttp", paths.xhttpDirectory.toString())
     }
 }

@@ -13,21 +13,24 @@ class SingBoxProcessLauncher(
     private val protection: SelectedAppProtectionController = DisabledSelectedAppProtection,
     private val protectionAlias: String? = null,
     private val serviceProcessExecutablePath: String? = null,
+    private val sidecar: XraySidecar = DisabledXraySidecar,
 ): TunnelLauncher {
 
     override fun coreExecutablePath(): String = paths.runtimeExecutable.toString()
 
     override fun reservedProtectionPaths(): Set<String>? = serviceProcessExecutablePath?.let {
-        setOf(paths.runtimeExecutable.toString(), paths.launcherExecutable.toString(), it)
+        setOf(paths.runtimeExecutable.toString(), paths.launcherExecutable.toString(), paths.xrayExecutable.toString(), it)
     }
 
     override fun preflight(config: ValidatedSingBoxConfig) {
         require(Files.isRegularFile(paths.runtimeExecutable)) { "Fixed sing-box runtime is unavailable" }
+        val sidecarFailure = sidecar.preflight(config.sidecar)
+        require(sidecarFailure == null) { "XHTTP sidecar preflight failed: $sidecarFailure" }
         Files.createDirectories(paths.dataDirectory)
         val candidate = Files.createTempFile(paths.dataDirectory, "candidate-", ".json")
         var deleteCandidate = true
         try {
-            Files.writeString(candidate, runtimeConfigJson(config, protectionAliasFor(config)), StandardCharsets.UTF_8)
+            Files.writeString(candidate, runtimeConfigText(config), StandardCharsets.UTF_8)
             val process = preflightProcessBuilder(paths.runtimeExecutable, candidate).start()
             var cleanupAttempted = false
             try {
@@ -61,17 +64,35 @@ class SingBoxProcessLauncher(
             throw IOException("Persisted tunnel configuration does not match launch request")
         }
         val runtimeConfig = paths.dataDirectory.resolve(RUNTIME_CONFIG_FILE)
-        Files.writeString(runtimeConfig, runtimeConfigJson(config, protectionAliasFor(config)), StandardCharsets.UTF_8)
-        val process = ProcessBuilder(
-            paths.runtimeExecutable.toString(),
-            "run",
-            "-c",
-            runtimeConfig.toString(),
+        Files.writeString(runtimeConfig, runtimeConfigText(config), StandardCharsets.UTF_8)
+        val sidecarSpec = config.sidecar
+        if (sidecarSpec != null) {
+            when (val result = sidecar.start(sidecarSpec)) {
+                is SidecarStartResult.Failed -> if (sidecarSpec.required) {
+                    throw IOException("XHTTP sidecar is unavailable: ${result.reason}")
+                }
+                else -> Unit
+            }
+        }
+        val process = try {
+            ProcessBuilder(
+                paths.runtimeExecutable.toString(),
+                "run",
+                "-c",
+                runtimeConfig.toString(),
+            )
+                .redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.appendTo(paths.logFile.toFile()))
+                .start()
+        } catch (failure: Exception) {
+            sidecar.stop()
+            throw failure
+        }
+        return XhttpTunnelChild(
+            tunnel = ProcessTunnelChild(process),
+            sidecar = if (sidecarSpec != null) sidecar else null,
+            spec = sidecarSpec,
         )
-            .redirectErrorStream(true)
-            .redirectOutput(ProcessBuilder.Redirect.appendTo(paths.logFile.toFile()))
-            .start()
-        return ProcessTunnelChild(process)
     }
 
     override fun loadPersistedConfig(): ValidatedSingBoxConfig? {
@@ -112,15 +133,34 @@ class SingBoxProcessLauncher(
     private fun protectionAliasFor(config: ValidatedSingBoxConfig): String? =
         if (config.protection == null) null else protectionAlias
 
+    /**
+     * The XHTTP helper is a transport-owned process, so its exact installed
+     * path is derived from the service paths rather than from user routing
+     * preferences. The rule is injected only for configs that own a sidecar.
+     */
+    private fun runtimeConfigText(config: ValidatedSingBoxConfig): String =
+        runtimeConfigJson(
+            config,
+            protectionAliasFor(config),
+            transportDirectProcessPaths = if (config.sidecar == null) {
+                emptyList()
+            } else {
+                listOf(paths.xrayExecutable.toAbsolutePath().normalize().toString())
+            },
+        )
+
     private fun persistedConfigJson(config: ValidatedSingBoxConfig): String {
-        if (config.protection == null) return config.canonicalJson
+        if (config.protection == null && config.sidecar == null) return config.canonicalJson
         val root = com.google.gson.JsonParser.parseString(config.canonicalJson).asJsonObject
-        root.add("gates_protection", com.google.gson.JsonObject().apply {
-            addProperty("schema", 1)
-            add("protected_executables", com.google.gson.JsonArray().also { array ->
-                config.protection.protectedExecutables.forEach(array::add)
+        if (config.protection != null) {
+            root.add("gates_protection", com.google.gson.JsonObject().apply {
+                addProperty("schema", 1)
+                add("protected_executables", com.google.gson.JsonArray().also { array ->
+                    config.protection.protectedExecutables.forEach(array::add)
+                })
             })
-        })
+        }
+        config.sidecar?.let { sidecar -> root.add("gates_xhttp", sidecar.toJsonObject()) }
         return com.google.gson.Gson().toJson(root)
     }
 }

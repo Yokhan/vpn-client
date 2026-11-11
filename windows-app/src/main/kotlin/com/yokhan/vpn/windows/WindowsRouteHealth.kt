@@ -135,6 +135,6 @@ private fun normalizeRouteId(value: String): String =
 private fun normalizeStatus(value: String): String =
     value.trim().lowercase().ifBlank { "unknown" }
 
-private val KNOWN_ROUTE_IDS = setOf("bridge", "relay", "naive", "hy2", "nl-tcp", "se-hy2")
+private val KNOWN_ROUTE_IDS = setOf("bridge", "relay", "naive", "hy2", "nl-tcp", "se-hy2", "xhttp")
 private val BLOCKED_ROUTE_STATUSES = setOf("blocked", "down", "disabled")
 private const val DEFAULT_UNKNOWN_ROUTE_SCORE = 50

@@ -4,7 +4,7 @@ import com.google.gson.JsonParser
 import com.google.gson.JsonArray
 import java.net.URI
 
-private val WINDOWS_PROXY_ROUTE_IDS = setOf("bridge", "relay", "naive", "hy2", "nl-tcp", "se-hy2")
+private val WINDOWS_PROXY_ROUTE_IDS = setOf("bridge", "relay", "naive", "hy2", "nl-tcp", "se-hy2", "xhttp")
 
 internal fun isWindowsProxyRouteId(value: String): Boolean =
     value.trim().lowercase() in WINDOWS_PROXY_ROUTE_IDS
@@ -26,7 +26,8 @@ internal fun validWindowsProxyRouteTags(outbounds: JsonArray?): List<String> {
             val outbound = value.asJsonObject
             val type = outbound.get("type")?.asString
             val tag = outbound.get("tag")?.asString.orEmpty()
-            val isProxyType = type in setOf("vless", "naive", "hysteria2")
+            val isProxyType = type in setOf("vless", "naive", "hysteria2") ||
+                (type == "socks" && tag == WINDOWS_XHTTP_ROUTE_TAG)
             val hasAddress = !outbound.get("server")?.asString.isNullOrBlank()
             val hasValidPort = outbound.get("server_port")?.asInt in 1..65535
             tag.takeIf { isProxyType && isWindowsProxyRouteId(it) && hasAddress && hasValidPort }
@@ -76,9 +77,20 @@ internal fun windowsImportedProfileConfig(config: WindowsAppConfig, source: Stri
         }
     }.distinct()
     val tags = outbounds.mapNotNull { it.asJsonObject.get("tag")?.asString }.toSet()
-    require(config.activeRoute == "auto" || config.activeRoute in tags) { "Selected route is missing from profile" }
-    return config.copy(profileSource = source,
-        routeOrder = if (source == "manual" && "auto" !in tags) proxyTags else config.routeOrder)
+    // XHTTP is the only transport that survives the current DPI, so an account
+    // profile selects it automatically instead of leaving the user on a dead route.
+    val preferredRoute = if (source == "account" && "xhttp" in tags) "xhttp" else config.activeRoute
+    require(preferredRoute == "auto" || preferredRoute in tags) { "Selected route is missing from profile" }
+    val order = when {
+        source == "manual" && "auto" !in tags -> proxyTags
+        "xhttp" in tags -> listOf("xhttp") + config.routeOrder.filter { it != "xhttp" && it in tags }
+        else -> config.routeOrder
+    }
+    return config.copy(
+        profileSource = source,
+        activeRoute = preferredRoute,
+        routeOrder = order,
+    )
 }
 
 internal fun redactedCliArguments(command: String, arguments: List<String>): List<String> =

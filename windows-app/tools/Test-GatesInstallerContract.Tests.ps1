@@ -12,5 +12,16 @@ Describe 'GATES installer service launcher contract' {
 
         $source | Should Match "'GATES.exe' = ''"
         $source | Should Match 'MSI is missing GATES.exe, the configured service launcher'
+        $source | Should Match "'xray.exe' = 'app/resources/yokhan-runtime/windows'"
+        $source | Should Match "'xray.sha256' = 'app/resources/yokhan-runtime/windows'"
+    }
+
+    It 'uses the guarded upgrade installer instead of installing over a running service' {
+        $source = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'GATES-install.cmd') -Raw
+
+        $source | Should Match 'sc\.exe stop GatesVpn'
+        $source | Should Match 'taskkill /F /T /IM Gates\.Service\.exe'
+        $source | Should Match 'Get-Process xray,sing-box'
+        $source | Should Match 'explorer\.exe "C:\\Program Files\\GATES\\GATES\.exe"'
     }
 }

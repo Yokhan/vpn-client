@@ -101,6 +101,7 @@ data class WindowsAppConfig(
     val listenHost: String = "127.0.0.1",
     val socksPort: Int = 2088,
     val httpPort: Int = 2089,
+    val xhttpSidecarPort: Int = 2095,
     val tunInterfaceName: String = "GATES",
     val tunAddress: List<String> = GATES_DEFAULT_TUN_ADDRESS,
     val tunMtu: Int = 9000,
@@ -655,7 +656,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.7.6"
+private const val WINDOWS_APP_VERSION = "1.7.12"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -745,6 +746,7 @@ class WindowsRuntimeController(
     private val prepareRuntimeWithoutTunnel: () -> RuntimeCommandResult = {
         WindowsRuntimeServiceManager().prepareWithoutConnecting()
     },
+    private val xrayPinProvider: () -> String? = { readInstalledXrayPin() },
 ) {
     internal val authorizationPrompt = MutableStateFlow<WindowsAuthorizationPrompt?>(null)
     internal val authorizationPhase = MutableStateFlow(WindowsAuthorizationPhase.Idle)
@@ -774,6 +776,7 @@ class WindowsRuntimeController(
     private val rawConfigFile: File
         get() = profileFile(readConfig().profileSource)
     private val generatedConfigFile = File(runtimeDir, "config.json")
+    private val xhttpSpecFile = File(runtimeDir, "xhttp-spec.json")
     private val generatedModeFile = File(runtimeDir, "generated-mode.txt")
     private val pidFile = File(runtimeDir, "sing-box.pid")
     private val processStateFile = File(runtimeDir, "process-state.json")
@@ -1069,6 +1072,9 @@ class WindowsRuntimeController(
             httpPort = runCatching { config.httpPort }.getOrDefault(defaults.httpPort)
                 .takeIf { it in 1..65535 }
                 ?: defaults.httpPort,
+            xhttpSidecarPort = runCatching { config.xhttpSidecarPort }.getOrDefault(defaults.xhttpSidecarPort)
+                .takeIf { it in 1024..65535 && it != 38417 }
+                ?: defaults.xhttpSidecarPort,
             tunInterfaceName = runCatching { config.tunInterfaceName }.getOrNull()
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
@@ -1662,12 +1668,53 @@ class WindowsRuntimeController(
         val runtimeMode = effectiveRuntimeMode(appConfig, forceProxyMode)
         val root = JsonParser.parseString(profileStore.readText(rawConfigFile, StandardCharsets.UTF_8)).asJsonObject
         root.add("inbounds", buildInbounds(appConfig, runtimeMode))
+        val xhttpPlan = if (windowsXhttpEnabled(root)) {
+            if (appConfig.activeRoute != WINDOWS_XHTTP_ROUTE_TAG) {
+                stripWindowsXhttpOutbound(root)
+                null
+            } else {
+                if (runtimeMode != "tun") {
+                    return RuntimeCommandResult(1, "XHTTP транспорт доступен только в режиме TUN через GATES Runtime service.")
+                }
+                val sidecarPort = chooseWindowsXhttpPort(appConfig.xhttpSidecarPort) { port ->
+                    port != appConfig.socksPort && port != appConfig.httpPort
+                } ?: return RuntimeCommandResult(1, "Нет свободного локального порта для XHTTP sidecar.")
+                val bind = if (appConfig.physicalBindEnabled == true) {
+                    resolvePhysicalBindTarget(appConfig)?.let { WindowsXhttpBind(it.interfaceName, it.ipv4) }
+                } else {
+                    null
+                }
+                val bindInterface = bind?.interfaceName?.takeIf { it.isNotBlank() }
+                if (bindInterface == null || bindInterface.equals(appConfig.tunInterfaceName, ignoreCase = true)) {
+                    return RuntimeCommandResult(
+                        1,
+                        "XHTTP в режиме TUN требует Physical bind к физическому интерфейсу (не TUN).",
+                    )
+                }
+                try {
+                    applyWindowsXhttpTransport(root, appConfig.copy(xhttpSidecarPort = sidecarPort), bind)
+                } catch (failure: IllegalArgumentException) {
+                    return RuntimeCommandResult(1, failure.message ?: "XHTTP профиль не поддерживается.")
+                }
+            }
+        } else {
+            null
+        }
         normalizeLog(root)
         normalizeDns(root, appConfig)
         normalizeRoute(root, appConfig, runtimeMode)
         applyPhysicalBind(root, appConfig)
         generatedModeFile.writeText(runtimeMode, StandardCharsets.US_ASCII)
         generatedConfigFile.writeText(gson.toJson(root), StandardCharsets.UTF_8)
+        if (xhttpPlan != null) {
+            val pin = xrayPinProvider()
+                ?: return RuntimeCommandResult(1, "XHTTP runtime is not installed or is not pinned. Reinstall GATES.")
+            val finalRoute = root.getAsJsonObject("route")?.get("final")?.asString
+            val spec = windowsXhttpSpecJson(xhttpPlan, required = finalRoute == xhttpPlan.outboundTag, executableSha256 = pin)
+            profileStore.writeAtomic(xhttpSpecFile, spec.toByteArray(StandardCharsets.UTF_8))
+        } else {
+            runCatching { xhttpSpecFile.delete() }
+        }
         return (validateGeneratedConfig?.invoke(generatedConfigFile) ?: checkConfig()).let { check ->
             if (check.exitCode == 0) {
                 RuntimeCommandResult(
@@ -1869,6 +1916,9 @@ class WindowsRuntimeController(
     @Synchronized
     private fun startProxy(): RuntimeCommandResult {
         ensureDirs()
+        if (xhttpSpecFile.isFile) {
+            return RuntimeCommandResult(1, "XHTTP транспорт требует GATES Runtime service.")
+        }
         if (readConfig().killSwitchEnabled) {
             return RuntimeCommandResult(1, "GATES_PROTECTION_REQUIRES_SERVICE")
         }
@@ -2110,7 +2160,11 @@ class WindowsRuntimeController(
         if (config.killSwitchEnabled && runtimeService.protectionStatus().exitCode != 0) {
             return RuntimeCommandResult(1, "GATES_PROTECTION_SERVICE_UNAVAILABLE")
         }
-        val serviceConfig = windowsProtectionConfig(generatedConfigFile.readText(StandardCharsets.UTF_8), config)
+        val serviceConfig = windowsServiceTransportConfig(
+            generatedConfigFile.readText(StandardCharsets.UTF_8),
+            xhttpSpecFile.takeIf { it.isFile }?.readText(StandardCharsets.UTF_8),
+            config,
+        )
         val result = runtimeService.startTunnel(serviceConfig)
         if (config.killSwitchEnabled && result.exitCode == 0 &&
             parseWindowsProtectionState(runtimeService.protectionStatus()) != WindowsProtectionState.ARMED) {
@@ -2241,6 +2295,12 @@ class WindowsRuntimeController(
         val config = readConfig()
         val updated = updateWindowsAppRouting(config, app, proxy, remove = true)
         return applyRoutingChange(updated, "App route removed: ${app.label}")
+    }
+
+    /** Resolves a dropped/picked `.lnk` to its target path before routing. */
+    internal fun resolveAppTarget(path: String): String {
+        if (!path.endsWith(".lnk", ignoreCase = true)) return path
+        return resolveWindowsShortcutTarget(path, ::runProcess) ?: path
     }
 
     private fun applyRoutingChange(updated: WindowsAppConfig, message: String): RuntimeCommandResult {
@@ -2627,7 +2687,7 @@ class WindowsRuntimeController(
                 appendLine("Created at: ${Instant.now()}")
                 appendLine("Mode: safe proxy only")
                 appendLine("No TUN, default route, system proxy, DNS, phone, or server changes are made by this export.")
-                appendLine("Raw subscription JSON and full generated sing-box config are intentionally excluded.")
+                appendLine("Raw subscription JSON, full generated sing-box config, and the Xray sidecar spec are intentionally excluded.")
             },
             "status.txt" to commandOutput("status", statusResult),
             "roomnet.txt" to commandOutput("roomnet-info", runCatching { roomNetInfo() }.getOrElse {
@@ -2856,11 +2916,11 @@ class WindowsRuntimeController(
         }
         if (config.activeRoute == "auto" && "auto" !in tags) {
             val health = fetchRouteHealthSnapshot(config)
-            val availableProxyRoutes = if (config.profileSource == "account") {
+            val availableProxyRoutes = (if (config.profileSource == "account") {
                 validWindowsProxyRouteTags(outbounds)
             } else {
                 tags.filter { it != "direct" }
-            }
+            }).filterNot { it == WINDOWS_XHTTP_ROUTE_TAG }
             val candidates = orderWindowsRoutesByHealth(
                 windowsAutoRouteCandidates(
                     config.routeOrder,
@@ -2963,7 +3023,7 @@ class WindowsRuntimeController(
             val outbound = element.asJsonObject
             val tag = outbound.get("tag")?.asString ?: return@forEach
             if (tag !in routes) return@forEach
-            if (outbound.get("type")?.asString in listOf("direct", "block", "urltest", "selector")) return@forEach
+            if (outbound.get("type")?.asString in listOf("direct", "block", "urltest", "selector", "socks")) return@forEach
             bind.interfaceName?.takeIf { it.isNotBlank() }?.let {
                 outbound.addProperty("bind_interface", it)
             }
@@ -2997,7 +3057,7 @@ class WindowsRuntimeController(
     private fun detectPhysicalBindTargetFromPowerShell(): PhysicalBindTarget? {
         val script = """
             ${'$'}ErrorActionPreference = 'SilentlyContinue'
-            Get-NetIPConfiguration |
+            ${'$'}row = Get-NetIPConfiguration |
               Where-Object {
                 ${'$'}_.NetAdapter.Status -eq 'Up' -and
                 ${'$'}_.IPv4Address -and
@@ -3005,8 +3065,13 @@ class WindowsRuntimeController(
                 ${'$'}_.InterfaceAlias -notmatch '(?i)neko|tun|tap|wintun|wireguard|tailscale|zerotier|vpn|loopback|docker|hyper-v|vmware|vbox'
               } |
               Sort-Object @{ Expression = { ${'$'}_.NetAdapter.InterfaceMetric }; Ascending = ${'$'}true }, InterfaceAlias |
-              Select-Object -First 1 @{Name='InterfaceAlias';Expression={${'$'}_.InterfaceAlias}}, @{Name='IPv4Address';Expression={${'$'}_.IPv4Address[0].IPAddress}} |
-              ConvertTo-Json -Compress
+              Select-Object -First 1
+            if (${'$'}row) {
+              [pscustomobject]@{
+                InterfaceAliasB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([string]${'$'}row.InterfaceAlias))
+                IPv4Address = [string]${'$'}row.IPv4Address[0].IPAddress
+              } | ConvertTo-Json -Compress
+            }
         """.trimIndent()
         val result = runProcess(
             listOf(
@@ -3023,7 +3088,9 @@ class WindowsRuntimeController(
         if (result.exitCode != 0 || result.output.isBlank()) return null
         return runCatching {
             val obj = JsonParser.parseString(result.output).asJsonObject
-            val iface = obj.get("InterfaceAlias")?.asString?.takeIf { it.isNotBlank() }
+            val iface = obj.get("InterfaceAliasB64")?.asString
+                ?.let(::decodeWindowsInterfaceAlias)
+                ?.takeIf { it.isNotBlank() }
             val ipv4 = obj.get("IPv4Address")?.asString?.takeIf { it.isNotBlank() }
             if (iface == null && ipv4 == null) null else PhysicalBindTarget(iface, ipv4, "auto-powershell")
         }.getOrNull()
@@ -3634,7 +3701,7 @@ class WindowsRuntimeController(
             process.destroyForcibly()
             return RuntimeCommandResult(124, "Timed out: ${args.joinToString(" ")}")
         }
-        val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+        val output = process.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }.trim()
         return RuntimeCommandResult(process.exitValue(), output)
     }
 
@@ -3755,6 +3822,18 @@ class WindowsRuntimeController(
             outbounds.add(item)
         }
         shape.add("outbounds", outbounds)
+        if (xhttpSpecFile.isFile) {
+            runCatching { JsonParser.parseString(xhttpSpecFile.readText(StandardCharsets.UTF_8)).asJsonObject }
+                .getOrNull()
+                ?.let { spec ->
+                    shape.add("xhttp_sidecar", JsonObject().apply {
+                        addProperty("installed", true)
+                        copyPrimitive(spec, this, "outbound_tag")
+                        copyPrimitive(spec, this, "listen_port")
+                        copyPrimitive(spec, this, "required")
+                    })
+                }
+        }
         return gson.toJson(shape)
     }
 

@@ -226,9 +226,40 @@ internal fun buildInstallScript(
             ${ '$' }stage = 'preserve_active_service'
             throw 'active_service_token_invalid'
         }
-        Write-Output 'GATES_SERVICE_STATE=running_matching'
-        Write-Output 'GATES_TOKEN_STATE=preserved'
-        exit 0
+        // An MSI upgrade replaces files on disk while the old SYSTEM processes keep
+        // running the previous image. Restart only when the installed files are newer
+        // than the running processes, so ordinary app starts keep an active tunnel.
+        ${ '$' }wrapperPid = ${ '$' }service.ProcessId
+        ${ '$' }wrapperStarted = (Get-Process -Id ${ '$' }wrapperPid -ErrorAction Stop).StartTime.ToUniversalTime()
+        ${ '$' }wrapperChanged = (Get-Item -LiteralPath ${ '$' }wrapperPath).LastWriteTimeUtc -gt ${ '$' }wrapperStarted
+        ${ '$' }runtimeLauncher = ${psSingleQuoted(assets.launcher?.absolutePath ?: assets.wrapper.absolutePath)}
+        ${ '$' }runtimeChild = Get-CimInstance Win32_Process -Filter ("ParentProcessId=" + ${ '$' }wrapperPid) |
+            Where-Object { ${ '$' }_.Name -eq 'GATES.exe' } | Select-Object -First 1
+        ${ '$' }runtimeStarted = if (${ '$' }null -ne ${ '$' }runtimeChild) {
+            ${ '$' }runtimeChild.CreationDate.ToUniversalTime()
+        } else { ${ '$' }wrapperStarted }
+        ${ '$' }launcherChanged = (Get-Item -LiteralPath ${ '$' }runtimeLauncher).LastWriteTimeUtc -gt ${ '$' }runtimeStarted
+        if (-not (${ '$' }wrapperChanged -or ${ '$' }launcherChanged)) {
+            Write-Output 'GATES_SERVICE_STATE=running_matching'
+            Write-Output 'GATES_TOKEN_STATE=preserved'
+            exit 0
+        }
+        ${ '$' }stage = 'restart_service'
+        Invoke-GatesNative 'sc.exe' @('stop', ${psSingleQuoted(GATES_SERVICE_NAME)}) | Out-Null
+        try {
+            (Get-Service -Name '${GATES_SERVICE_NAME}').WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20))
+        } catch {}
+        if (${ '$' }wrapperPid -gt 0) {
+            Invoke-GatesNative 'taskkill.exe' @('/T', '/F', '/PID', "${'$'}wrapperPid") | Out-Null
+        }
+        ${ '$' }gatesRoot = [System.IO.Path]::GetDirectoryName(${ '$' }runtimeLauncher) +
+            [System.IO.Path]::DirectorySeparatorChar
+        Get-Process xray, sing-box -ErrorAction SilentlyContinue | Where-Object {
+            ${ '$' }_.Path -and ${ '$' }_.Path.StartsWith(
+                ${ '$' }gatesRoot, [System.StringComparison]::OrdinalIgnoreCase
+            )
+        } | Stop-Process -Force -ErrorAction SilentlyContinue
+        Write-Output 'GATES_SERVICE_STATE=restarting'
     }
     ${'$'}acl = New-Object System.Security.AccessControl.DirectorySecurity
     ${'$'}acl.SetAccessRuleProtection(${'$'}true, ${'$'}false)

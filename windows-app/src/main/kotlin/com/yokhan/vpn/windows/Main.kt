@@ -517,7 +517,7 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                 listOf("browser.exe"), emptyList())
             runningApps = listOf(WindowsProcessCandidate(0, "game.exe", "C:\\QA\\game.exe"))
             availableRoutes = listOf(
-                WindowsProfileRoute("nl-tcp", "NL VLESS", "VLESS / TCP", "45.134.174.246"),
+                WindowsProfileRoute("nl-tcp", "Finland VLESS (r1)", "VLESS / TCP", "r1.yokhan.xyz"),
                 WindowsProfileRoute("hy2", "Hysteria2", "HY2 / UDP", "45.134.174.246"),
             )
             busy = false
@@ -657,6 +657,18 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                 setBusy = { busy = it },
                 onFailure = { lastMessage = it },
             ) {
+                if (command == "connect") {
+                    // Account profiles are server-driven: refresh before connecting so a
+                    // rotated entry/port is applied without reinstalling or a manual step.
+                    val source = withContext(Dispatchers.IO) { runCatching { controller.readConfig().profileSource }.getOrNull() }
+                    if (source == "account") {
+                        withContext(Dispatchers.IO) { runCatching { controller.run("import-app") } }
+                        activeRoute = withContext(Dispatchers.IO) {
+                            runCatching { controller.readConfig().activeRoute }.getOrDefault(activeRoute)
+                        }
+                        availableRoutes = withContext(Dispatchers.IO) { controller.availableRoutes() }
+                    }
+                }
                 val result = withContext(Dispatchers.IO) { controller.run(command, argument ?: route) }
                 val failureStage = windowsRecoveryFailureStage(command, result)
                 if (failureStage != null) {
@@ -702,7 +714,8 @@ private fun WindowsApp(ownerWindow: AwtWindow? = null, qa: WindowsQaSession? = n
                 setBusy = { busy = it },
                 onFailure = { lastMessage = it },
             ) {
-                val result = withContext(Dispatchers.IO) { controller.run(command, argument) }
+                val resolved = withContext(Dispatchers.IO) { controller.resolveAppTarget(argument) }
+                val result = withContext(Dispatchers.IO) { controller.run(command, resolved) }
                 appRoutingState = withContext(Dispatchers.IO) { controller.appRoutingState() }
                 lastMessage = windowsUiResultMessage(command, result)
             }
@@ -1238,7 +1251,7 @@ private fun chooseExeFile(owner: AwtWindow?): String? {
         else -> FileDialog(null as java.awt.Frame?, "Выбрать приложение", FileDialog.LOAD)
     }.apply {
         filenameFilter = java.io.FilenameFilter { _, name ->
-            name.endsWith(".exe", ignoreCase = true)
+            name.endsWith(".exe", ignoreCase = true) || name.endsWith(".lnk", ignoreCase = true)
         }
         isVisible = true
     }
@@ -1324,7 +1337,8 @@ private fun activeRouteLabel(route: String): String =
         "relay" -> "Relay"
         "naive" -> "Naive"
         "hy2" -> "HY2"
-        "nl-tcp" -> "NL VLESS"
+        "xhttp" -> "XHTTP (Xray)"
+        "nl-tcp" -> "Finland VLESS (r1)"
         "se-hy2" -> "SE Stockholm"
         else -> route
     }
