@@ -24,4 +24,14 @@ Describe 'GATES installer service launcher contract' {
         $source | Should Match 'Get-Process xray,sing-box'
         $source | Should Match 'explorer\.exe "C:\\Program Files\\GATES\\GATES\.exe"'
     }
+
+    It 'repairs the MSI and verifies the complete app image before starting the service' {
+        $source = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'GATES-install.cmd') -Raw
+
+        $source | Should Match 'msiexec\.exe /fa'
+        $source | Should Match 'runtime\\lib\\modules'
+        $source | Should Match 'Gates\.Service\.jar'
+        $source | Should Match 'GATES\.cfg'
+        $source | Should Match 'MISSING'
+    }
 }

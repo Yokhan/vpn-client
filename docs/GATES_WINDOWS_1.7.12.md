@@ -96,16 +96,25 @@ implements the supported upgrade flow:
 5. kill only GATES-owned `xray.exe`/`sing-box.exe` by executable path;
 6. run `msiexec /i ... /passive /norestart`;
 7. accept exit codes `0`, `3010`, `1641`, `1638`;
-8. start `GatesVpn`;
-9. launch GATES through `explorer.exe`, so the UI runs as the logged-in user instead
-   of inheriting the installer’s elevated token.
+8. run `msiexec /fa ... /qn /norestart` to force a full file repair;
+9. verify `runtime/lib/modules`, `Gates.Service.jar`, and every `GATES.cfg`
+   classpath entry;
+10. start `GatesVpn`;
+11. launch GATES through `explorer.exe`, so the UI runs as the logged-in user instead
+    of inheriting the installer’s elevated token.
 
 Root cause of the earlier `3010`: installing the MSI while the old SYSTEM runtime
 child was still running left the launcher image locked. Windows scheduled a rename on
 reboot. Stopping the service and killing the whole process tree before `msiexec`
 removes the lock; the verified 1.7.12 run returned `0`.
 
-Orphaned `xray.exe`/`sing-box.exe` were the second failure mode: the old runtime kept
+A second failure appeared after a reboot: the MSI returned success but left 41
+app jars and `runtime/lib/modules` missing, so both UI and service exited with
+code 1. The MSI was complete; the upgrade/repair registration was not. The
+installer now forces `/fa` and verifies the resulting image, which restores the
+missing files even on an already-broken install.
+
+Orphaned `xray.exe`/`sing-box.exe` were the third failure mode: the old runtime kept
 the TUN and traffic alive, while the new service could not start its own tunnel and
 reported `STOPPED`. The UI then showed “Отключено” even though traffic still exited
 through the previous tunnel. The cleanup above prevents that state.
@@ -120,6 +129,27 @@ through the previous tunnel. The cleanup above prevents that state.
 - `windows-app/tools/GATES-install.cmd` is the versioned copy of the distributed
   installer.
 
+### 6. MSI upgrade integrity repair
+
+A 1.7.12 upgrade over the previous package could leave the installed app image
+incomplete: 41 classpath jars and `runtime/lib/modules` were missing. The UI
+and the service then exited with `Child process exited with code 1`. The MSI
+itself is complete (an administrative extract contains 47 app files), so this
+is an upgrade/repair problem, not a missing build artifact.
+
+The long-term installer now:
+
+- runs `msiexec /i ... /passive /norestart`;
+- then runs `msiexec /fa ... /qn /norestart` to force a full package repair;
+- verifies `runtime/lib/modules`, `Gates.Service.jar`, and every
+  `app.classpath` entry from `GATES.cfg`;
+- starts the service only after verification;
+- writes diagnostics to `C:\ProgramData\GATES\installer.log`;
+- fails with a clear message instead of launching a broken app.
+
+A device already in the broken state is repaired by running the same
+installer. Manual extraction of the MSI is a last-resort fallback.
+
 ## Verification evidence (2026-11-11)
 
 Build and tests:
@@ -131,7 +161,8 @@ $env:YOKHAN_SING_BOX_DIR = "<path-to-runtime-bundle>"
 ```
 
 - `:windows-app:test` — passed.
-- Pester installer contract — `3 passed, 0 failed`.
+- Pester installer contract — `4 passed, 0 failed` (includes the `/fa` repair and
+  file-integrity assertions).
 - MSI contract check — `ProductName=GATES`, `ProductVersion=1.7.12`,
   `UpgradeCode={33D7B058-0DA8-4ADA-9108-D4511DA47B21}`; required files include
   `GATES.exe`, `Gates.Service.*`, `sing-box.exe`, `libcronet.dll`, `xray.exe`,
@@ -140,6 +171,11 @@ $env:YOKHAN_SING_BOX_DIR = "<path-to-runtime-bundle>"
   `Installed GATES version: 1.7.12`, service state `RUNNING`.
 - Live tunnel: control port `38417` listening, `GATES` adapter `Up`, XHTTP exit
   `45.136.125.201`.
+- Post-reboot repair (2026-11-12): the installed app had only 6 of 47 files and
+  no `runtime/lib/modules`; restoring them from the 1.7.12 MSI administrative
+  extract brought the service and XHTTP tunnel back. The installer `/fa` repair
+  path is covered by contract tests; a full installer rerun on the repaired
+  host is the remaining end-to-end check.
 - No reboot was required. The earlier direct 1.7.10 MSI over the running service
   returned `3010`; the guarded flow does not.
 
@@ -232,8 +268,9 @@ this Windows rollup.
 ## Known limitations
 
 - The Windows MSI/EXE are not Authenticode-signed.
-- Direct MSI upgrades over a running service can still return `3010`; use the guarded
-  installer.
+- Direct MSI upgrades over a running service can still return `3010` or leave an
+  incomplete app image; use the guarded installer, which performs an `/fa`
+  repair and verifies every classpath jar plus `runtime/lib/modules`.
 - Launching GATES from an already elevated shell still produces an elevated UI; the
   installer avoids this with `explorer.exe`.
 - The Telegram broadcast encoding rule is documented here but not yet enforced by a
