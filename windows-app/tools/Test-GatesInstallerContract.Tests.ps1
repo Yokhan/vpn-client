@@ -16,13 +16,25 @@ Describe 'GATES installer service launcher contract' {
         $source | Should Match "'xray.sha256' = 'app/resources/yokhan-runtime/windows'"
     }
 
-    It 'uses the guarded upgrade installer instead of installing over a running service' {
+    It 'uses the guarded upgrade installer and stops GatesVpn failure-restart before killing GATES.exe' {
         $source = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'GATES-install.cmd') -Raw
 
+        $source | Should Match 'sc\.exe failure GatesVpn reset= 0'
         $source | Should Match 'sc\.exe stop GatesVpn'
         $source | Should Match 'taskkill /F /T /IM Gates\.Service\.exe'
         $source | Should Match 'Get-Process xray,sing-box'
         $source | Should Match 'explorer\.exe "C:\\Program Files\\GATES\\GATES\.exe"'
+        ($source.IndexOf('sc.exe stop GatesVpn') -lt $source.IndexOf('taskkill /F /IM GATES.exe')) | Should Be $true
+    }
+
+    It 'embeds self-healing service stop and deferred RemoveExistingProducts in main.wxs' {
+        $wxsPath = Join-Path $PSScriptRoot '..\src\main\jpackage\main.wxs'
+        $wxs = Get-Content -LiteralPath $wxsPath -Raw
+
+        $wxs | Should Match 'MSIRESTARTMANAGERCONTROL'
+        $wxs | Should Match 'StopGatesRuntime'
+        $wxs | Should Match 'StartGatesRuntime'
+        $wxs | Should Match 'RemoveExistingProducts After="InstallExecute"'
     }
 
     It 'repairs the MSI and verifies the complete app image before starting the service' {

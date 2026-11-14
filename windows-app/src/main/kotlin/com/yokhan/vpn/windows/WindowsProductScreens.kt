@@ -662,6 +662,7 @@ internal fun WindowsSettingsScreen(
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         YokhanMonoValue(appVersion.ifBlank { "—" }, colors, typography, sizeSp = 13)
                         YokhanCaption("Версия Windows-клиента", colors, typography)
+                        YokhanCaption("GATES · Yokhan (Igor Nazarov)", colors, typography)
                     }
                     YokhanRouteButton(
                         text = "Проверить обновления",

@@ -39,7 +39,7 @@ val defaultRuntimeDir = rootProject.projectDir.parentFile
 val windowsRuntimeDir = providers.environmentVariable("YOKHAN_SING_BOX_DIR")
     .map { file(it) }
     .orElse(defaultRuntimeDir)
-val windowsPackageVersion = "1.7.16"
+val windowsPackageVersion = "1.7.17"
 val windowsUpdateSignerSha1 = providers.environmentVariable("GATES_WINDOWS_UPDATE_SIGNER_SHA1").orElse("")
 val winswVersion = "2.12.0"
 val winswSha256 = "05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da"
@@ -192,6 +192,7 @@ tasks.register("checkWindowsTextEncoding") {
         fileTree(projectDir) {
             include("src/main/kotlin/**/*.kt")
             include("src/test/kotlin/**/*.kt")
+            include("src/main/jpackage/**/*.wxs")
             include("tools/**/*.ps1")
         },
         rootProject.fileTree("windows-service") {
@@ -316,7 +317,8 @@ compose.desktop {
             packageName = "GATES"
             packageVersion = windowsPackageVersion
             vendor = "Yokhan"
-            description = "GATES Windows client"
+            copyright = "Copyright (c) 2026 Yokhan (Igor Nazarov)"
+            description = "GATES Windows client by Yokhan (Igor Nazarov)"
             windows {
                 iconFile.set(project.file("src/main/resources/branding/gates.ico"))
                 perUserInstall = false
@@ -328,4 +330,55 @@ compose.desktop {
             }
         }
     }
+}
+
+val jpackageTemplateDir = layout.projectDirectory.dir("src/main/jpackage")
+val wixToolsetDir = rootProject.layout.buildDirectory.dir("wix311")
+
+fun registerSelfHealingJPackageOverride(taskName: String, packageType: String, fileExtension: String) {
+    tasks.named<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>(taskName) {
+        dependsOn("createDistributable")
+        inputs.dir(jpackageTemplateDir)
+        doLast {
+            val osName = System.getProperty("os.name").lowercase()
+            if (!osName.contains("win")) return@doLast
+            val appImageDir = layout.buildDirectory.dir("compose/binaries/main/app/GATES").get().asFile
+            val outDir = destinationDir.get().asFile
+            val targetInstaller = File(outDir, "GATES-$windowsPackageVersion.$fileExtension")
+            if (targetInstaller.exists()) {
+                check(targetInstaller.delete()) { "Could not replace $targetInstaller" }
+            }
+            val jpackageExe = File(System.getProperty("java.home"), "bin/jpackage.exe")
+            val existingPath = System.getenv("PATH").orEmpty()
+            val wixPath = wixToolsetDir.get().asFile.absolutePath
+            val mergedPath = if (existingPath.isBlank()) wixPath else "$wixPath${File.pathSeparator}$existingPath"
+            val result = project.exec {
+                environment("PATH", mergedPath)
+                commandLine(
+                    jpackageExe.absolutePath,
+                    "--type", packageType,
+                    "--app-image", appImageDir.absolutePath,
+                    "--name", "GATES",
+                    "--app-version", windowsPackageVersion,
+                    "--vendor", "Yokhan",
+                    "--copyright", "Copyright (c) 2026 Yokhan (Igor Nazarov)",
+                    "--description", "GATES Windows client by Yokhan (Igor Nazarov)",
+                    "--icon", project.file("src/main/resources/branding/gates.ico").absolutePath,
+                    "--resource-dir", jpackageTemplateDir.asFile.absolutePath,
+                    "--dest", outDir.absolutePath,
+                    "--win-menu",
+                    "--win-menu-group", "GATES",
+                    "--win-shortcut",
+                    "--win-upgrade-uuid", "33d7b058-0da8-4ada-9108-d4511da47b21",
+                )
+            }
+            result.assertNormalExitValue()
+            check(targetInstaller.isFile) { "Missing repackaged installer: $targetInstaller" }
+        }
+    }
+}
+
+afterEvaluate {
+    registerSelfHealingJPackageOverride("packageMsi", "msi", "msi")
+    registerSelfHealingJPackageOverride("packageExe", "exe", "exe")
 }

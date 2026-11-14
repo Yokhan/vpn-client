@@ -146,6 +146,7 @@ try {
     $productVersion = Get-MsiProperty -Database $database -Name 'ProductVersion'
     $productCode = Get-MsiProperty -Database $database -Name 'ProductCode'
     $upgradeCode = Get-MsiProperty -Database $database -Name 'UpgradeCode'
+    $restartManagerControl = Get-MsiProperty -Database $database -Name 'MSIRESTARTMANAGERCONTROL'
 
     if ($productName -ne 'GATES') {
         throw "Unexpected MSI ProductName '$productName'; expected 'GATES'."
@@ -155,6 +156,37 @@ try {
     }
     if ($upgradeCode -ine $ExpectedUpgradeCode) {
         throw "Unexpected MSI UpgradeCode '$upgradeCode'; expected '$ExpectedUpgradeCode'."
+    }
+    if ($restartManagerControl -ine 'Disable') {
+        throw "Unexpected MSIRESTARTMANAGERCONTROL '$restartManagerControl'; expected 'Disable'."
+    }
+
+    $seqView = $database.OpenView('SELECT Action, Sequence FROM InstallExecuteSequence')
+    $sequences = @{}
+    try {
+        [void]$seqView.Execute()
+        while ($null -ne ($seqRecord = $seqView.Fetch())) {
+            try {
+                $sequences[$seqRecord.StringData(1)] = $seqRecord.IntegerData(2)
+            }
+            finally {
+                [void][Runtime.InteropServices.Marshal]::ReleaseComObject($seqRecord)
+            }
+        }
+    }
+    finally {
+        [void][Runtime.InteropServices.Marshal]::ReleaseComObject($seqView)
+    }
+    foreach ($requiredAction in @('InstallInitialize', 'StopGatesRuntime', 'RemoveExistingProducts', 'StartGatesRuntime')) {
+        if (-not $sequences.ContainsKey($requiredAction)) {
+            throw "MSI InstallExecuteSequence is missing required action '$requiredAction'."
+        }
+    }
+    if ($sequences['StopGatesRuntime'] -le $sequences['InstallInitialize']) {
+        throw "StopGatesRuntime must run after InstallInitialize ($($sequences['StopGatesRuntime']) <= $($sequences['InstallInitialize']))."
+    }
+    if ($sequences['RemoveExistingProducts'] -le $sequences['InstallInitialize']) {
+        throw "RemoveExistingProducts must run after InstallInitialize ($($sequences['RemoveExistingProducts']) <= $($sequences['InstallInitialize']))."
     }
 
     $fileLocations = Get-MsiFileLocations -Database $database

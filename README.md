@@ -1,12 +1,12 @@
-# YokhanVPN
+# GATES — Yokhan VPN Client
 
-Private Android VPN client for the Yokhan project. The current production tree is still based on the NekoBox / sing-box Android stack while the app is being migrated toward a cleaner Yokhan-owned architecture.
+Author & maintainer: **Yokhan / Igor Nazarov** (`iohanrace@gmail.com`).
 
-## What This Repo Is
+Cross-platform VPN client (**Windows** + **Android**) built with Kotlin Multiplatform (`shared/`), Compose Desktop + Windows service (`windows-app/`, `windows-service/`), Xray-core + sing-box runtimes, and GATES Wise Tree recovery access.
 
-This repository is the Android client for the Yokhan VPN stack.
+## Ownership & Architecture
 
-Repository visibility is private. This is operational access control, not a license conversion for binaries built from the current GPL-derived code.
+This project is developed and maintained by Yokhan (Igor Nazarov). The Windows client (`windows-app/` and `windows-service/`), shared KMP domain/UI (`shared/`), access recovery flow, and release/installer pipeline are Yokhan-owned. The Android app continues partial GPL-3.0 compatibility with its historical NekoBox/SagerNet core lineage while migrating toward the shared Yokhan architecture.
 
 Main changes relative to upstream:
 
@@ -155,9 +155,10 @@ If these are not set, build scripts fall back to:
 
 ## Related
 
-- server/bot project: `../YokhanIndependentVPN/`
-- upstream Android base: `https://github.com/MatsuriDayo/NekoBoxForAndroid`
+- Client repository: `https://github.com/Yokhan/vpn-client`
+- Server & bot control plane: `../YokhanIndependentVPN/` (`https://github.com/Yokhan/vpn`)
+- Third-party attributions & historical lineage: [AUTHORS](AUTHORS), [docs/third-party-notices.md](docs/third-party-notices.md)
 
 ## License
 
-GPL-3.0, inherited from upstream.
+Copyright (c) 2026 Yokhan (Igor Nazarov). Android GPL-3.0 compatibility and bundled third-party notices apply as documented in `LICENSE` and `docs/third-party-notices.md`.

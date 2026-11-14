@@ -1,8 +1,12 @@
-SagerNet was originally created in late 2021, by
-nekohasekai <contact-sagernet@sekai.icu>.
+GATES (Windows and Android client) is authored and maintained by:
 
-Here is an inevitably incomplete list of MUCH-APPRECIATED CONTRIBUTORS --
-people who have submitted patches, fixed bugs, added translations, and
-generally made SagerNet that much better:
+Yokhan / Igor Nazarov <iohanrace@gmail.com>
+https://github.com/Yokhan
 
-https://github.com/SagerNet/SagerNet/graphs/contributors
+Acknowledgments & upstream lineage:
+- Windows client (`windows-app/`, `windows-service/`), shared KMP UI/domain
+  (`shared/`), GATES Wise Tree access & kill switch, and Xray/sing-box Windows
+  service architecture are written and maintained by Yokhan (Igor Nazarov).
+- Historical Android VPN core lineage includes SagerNet (nekohasekai) and
+  MatsuriDayo/NekoBoxForAndroid under GPL-3.0, plus bundled runtimes sing-box,
+  Xray-core, and WinSW (see `docs/third-party-notices.md`).

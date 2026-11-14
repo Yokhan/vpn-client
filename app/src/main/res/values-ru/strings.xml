@@ -34,8 +34,8 @@
 <string name="alter_id">Изменить ID</string>
 <string name="always_show_address">Всегда показывать адрес</string>
 <string name="always_show_address_sum">Всегда отображать адрес сервера на карте конфигурации</string>
-<string name="app_desc">Универсальный набор инструментов прокси для Android, написанный на Kotlin.</string>
-<string name="yokhan_app_desc">Закрытый GATES-клиент с общим Compose UI, Android service core и собственным release pipeline.</string>
+<string name="app_desc">Частный GATES-клиент от Yokhan (Игорь Назаров) на Kotlin.</string>
+<string name="yokhan_app_desc">GATES-клиент от Yokhan (Игорь Назаров) с общим Compose UI, Android service core и собственным release pipeline.</string>
 <string name="app_name">BUFF IT GATES</string>
 <string name="app_name_long">BUFF IT GATES</string>
 <string name="app_tls_version">Минимальная версия TLS протокола</string>

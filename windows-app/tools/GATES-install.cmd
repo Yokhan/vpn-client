@@ -48,13 +48,10 @@ for %%A in ("%MSI%") do if %%~zA LSS 100000000 goto :download_failed
 :msi_ready
 
 echo Stopping GATES...
-call :log "stop application and service"
-taskkill /IM GATES.exe >nul 2>&1
-timeout /t 2 /nobreak >nul
-taskkill /F /IM GATES.exe >nul 2>&1
-
+call :log "stop service and application"
 sc.exe query GatesVpn >nul 2>&1
 if not errorlevel 1 (
+  sc.exe failure GatesVpn reset= 0 actions= "" >nul 2>&1
   sc.exe stop GatesVpn >nul 2>&1
   for /l %%i in (1,1,30) do (
     sc.exe query GatesVpn | findstr /I "STOPPED" >nul && goto :service_stopped
@@ -63,18 +60,23 @@ if not errorlevel 1 (
   taskkill /F /T /IM Gates.Service.exe >nul 2>&1
 )
 :service_stopped
+taskkill /IM GATES.exe >nul 2>&1
+timeout /t 2 /nobreak >nul
+taskkill /F /IM GATES.exe >nul 2>&1
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$root='C:\Program Files\GATES\'; Get-Process xray,sing-box -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($root,[System.StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue"
 timeout /t 2 /nobreak >nul
 
 echo Installing...
 call :log "msiexec /i"
-msiexec.exe /i "%MSI%" /passive /norestart
+msiexec.exe /i "%MSI%" /passive /norestart MSIRESTARTMANAGERCONTROL=Disable
 set "RC=%errorlevel%"
 call :log "msiexec_i_exit=%RC%"
 if "%RC%"=="0" goto :repair
 if "%RC%"=="3010" goto :repair
 if "%RC%"=="1641" goto :repair
 if "%RC%"=="1638" goto :repair
+sc.exe query GatesVpn >nul 2>&1
+if not errorlevel 1 sc.exe failure GatesVpn reset= 3600 actions= restart/10000 >nul 2>&1
 echo.
 echo Install failed with code %RC%. See %LOG%
 call :log "install failed rc=%RC%"
@@ -82,9 +84,21 @@ pause
 exit /b %RC%
 
 :repair
+sc.exe query GatesVpn >nul 2>&1
+if not errorlevel 1 (
+  sc.exe failure GatesVpn reset= 0 actions= "" >nul 2>&1
+  sc.exe stop GatesVpn >nul 2>&1
+  for /l %%i in (1,1,15) do (
+    sc.exe query GatesVpn | findstr /I "STOPPED" >nul && goto :repair_stopped
+    timeout /t 1 /nobreak >nul
+  )
+  taskkill /F /T /IM Gates.Service.exe >nul 2>&1
+)
+:repair_stopped
+taskkill /F /IM GATES.exe >nul 2>&1
 echo Verifying installed files...
 call :log "msiexec /fa repair"
-msiexec.exe /fa "%MSI%" /qn /norestart
+msiexec.exe /fa "%MSI%" /qn /norestart MSIRESTARTMANAGERCONTROL=Disable
 set "REPAIR_RC=%errorlevel%"
 call :log "msiexec_fa_exit=%REPAIR_RC%"
 call :verify
@@ -100,6 +114,8 @@ if not "%MISSING%"=="0" (
 call :log "verification ok"
 
 :start_service
+sc.exe query GatesVpn >nul 2>&1
+if not errorlevel 1 sc.exe failure GatesVpn reset= 3600 actions= restart/10000 >nul 2>&1
 sc.exe start GatesVpn >nul 2>&1
 for /l %%i in (1,1,30) do (
   sc.exe query GatesVpn | findstr /I "RUNNING" >nul && goto :service_running
