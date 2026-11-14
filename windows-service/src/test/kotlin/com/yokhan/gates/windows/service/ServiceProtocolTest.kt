@@ -44,6 +44,23 @@ class ServiceProtocolTest {
     }
 
     @Test
+    fun parsesAndFormatsStandingArmAndDisarmProtectionRequests() {
+        val payload = Base64.getUrlEncoder().withoutPadding().encodeToString("""{"schema":1,"protected_executables":["C:\\Apps\\app.exe"]}""".toByteArray())
+        val armFrame = "2|$token|ARM_PROTECTION|$payload"
+        val acceptedArm = assertIs<ProtocolParseResult.Accepted>(ServiceProtocolParser.parse(armFrame))
+        val armRequest = assertIs<ArmProtectionRequest>(acceptedArm.request)
+        assertEquals(payload, armRequest.encodedProtection)
+        assertEquals(armFrame, ServiceProtocolParser.format(armRequest))
+        assertRejected(ServiceProtocolParser.parse("2|$token|ARM_PROTECTION|"), ProtocolErrorCode.INVALID_FRAME)
+
+        val disarmFrame = "2|$token|DISARM_PROTECTION|"
+        val acceptedDisarm = assertIs<ProtocolParseResult.Accepted>(ServiceProtocolParser.parse(disarmFrame))
+        assertIs<DisarmProtectionRequest>(acceptedDisarm.request)
+        assertEquals(disarmFrame, ServiceProtocolParser.format(acceptedDisarm.request))
+        assertRejected(ServiceProtocolParser.parse("2|$token|DISARM_PROTECTION|extra"), ProtocolErrorCode.UNEXPECTED_PAYLOAD)
+    }
+
+    @Test
     fun rejectsUnexpectedPayloadsAndInvalidBase64url() {
         assertRejected(ServiceProtocolParser.parse("2|$token|STOP|payload"), ProtocolErrorCode.UNEXPECTED_PAYLOAD)
         val decoded = assertIs<ConfigPayloadResult.Rejected>(ServiceProtocolParser.decodeConfig("not base64url!"))

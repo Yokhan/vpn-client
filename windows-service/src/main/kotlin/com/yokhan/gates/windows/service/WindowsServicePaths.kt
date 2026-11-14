@@ -12,6 +12,7 @@ private const val XRAY_EXECUTABLE = "xray.exe"
 private const val XHTTP_DIRECTORY = "xhttp"
 private const val SERVICE_DIRECTORY = "Service"
 private const val ACTIVE_CONFIG_FILE = "active.json"
+private const val STANDING_PROTECTION_FILE = "standing-protection.json"
 private const val SERVICE_LOG_FILE = "service.log"
 private const val CONTROL_TOKEN_FILE = "control.token"
 
@@ -24,6 +25,7 @@ data class WindowsServicePaths(
     val controlTokenFile: Path,
     val xrayExecutable: Path = runtimeExecutable.resolveSibling(XRAY_EXECUTABLE),
     val xhttpDirectory: Path = dataDirectory.resolve(XHTTP_DIRECTORY),
+    val standingProtectionFile: Path = dataDirectory.resolve(STANDING_PROTECTION_FILE),
 )
 
 object WindowsServicePathContract {

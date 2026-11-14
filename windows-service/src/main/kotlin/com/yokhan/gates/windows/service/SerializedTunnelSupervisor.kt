@@ -29,6 +29,12 @@ fun interface TunnelLauncher {
 
     fun clearPersistedConfig() = Unit
 
+    fun loadStandingProtection(): SelectedAppProtection? = null
+
+    fun persistStandingProtection(protection: SelectedAppProtection) = Unit
+
+    fun clearStandingProtection() = Unit
+
     fun coreExecutablePath(): String? = null
     fun reservedProtectionPaths(): Set<String>? = emptySet()
     fun armProtection(config: ValidatedSingBoxConfig) = Unit
@@ -95,6 +101,7 @@ class SerializedTunnelSupervisor(
     private var diagnosticConfig: ValidatedSingBoxConfig? = null
     private var protectionStopPending = false
     private var protectionFailurePending = false
+    private var standingProtection: SelectedAppProtection? = null
 
     internal constructor(
         launcher: TunnelLauncher,
@@ -121,6 +128,9 @@ class SerializedTunnelSupervisor(
         }
         if ((previousConfig?.protection != null || ownedChildConfig?.protection != null) && config.protection == null) {
             throw IOException("Selected-app protection must be explicitly stopped before unguarded start")
+        }
+        if (standingProtection != null && config.protection == null) {
+            throw IOException("Standing selected-app protection is armed; guarded start required")
         }
         val child = liveOwnedChild()
         if (child != null && ownedChildConfig == config) {
@@ -229,13 +239,25 @@ class SerializedTunnelSupervisor(
             if (result == TunnelStopResult.StopRequested) {
                 throw IOException("Selected-app protection remains blocked because the tunnel did not stop")
             }
-            try {
-                launcher.releaseProtection()
-                protectionStopPending = false
-                protectionFailurePending = false
-            } catch (_: Exception) {
-                protectionStopPending = true
-                throw IOException("Selected-app protection remains blocked because stop cleanup failed")
+            val standing = standingProtection
+            if (standing != null) {
+                try {
+                    launcher.armProtection(ValidatedSingBoxConfig("{}", standing))
+                    protectionStopPending = false
+                    protectionFailurePending = false
+                } catch (_: Exception) {
+                    protectionStopPending = true
+                    throw IOException("Selected-app protection remains blocked because standing protection could not be re-armed")
+                }
+            } else {
+                try {
+                    launcher.releaseProtection()
+                    protectionStopPending = false
+                    protectionFailurePending = false
+                } catch (_: Exception) {
+                    protectionStopPending = true
+                    throw IOException("Selected-app protection remains blocked because stop cleanup failed")
+                }
             }
             resetRestartBackoff()
             return@synchronized result
@@ -267,6 +289,50 @@ class SerializedTunnelSupervisor(
 
     fun protectionStatus(): ProtectionStatus = synchronized(lock) { launcher.protectionStatus() }
 
+    fun armStandingProtection(protection: SelectedAppProtection) = synchronized(lock) {
+        if (shuttingDown) throw IOException("Tunnel service is shutting down")
+        if (activeConfig != null || liveOwnedChild() != null || protectionStopPending || protectionFailurePending) {
+            throw IOException("Tunnel must be stopped before updating standing protection")
+        }
+        val previous = standingProtection
+        try {
+            launcher.armProtection(ValidatedSingBoxConfig("{}", protection))
+        } catch (_: Exception) {
+            throw IOException("Selected-app protection could not be armed")
+        }
+        try {
+            launcher.persistStandingProtection(protection)
+        } catch (_: Exception) {
+            if (previous != null) {
+                runCatching { launcher.armProtection(ValidatedSingBoxConfig("{}", previous)) }
+            } else {
+                runCatching(launcher::releaseProtection)
+            }
+            throw IOException("Standing selected-app protection could not be saved")
+        }
+        standingProtection = protection
+    }
+
+    fun disarmStandingProtection() = synchronized(lock) {
+        if (shuttingDown) throw IOException("Tunnel service is shutting down")
+        if (activeConfig != null || liveOwnedChild() != null || protectionStopPending || protectionFailurePending) {
+            throw IOException("Tunnel must be stopped before disarming protection")
+        }
+        val previous = standingProtection
+        try {
+            launcher.clearStandingProtection()
+        } catch (_: Exception) {
+            throw IOException("Standing selected-app protection could not be cleared")
+        }
+        try {
+            launcher.releaseProtection()
+        } catch (_: Exception) {
+            if (previous != null) runCatching { launcher.persistStandingProtection(previous) }
+            throw IOException("Selected-app protection could not be released")
+        }
+        standingProtection = null
+    }
+
     fun coreExecutablePath(): String? = synchronized(lock) { launcher.coreExecutablePath() }
 
     fun reservedProtectionPaths(): Set<String>? = synchronized(lock) { launcher.reservedProtectionPaths() }
@@ -274,7 +340,13 @@ class SerializedTunnelSupervisor(
     fun restorePersisted(): Boolean = synchronized(lock) {
         if (shuttingDown) return@synchronized false
         if (activeConfig != null || liveOwnedChild() != null) return@synchronized false
+        val standing = runCatching { launcher.loadStandingProtection() }.getOrNull()
+        if (standing != null) {
+            standingProtection = standing
+            runCatching { launcher.armProtection(ValidatedSingBoxConfig("{}", standing)) }
+        }
         val config = launcher.loadPersistedConfig() ?: return@synchronized false
+        if (standing != null && config.protection == null) return@synchronized false
         activeConfig = config
         return@synchronized try {
             launcher.armProtection(config)

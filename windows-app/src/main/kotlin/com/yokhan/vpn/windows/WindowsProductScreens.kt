@@ -108,7 +108,10 @@ internal fun WindowsNetworkSettingsSection(
     onAutoStartChange: ((Boolean) -> Unit)?,
     killSwitchEnabled: Boolean,
     protectionMessage: String,
+    appProxyProcessPaths: List<String>,
     onKillSwitchChange: ((Boolean) -> Unit)?,
+    onPickProtectedExe: (() -> Unit)?,
+    onOpenRouting: (() -> Unit)?,
     listenHost: String,
     socksPort: Int,
     httpPort: Int,
@@ -167,7 +170,7 @@ internal fun WindowsNetworkSettingsSection(
             YokhanToggleRow(
                 title = "Защищать EXE из списка «${WindowsRoutingCopy.VIA_GATES}»",
                 summary = protectionMessage.ifBlank {
-                    "Блокирует прямой выход выбранных EXE при падении туннеля."
+                    "Блокирует прямой выход выбранных EXE при обрыве или отключении туннеля."
                 },
                 checked = killSwitchEnabled,
                 colors = colors,
@@ -175,6 +178,48 @@ internal fun WindowsNetworkSettingsSection(
                 onCheckedChange = { if (!busy) onKillSwitchChange(it) },
                 modifier = Modifier.testTag("settings.kill-switch"),
             )
+            Spacer(Modifier.height(YokhanSpacing.CompactGap))
+            if (appProxyProcessPaths.isEmpty()) {
+                YokhanCaption(
+                    text = "Добавьте хотя бы один .exe файл — Kill Switch будет блокировать его выход в обход GATES.",
+                    colors = colors,
+                    typography = typography,
+                )
+            } else {
+                val exeNames = appProxyProcessPaths.joinToString(", ") { it.substringAfterLast('\\') }
+                YokhanCaption(
+                    text = "Под защитой (${appProxyProcessPaths.size}): $exeNames",
+                    colors = colors,
+                    typography = typography,
+                )
+            }
+            if (onPickProtectedExe != null || onOpenRouting != null) {
+                Spacer(Modifier.height(YokhanSpacing.CompactGap))
+                Row(horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
+                    if (onPickProtectedExe != null) {
+                        YokhanRouteButton(
+                            text = if (appProxyProcessPaths.isEmpty()) "Выбрать .exe" else "Добавить .exe",
+                            primary = appProxyProcessPaths.isEmpty(),
+                            enabled = !busy,
+                            colors = colors,
+                            typography = typography,
+                            onClick = onPickProtectedExe,
+                            modifier = Modifier.widthIn(min = 140.dp).testTag("settings.kill-switch.pick-exe"),
+                        )
+                    }
+                    if (onOpenRouting != null) {
+                        YokhanRouteButton(
+                            text = "Список приложений",
+                            primary = false,
+                            enabled = !busy,
+                            colors = colors,
+                            typography = typography,
+                            onClick = onOpenRouting,
+                            modifier = Modifier.widthIn(min = 156.dp).testTag("settings.kill-switch.apps"),
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -368,7 +413,10 @@ internal fun WindowsSettingsScreen(
     onAutoUploadRecoveryReportsChange: ((Boolean) -> Unit)? = null,
     killSwitchEnabled: Boolean = false,
     protectionMessage: String = "",
+    appProxyProcessPaths: List<String> = emptyList(),
     onKillSwitchChange: ((Boolean) -> Unit)? = null,
+    onPickProtectedExe: (() -> Unit)? = null,
+    onOpenRouting: (() -> Unit)? = null,
     onMenuClick: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
     bottomInsetPaddingDp: Int = 64,
@@ -586,7 +634,10 @@ internal fun WindowsSettingsScreen(
                 onAutoStartChange = onAutoStartChange,
                 killSwitchEnabled = killSwitchEnabled,
                 protectionMessage = protectionMessage,
+                appProxyProcessPaths = appProxyProcessPaths,
                 onKillSwitchChange = onKillSwitchChange,
+                onPickProtectedExe = onPickProtectedExe,
+                onOpenRouting = onOpenRouting,
                 listenHost = listenHost,
                 socksPort = socksPort,
                 httpPort = httpPort,

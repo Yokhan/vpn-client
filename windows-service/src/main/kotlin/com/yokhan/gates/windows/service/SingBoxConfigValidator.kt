@@ -73,6 +73,11 @@ sealed interface ConfigValidationResult {
     data class Rejected(val error: ConfigValidationError) : ConfigValidationResult
 }
 
+sealed interface ProtectionPayloadResult {
+    data class Accepted(val protection: SelectedAppProtection) : ProtectionPayloadResult
+    data class Rejected(val error: ConfigValidationError) : ProtectionPayloadResult
+}
+
 object SingBoxConfigValidator {
     private val gson = Gson()
 
@@ -91,6 +96,40 @@ object SingBoxConfigValidator {
         }
         if (!root.isJsonObject) return reject(ConfigErrorCode.ROOT_NOT_OBJECT, "Config root must be an object")
         return validateRoot(root.asJsonObject, coreExecutablePath, reservedExecutablePaths)
+    }
+
+    fun validateProtectionPayload(
+        payloadBytes: ByteArray,
+        coreExecutablePath: String? = null,
+        reservedExecutablePaths: Set<String>? = emptySet(),
+    ): ProtectionPayloadResult {
+        if (payloadBytes.size > MAX_CONFIG_BYTES) {
+            return ProtectionPayloadResult.Rejected(error(ConfigErrorCode.CONFIG_TOO_LARGE, "Protection payload exceeds 256 KiB"))
+        }
+        val parsed = try {
+            parseStrictJson(decodeUtf8(payloadBytes))
+        } catch (error: StrictJsonException) {
+            return ProtectionPayloadResult.Rejected(error(error.code, error.message))
+        } catch (_: Exception) {
+            return ProtectionPayloadResult.Rejected(error(ConfigErrorCode.MALFORMED_JSON, "Invalid JSON"))
+        }
+        if (!parsed.isJsonObject) {
+            return ProtectionPayloadResult.Rejected(error(ConfigErrorCode.ROOT_NOT_OBJECT, "Protection root must be an object"))
+        }
+        val obj = parsed.asJsonObject
+        val wrapper = when (obj.keySet()) {
+            setOf("gates_protection") -> obj
+            setOf("schema", "protected_executables") -> JsonObject().apply { add("gates_protection", obj) }
+            else -> return ProtectionPayloadResult.Rejected(invalidProtection().error)
+        }
+        return when (val result = parseProtection(wrapper, coreExecutablePath, reservedExecutablePaths)) {
+            is ProtectionParse.Accepted -> {
+                val protection = result.protection
+                    ?: return ProtectionPayloadResult.Rejected(invalidProtection().error)
+                ProtectionPayloadResult.Accepted(protection)
+            }
+            is ProtectionParse.Rejected -> ProtectionPayloadResult.Rejected(result.error)
+        }
     }
 
     private fun validateRoot(

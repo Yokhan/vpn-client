@@ -19,13 +19,16 @@ internal fun parseWindowsProtectionState(result: RuntimeCommandResult): WindowsP
 internal fun windowsProtectionLabel(state: WindowsProtectionState): String = when (state) {
     WindowsProtectionState.UNAVAILABLE -> "Состояние защиты недоступно"
     WindowsProtectionState.DISABLED -> "Защита при обрыве выключена"
-    WindowsProtectionState.BLOCKED -> "Трафик выбранных EXE заблокирован"
-    WindowsProtectionState.ARMED -> "Выбранные EXE защищены при обрыве"
+    WindowsProtectionState.BLOCKED -> "Трафик выбранных EXE заблокирован (VPN отключён)"
+    WindowsProtectionState.ARMED -> "Выбранные EXE защищены (выход только через GATES)"
     WindowsProtectionState.ERROR -> "Ошибка защиты. Не считайте соединение защищённым"
 }
 
 internal fun windowsProtectionDashboardLabels(state: WindowsProtectionState, enabled: Boolean,
     connected: Boolean): DashboardUiLabels = when {
+    state == WindowsProtectionState.BLOCKED && enabled && !connected -> DashboardUiLabels.Russian.copy(
+        disconnected = "ТРАФИК ЗАБЛОКИРОВАН", connectAction = "ПОДКЛЮЧИТЬ VPN",
+        orbIdle = "СТАРТ", tapConnect = "Защита при обрыве активна")
     state == WindowsProtectionState.BLOCKED -> DashboardUiLabels.Russian.copy(
         disconnected = "ТРАФИК ЗАБЛОКИРОВАН", connectAction = "ОТКЛЮЧИТЬ VPN",
         orbIdle = "СТОП", tapConnect = "Защита при обрыве")
@@ -39,6 +42,9 @@ internal fun windowsProtectionDashboardLabels(state: WindowsProtectionState, ena
         disconnected = "ЗАЩИТА НЕ ПОДТВЕРЖДЕНА", tapConnect = "Служба недоступна")
     else -> DashboardUiLabels.Russian
 }
+
+internal fun windowsProtectionPayloadJson(config: WindowsAppConfig): String =
+    windowsProtectionConfig("{}", config)
 
 internal fun windowsProtectionConfig(configJson: String, config: WindowsAppConfig): String {
     if (!config.killSwitchEnabled) return configJson

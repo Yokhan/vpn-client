@@ -30,6 +30,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.Base64
 import java.util.Optional
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentHashMap
@@ -92,6 +93,7 @@ private val GATES_LEGACY_SING_BOX_TUN_ADDRESS = listOf("172.19.0.1/30")
 data class WindowsAppConfig(
     val subscriptionUrl: String = "https://cloak.yokhanfitness.ru/api/sub/REPLACE_WITH_PERSONAL_TOKEN",
     val profileSource: String = "legacy",
+    val bootstrapExpiresAtEpochMillis: Long = 0L,
     val appApiBaseUrl: String = GATES_APP_API_BASE_URL,
     val authIssuer: String = GATES_AUTH_ISSUER,
     val authClientId: String = GATES_WINDOWS_AUTH_CLIENT_ID,
@@ -671,7 +673,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.7.15"
+private const val WINDOWS_APP_VERSION = "1.7.16"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -792,6 +794,7 @@ class WindowsRuntimeController(
     private val legacyConfigFile = File(runtimeDir, "subscription.singbox.json")
     private val accountConfigFile = File(runtimeDir, "account.singbox.json")
     private val manualConfigFile = File(runtimeDir, "manual.singbox.json")
+    private val bootstrapConfigFile = File(runtimeDir, "bootstrap.singbox.json")
     private val rawConfigFile: File
         get() = profileFile(readConfig().profileSource)
     private val generatedConfigFile = File(runtimeDir, "config.json")
@@ -915,6 +918,7 @@ class WindowsRuntimeController(
     private fun profileFile(source: String): File = when (source) {
         "account" -> accountConfigFile
         "manual" -> manualConfigFile
+        "bootstrap" -> bootstrapConfigFile
         else -> legacyConfigFile
     }
 
@@ -923,30 +927,51 @@ class WindowsRuntimeController(
     }.getOrDefault(false)
 
     @Synchronized
-    internal fun storeImportedProfile(source: String, json: String, subscriptionUrl: String? = null): RuntimeCommandResult = profileStore.transaction {
-        if (source !in setOf("account", "manual") || !hasImportedTunnelProfile(json)) {
-            return@transaction RuntimeCommandResult(1, "Конфигурация не содержит поддерживаемого профиля GATES.")
+    internal fun storeImportedProfile(
+        source: String,
+        json: String,
+        subscriptionUrl: String? = null,
+        bootstrapExpiresAtEpochMillis: Long = 0L,
+    ): RuntimeCommandResult {
+        var switchedFromBootstrap = false
+        val saved = profileStore.transaction {
+            if (source !in setOf("account", "manual", "bootstrap") || !hasImportedTunnelProfile(json)) {
+                return@transaction RuntimeCommandResult(1, "Конфигурация не содержит поддерживаемого профиля GATES.")
+            }
+            ensureDirs()
+            val config = readConfig()
+            val selected = runCatching { windowsImportedProfileConfig(config, source, json) }.getOrElse {
+                return@transaction RuntimeCommandResult(1, "Конфигурация не содержит выбранного маршрута. Прежний профиль сохранён.")
+            }
+            val target = profileFile(source)
+            val oldProfile = target.takeIf { it.isFile }?.let(profileStore::readBytes)
+            val oldSettings = profileStore.readBytes(appConfigFile)
+            try {
+                profileStore.writeAtomic(target, json.toByteArray(StandardCharsets.UTF_8))
+                val updatedExpires = if (source == "bootstrap") bootstrapExpiresAtEpochMillis else 0L
+                if (config.profileSource == "bootstrap" && source != "bootstrap") {
+                    switchedFromBootstrap = true
+                }
+                writeConfig(
+                    selected.copy(
+                        subscriptionUrl = subscriptionUrl ?: config.subscriptionUrl,
+                        bootstrapExpiresAtEpochMillis = updatedExpires,
+                    ),
+                )
+                RuntimeCommandResult(0, "Конфигурация сохранена. Подключение не запущено.")
+            } catch (_: Exception) {
+                val restored = runCatching {
+                    if (oldProfile != null) profileStore.writeAtomic(target, oldProfile)
+                    else target.delete()
+                    profileStore.writeAtomic(appConfigFile, oldSettings)
+                }.isSuccess
+                RuntimeCommandResult(1, if (restored) "Не удалось сохранить конфигурацию." else "Не удалось восстановить настройки после ошибки сохранения.")
+            }
         }
-        ensureDirs()
-        val config = readConfig()
-        val selected = runCatching { windowsImportedProfileConfig(config, source, json) }.getOrElse {
-            return@transaction RuntimeCommandResult(1, "Конфигурация не содержит выбранного маршрута. Прежний профиль сохранён.")
+        if (saved.exitCode == 0 && switchedFromBootstrap) {
+            revokeBootstrapAccessBestEffort(readConfig())
         }
-        val target = profileFile(source)
-        val oldProfile = target.takeIf { it.isFile }?.let(profileStore::readBytes)
-        val oldSettings = profileStore.readBytes(appConfigFile)
-        try {
-            profileStore.writeAtomic(target, json.toByteArray(StandardCharsets.UTF_8))
-            writeConfig(selected.copy(subscriptionUrl = subscriptionUrl ?: config.subscriptionUrl))
-            RuntimeCommandResult(0, "Конфигурация сохранена. Подключение не запущено.")
-        } catch (_: Exception) {
-            val restored = runCatching {
-                if (oldProfile != null) profileStore.writeAtomic(target, oldProfile)
-                else target.delete()
-                profileStore.writeAtomic(appConfigFile, oldSettings)
-            }.isSuccess
-            RuntimeCommandResult(1, if (restored) "Не удалось сохранить конфигурацию." else "Не удалось восстановить настройки после ошибки сохранения.")
-        }
+        return saved
     }
 
     fun appRoutingState(): AppRoutingState {
@@ -1066,8 +1091,11 @@ class WindowsRuntimeController(
                 ?.takeIf { it.isNotBlank() }
                 ?: defaults.subscriptionUrl,
             profileSource = runCatching { config.profileSource }.getOrNull()
-                ?.takeIf { it in setOf("legacy", "account", "manual") }
+                ?.takeIf { it in setOf("legacy", "account", "manual", "bootstrap") }
                 ?: defaults.profileSource,
+            bootstrapExpiresAtEpochMillis = runCatching { config.bootstrapExpiresAtEpochMillis }.getOrDefault(0L)
+                .takeIf { it >= 0L }
+                ?: 0L,
             appApiBaseUrl = runCatching { config.appApiBaseUrl }.getOrNull()
                 ?.trimEnd('/')
                 ?.let(::migrateWindowsAppApiBaseUrl)
@@ -1182,6 +1210,7 @@ class WindowsRuntimeController(
                 }
                 "import-app" -> importAuthenticatedAppConfig()
                 "access-request" -> requestAppAccess()
+                "bootstrap-claim" -> claimBootstrapAccess(route.orEmpty())
                 "import-sub" -> importSubscription(route)
                 "generate" -> generateConfig()
                 "check" -> checkConfig()
@@ -1680,7 +1709,117 @@ class WindowsRuntimeController(
         )
     }
 
-    private fun importSubscription(input: String? = null): RuntimeCommandResult {
+    /**
+     * Pre-login Tree gate: a short-lived XHTTP subscription for exactly one
+     * device. The temporary UUID is published to the XHTTP pilot by the
+     * existing sync endpoint and disappears together with the server state.
+     */
+    private fun claimBootstrapAccess(code: String): RuntimeCommandResult {
+        ensureDirs()
+        val config = readConfig()
+        val normalizedCode = code.trim()
+        if (normalizedCode.isBlank()) return RuntimeCommandResult(1, "Введите пароль Древа.")
+        val deviceId = bootstrapDeviceId()
+        val payload = JsonObject().apply {
+            addProperty("code", normalizedCode)
+            addProperty("device_id", deviceId)
+            addProperty("platform", "windows")
+        }
+        val response = try {
+            sendAppApiPostWithFallback(
+                config = config,
+                path = "/api/bootstrap/claim",
+                bodyJson = gson.toJson(payload),
+                timeoutSeconds = 25,
+                extraHeaders = mapOf("X-Yokhan-Device" to deviceId),
+                allowRedirects = false,
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return RuntimeCommandResult(1, "Не удалось связаться с сервером разового доступа.")
+        }
+        if (response.statusCode() !in 200..299) {
+            val message = when (response.statusCode()) {
+                403 -> "Древо молчит: пароль не подошёл. Попробуйте ещё раз."
+                429 -> "Разовый доступ для этого устройства уже использован. Следующий — через 24 часа."
+                503 -> "Разовый доступ временно недоступен."
+                else -> "Разовый доступ не выдан: HTTP ${response.statusCode()}."
+            }
+            return RuntimeCommandResult(response.statusCode(), message)
+        }
+        val bodyObj = runCatching { JsonParser.parseString(response.body()).asJsonObject }.getOrNull()
+        val subscriptionUrl = bodyObj?.get("subscription_url")?.asString?.trim().orEmpty()
+        if (subscriptionUrl.isBlank()) {
+            return RuntimeCommandResult(1, "Сервер не вернул подписку.")
+        }
+        val now = System.currentTimeMillis()
+        val expiresAtMillis = bodyObj?.get("expires_at")?.takeIf { it.isJsonPrimitive }?.let { prim ->
+            runCatching { prim.asLong * 1000L }.getOrNull()
+        }?.takeIf { it > now } ?: (now + 15 * 60 * 1000L)
+        val imported = importSubscription(
+            input = subscriptionUrl,
+            source = "bootstrap",
+            bootstrapExpiresAtEpochMillis = expiresAtMillis,
+        )
+        if (imported.exitCode != 0) return imported
+        val connected = connect()
+        return if (connected.exitCode == 0) {
+            awaitBootstrapRelayReady(readConfig())
+            RuntimeCommandResult(
+                0,
+                "Проход Древа открыт на 15 минут. Войдите в аккаунт GATES или вставьте личную подписку.",
+            )
+        } else {
+            connected
+        }
+    }
+
+    private fun awaitBootstrapRelayReady(config: WindowsAppConfig) {
+        if (authHttpClient != null) return
+        if (!allowRuntimeServiceDelegation && managedProcess()?.isAlive != true) return
+        val probeUrl = appEndpoint(config, "/api/health")
+        val deadline = System.currentTimeMillis() + 6_500L
+        while (System.currentTimeMillis() < deadline) {
+            val res = runCatching { curl(config, probeUrl, timeoutSeconds = 3) }.getOrNull()
+            if (res != null && res.exitCode == 0 && res.output.trimStart().startsWith("2")) return
+            runCatching { Thread.sleep(1_500L) }
+        }
+    }
+
+    private fun revokeBootstrapAccessBestEffort(config: WindowsAppConfig) {
+        runCatching {
+            val deviceId = bootstrapDeviceId()
+            val payload = JsonObject().apply { addProperty("device_id", deviceId) }
+            sendAppApiPostWithFallback(
+                config = config,
+                path = "/api/bootstrap/revoke",
+                bodyJson = gson.toJson(payload),
+                timeoutSeconds = 6,
+                extraHeaders = mapOf("X-Yokhan-Device" to deviceId),
+                allowRedirects = false,
+            )
+        }
+    }
+
+    private fun bootstrapDeviceId(): String {
+        val file = File(appDir, "bootstrap-device-id")
+        if (file.isFile) {
+            val existing = runCatching {
+                file.readText(StandardCharsets.UTF_8).trim()
+            }.getOrDefault("")
+            if (existing.matches(Regex("^[A-Za-z0-9._:-]{8,128}$"))) return existing
+        }
+        val id = "win-" + UUID.randomUUID().toString()
+        runCatching { file.writeText(id, StandardCharsets.UTF_8) }
+        return id
+    }
+
+    private fun importSubscription(
+        input: String? = null,
+        source: String = "manual",
+        bootstrapExpiresAtEpochMillis: Long = 0L,
+    ): RuntimeCommandResult {
         ensureDirs()
         val config = readConfig()
         val subscriptionUrl = input?.trim() ?: config.subscriptionUrl
@@ -1693,13 +1832,13 @@ class WindowsRuntimeController(
                     .header("Accept", "application/json")
                     .timeout(Duration.ofSeconds(30))
                     .GET().build()
-                val response = httpClient().send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                val response = httpClient(allowRedirects = false).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
                 if (response.statusCode() !in 200..299) {
                     return RuntimeCommandResult(response.statusCode(), "Не удалось получить подписку: HTTP ${response.statusCode()}.")
                 }
                 response.body()
             }
-            storeImportedProfile("manual", json, subscriptionUrl)
+            storeImportedProfile(source, json, subscriptionUrl, bootstrapExpiresAtEpochMillis)
         } catch (_: Exception) {
             RuntimeCommandResult(1, "Не удалось получить подписку. Сохранённые профили не изменены.")
         }
@@ -1757,7 +1896,11 @@ class WindowsRuntimeController(
             val pin = xrayPinProvider()
                 ?: return RuntimeCommandResult(1, "XHTTP runtime is not installed or is not pinned. Reinstall GATES.")
             val finalRoute = root.getAsJsonObject("route")?.get("final")?.asString
-            val spec = windowsXhttpSpecJson(xhttpPlan, required = finalRoute == xhttpPlan.outboundTag, executableSha256 = pin)
+            val spec = windowsXhttpSpecJson(
+                xhttpPlan,
+                required = finalRoute == xhttpPlan.outboundTag || isBootstrapProfile(appConfig),
+                executableSha256 = pin,
+            )
             profileStore.writeAtomic(xhttpSpecFile, spec.toByteArray(StandardCharsets.UTF_8))
         } else {
             runCatching { xhttpSpecFile.delete() }
@@ -1848,6 +1991,15 @@ class WindowsRuntimeController(
         }
         extractRuntime()
         val steps = mutableListOf<String>()
+        if (
+            isBootstrapProfile(config) &&
+            config.bootstrapExpiresAtEpochMillis in 1..System.currentTimeMillis()
+        ) {
+            return RuntimeCommandResult(
+                1,
+                "Время разового доступа Древа истекло. Войдите в аккаунт или запросите доступ снова.",
+            )
+        }
         if (
             readAuthState(config) == null &&
             !rawConfigFile.isFile &&
@@ -2270,17 +2422,77 @@ class WindowsRuntimeController(
             "false" -> false
             else -> return RuntimeCommandResult(1, "GATES_PROTECTION_INVALID_SETTING")
         }
-        val health = runtimeService.health()
-        val digest = if (health.exitCode == 0) runtimeService.configurationDigest() else null
-        val protection = parseWindowsProtectionState(runtimeService.protectionStatus())
-        if (health.isRunningServiceTunnel() || protection.retainsProtection ||
-            (digest != null && (digest.exitCode != 0 || digest.output.trim() != "NONE")) ||
-            isManagedProcessRunning(managedProcessId(), managedProcess())) {
+        if (isManagedProcessRunning(managedProcessId(), managedProcess())) {
             return RuntimeCommandResult(1, "GATES_PROTECTION_STOP_FIRST")
         }
-        val updated = readConfig().copy(killSwitchEnabled = enabled)
-        if (enabled) windowsProtectionConfig("{}", updated)
-        return applyRoutingChange(updated, "Selected application protection saved for the next connection")
+        val currentConfig = readConfig()
+        val updated = currentConfig.copy(killSwitchEnabled = enabled)
+        if (enabled) {
+            runCatching { windowsProtectionConfig("{}", updated) }.getOrElse {
+                return RuntimeCommandResult(1, it.message ?: "GATES_PROTECTION_REQUIRES_EXE_PATHS")
+            }
+        }
+        var health = if (allowRuntimeServiceDelegation) runtimeService.health() else RuntimeCommandResult(1, "")
+        val brokerConfirmedAbsent = allowRuntimeServiceDelegation && health.exitCode != 0 &&
+            runtimeServiceInstalled() == false
+        if (allowRuntimeServiceDelegation && !brokerConfirmedAbsent && health.exitCode != 0) {
+            val prepared = prepareRuntimeService()
+            if (prepared.exitCode != 0) return prepared
+            health = runtimeService.health()
+        }
+        val digest = if (health.exitCode == 0) runtimeService.configurationDigest() else null
+        val serviceHasIntent = digest != null && digest.exitCode == 0 && digest.output.trim().matches(Regex("[0-9a-f]{64}"))
+        val serviceRunning = health.isRunningServiceTunnel() || serviceHasIntent
+
+        if (!serviceRunning) {
+            return applyRoutingChange(
+                updated,
+                if (enabled) "Защита при обрыве включена: выбранные EXE заблокированы до подключения."
+                else "Защита при обрыве выключена.",
+            )
+        }
+
+        if (!rawConfigFile.isFile || !generatedConfigFile.isFile) {
+            return RuntimeCommandResult(1, "GATES_PROTECTION_STOP_FIRST")
+        }
+        val stopped = stopThroughRuntimeService()
+        if (stopped.exitCode != 0) {
+            return RuntimeCommandResult(1, "GATES_PROTECTION_STOP_FIRST: ${stopped.output}".trim())
+        }
+        val syncResult = if (enabled) {
+            runtimeService.armProtection(windowsProtectionPayloadJson(updated))
+        } else {
+            runtimeService.disarmProtection()
+        }
+        if (syncResult.exitCode != 0) {
+            if (currentConfig.killSwitchEnabled) {
+                runCatching { runtimeService.armProtection(windowsProtectionPayloadJson(currentConfig)) }
+            }
+            startThroughRuntimeService()
+            val code = when {
+                "UNSUPPORTED_COMMAND" in syncResult.output -> "GATES_PROTECTION_SERVICE_UNAVAILABLE"
+                enabled -> "GATES_PROTECTION_NOT_ARMED"
+                else -> "GATES_PROTECTION_NOT_DISARMED"
+            }
+            return RuntimeCommandResult(1, "$code: ${syncResult.output}".trim())
+        }
+        writeConfig(updated)
+        val generated = generateConfig()
+        val restarted = if (generated.exitCode == 0) startThroughRuntimeService() else generated
+        if (restarted.exitCode != 0) {
+            writeConfig(currentConfig)
+            generateConfig()
+            if (currentConfig.killSwitchEnabled) {
+                runCatching { runtimeService.armProtection(windowsProtectionPayloadJson(currentConfig)) }
+            } else {
+                runCatching { runtimeService.disarmProtection() }
+            }
+            return RuntimeCommandResult(restarted.exitCode, restarted.output)
+        }
+        return RuntimeCommandResult(
+            0,
+            if (enabled) "Защита при обрыве включена и применена." else "Защита при обрыве выключена.",
+        )
     }
 
     private fun stopThroughRuntimeService(): RuntimeCommandResult {
@@ -2578,7 +2790,40 @@ class WindowsRuntimeController(
                 val applied = startThroughRuntimeService()
                 RuntimeCommandResult(applied.exitCode, listOf(message, generated.output, applied.output).joinToString("\n"))
             } else {
-                RuntimeCommandResult(0, "$message\nSaved for the next connection\n${generated.output}")
+                if (allowRuntimeServiceDelegation && !brokerConfirmedAbsent && updated.killSwitchEnabled) {
+                    val armResult = runtimeService.armProtection(windowsProtectionPayloadJson(updated))
+                    val armed = armResult.exitCode == 0 &&
+                        parseWindowsProtectionState(runtimeService.protectionStatus()) in setOf(
+                            WindowsProtectionState.BLOCKED,
+                            WindowsProtectionState.ARMED,
+                        )
+                    if (!armed) {
+                        val code = if ("UNSUPPORTED_COMMAND" in armResult.output) {
+                            "GATES_PROTECTION_SERVICE_UNAVAILABLE"
+                        } else {
+                            "GATES_PROTECTION_NOT_ARMED"
+                        }
+                        RuntimeCommandResult(1, "$code: ${armResult.output}".trim())
+                    } else {
+                        RuntimeCommandResult(0, "$message\nSaved and WFP updated\n${generated.output}")
+                    }
+                } else if (allowRuntimeServiceDelegation && !brokerConfirmedAbsent && previousConfig.killSwitchEnabled && !updated.killSwitchEnabled) {
+                    val disarmResult = runtimeService.disarmProtection()
+                    val disarmed = disarmResult.exitCode == 0 &&
+                        parseWindowsProtectionState(runtimeService.protectionStatus()) == WindowsProtectionState.DISABLED
+                    if (!disarmed) {
+                        val code = if ("UNSUPPORTED_COMMAND" in disarmResult.output) {
+                            "GATES_PROTECTION_SERVICE_UNAVAILABLE"
+                        } else {
+                            "GATES_PROTECTION_NOT_DISARMED"
+                        }
+                        RuntimeCommandResult(1, "$code: ${disarmResult.output}".trim())
+                    } else {
+                        RuntimeCommandResult(0, "$message\nWFP disarmed\n${generated.output}")
+                    }
+                } else {
+                    RuntimeCommandResult(0, "$message\nSaved for the next connection\n${generated.output}")
+                }
             }
         }.getOrElse { RuntimeCommandResult(1, "App routing update failed") }
         if (result.exitCode != 0) {
@@ -3263,6 +3508,36 @@ class WindowsRuntimeController(
         val outbounds = root.getAsJsonArray("outbounds") ?: JsonArray().also { root.add("outbounds", it) }
         ensureDirectOutbound(outbounds)
         val tags = outbounds.mapNotNull { it.asJsonObject.get("tag")?.asString }.toSet()
+        if (isBootstrapProfile(config)) {
+            ensureBlockOutbound(outbounds)
+            if (runtimeMode == "tun") {
+                route.addProperty("auto_detect_interface", true)
+            }
+            val proxyOutbound = if (WINDOWS_XHTTP_ROUTE_TAG in tags) WINDOWS_XHTTP_ROUTE_TAG else selectedProxyOutbound(config)
+            val scopedRules = JsonArray().apply {
+                add(JsonObject().apply {
+                    addProperty("action", "sniff")
+                    addProperty("timeout", "1s")
+                })
+                add(JsonObject().apply {
+                    addProperty("protocol", "dns")
+                    addProperty("action", "hijack-dns")
+                })
+                add(JsonObject().apply {
+                    addProperty("ip_is_private", true)
+                    addProperty("outbound", "direct")
+                })
+                add(JsonObject().apply {
+                    add("domain_suffix", JsonArray().also { array ->
+                        bootstrapAllowedDomains(config).forEach(array::add)
+                    })
+                    addProperty("outbound", proxyOutbound)
+                })
+            }
+            route.add("rules", scopedRules)
+            route.addProperty("final", "block")
+            return
+        }
         if (config.disableBridgeMultiplex == true) {
             disableBridgeMultiplex(outbounds)
         }
@@ -3303,6 +3578,32 @@ class WindowsRuntimeController(
                 },
             )
         }
+    }
+
+    private fun ensureBlockOutbound(outbounds: JsonArray) {
+        val hasBlock = outbounds.any { it.asJsonObject.get("tag")?.asString == "block" }
+        if (!hasBlock) {
+            outbounds.add(
+                JsonObject().apply {
+                    addProperty("type", "block")
+                    addProperty("tag", "block")
+                },
+            )
+        }
+    }
+
+    private fun isBootstrapProfile(config: WindowsAppConfig): Boolean =
+        config.profileSource == "bootstrap" || config.subscriptionUrl.contains("/api/bootstrap/sub/")
+
+    private fun bootstrapAllowedDomains(config: WindowsAppConfig): List<String> {
+        val extras = listOfNotNull(
+            runCatching { URI.create(config.appApiBaseUrl).host }.getOrNull(),
+            runCatching { URI.create(config.authIssuer).host }.getOrNull(),
+        ).mapNotNull { host ->
+            val clean = host.trim().trim('.').lowercase()
+            clean.takeIf { it.isNotBlank() && !it.endsWith("yokhan.xyz") && !it.endsWith("yokhanfitness.ru") }
+        }
+        return (listOf("yokhan.xyz", "yokhanfitness.ru") + extras).distinct()
     }
 
     private fun normalizeAppRouteRules(route: JsonObject, config: WindowsAppConfig) {
@@ -3506,7 +3807,7 @@ class WindowsRuntimeController(
         allowRedirects: Boolean = true,
         connectTimeout: Duration = Duration.ofSeconds(12),
     ): HttpClient =
-        if (!allowRedirects && authHttpClient != null) authHttpClient else HttpClient.newBuilder()
+        authHttpClient ?: HttpClient.newBuilder()
             .connectTimeout(connectTimeout)
             .followRedirects(if (allowRedirects) HttpClient.Redirect.NORMAL else HttpClient.Redirect.NEVER)
             .build()
@@ -3743,11 +4044,13 @@ class WindowsRuntimeController(
         bodyJson: String,
         bearerToken: String? = null,
         timeoutSeconds: Long = 12,
+        extraHeaders: Map<String, String> = emptyMap(),
+        allowRedirects: Boolean = true,
     ): HttpResponse<String> {
         val bases = windowsCandidateAppApiBases(config.appApiBaseUrl)
         var lastError: Exception? = null
         var lastResponse: HttpResponse<String>? = null
-        val client = httpClient()
+        val client = httpClient(allowRedirects = allowRedirects)
         for (base in bases) {
             val url = appEndpointWithBase(base, path)
             val builder = HttpRequest.newBuilder(URI.create(url))
@@ -3757,6 +4060,7 @@ class WindowsRuntimeController(
                 .header("X-Yokhan-App-Version", WINDOWS_APP_VERSION)
                 .timeout(Duration.ofSeconds(timeoutSeconds))
                 .POST(HttpRequest.BodyPublishers.ofString(bodyJson, StandardCharsets.UTF_8))
+            extraHeaders.forEach { (key, value) -> builder.header(key, value) }
             if (!bearerToken.isNullOrBlank()) {
                 builder.header("Authorization", "Bearer $bearerToken")
             }

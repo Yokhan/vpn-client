@@ -50,6 +50,34 @@ class SerializedServiceHandler(
         is StatusRequest -> successResponse(supervisor.state().name)
         is ConfigDigestRequest -> successResponse(supervisor.configurationDigest() ?: "NONE")
         is ProtectionStatusRequest -> successResponse(supervisor.protectionStatus().name)
+        is ArmProtectionRequest -> handleArmProtection(request)
+        is DisarmProtectionRequest -> handleDisarmProtection()
+    }
+
+    private fun handleArmProtection(request: ArmProtectionRequest): String {
+        val payload = when (val decoded = ServiceProtocolParser.decodeConfig(request.encodedProtection)) {
+            is ConfigPayloadResult.Accepted -> decoded.configBytes
+            is ConfigPayloadResult.Rejected -> return errorResponse(decoded.error.code.name)
+        }
+        val protection = when (val validated = SingBoxConfigValidator.validateProtectionPayload(
+            payload, supervisor.coreExecutablePath(), supervisor.reservedProtectionPaths(),
+        )) {
+            is ProtectionPayloadResult.Accepted -> validated.protection
+            is ProtectionPayloadResult.Rejected -> return errorResponse(validated.error.code.name)
+        }
+        return try {
+            supervisor.armStandingProtection(protection)
+            successResponse(supervisor.protectionStatus().name)
+        } catch (_: IOException) {
+            errorResponse("ARM_PROTECTION_FAILED")
+        }
+    }
+
+    private fun handleDisarmProtection(): String = try {
+        supervisor.disarmStandingProtection()
+        successResponse(supervisor.protectionStatus().name)
+    } catch (_: IOException) {
+        errorResponse("DISARM_PROTECTION_FAILED")
     }
 
     private fun handleStop(): String = try {

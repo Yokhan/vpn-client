@@ -190,11 +190,36 @@ class SelectedProtectionLifecycleTest {
         assertEquals(ProtectionStatus.BLOCKED, supervisor.protectionStatus())
     }
 
+    @Test
+    fun standingProtectionPersistsAcrossStopAndServiceRestoreUntilExplicitlyDisarmed() {
+        val launcher = RecordingProtectedLauncher()
+        val supervisor = SerializedTunnelSupervisor(launcher)
+
+        supervisor.armStandingProtection(guardedConfig.protection!!)
+        assertEquals(guardedConfig.protection, launcher.persistedStanding)
+        assertEquals(ProtectionStatus.BLOCKED, supervisor.protectionStatus())
+
+        assertEquals(TunnelStartResult.Started, supervisor.start(guardedConfig))
+        assertIs<IOException>(runCatching { supervisor.disarmStandingProtection() }.exceptionOrNull())
+        assertEquals(TunnelStopResult.Stopped, supervisor.stop())
+        assertFalse("release" in launcher.events)
+        assertEquals(ProtectionStatus.BLOCKED, supervisor.protectionStatus())
+
+        val restarted = SerializedTunnelSupervisor(launcher)
+        assertFalse(restarted.restorePersisted())
+        assertEquals(ProtectionStatus.BLOCKED, restarted.protectionStatus())
+
+        restarted.disarmStandingProtection()
+        assertEquals(null, launcher.persistedStanding)
+        assertEquals(ProtectionStatus.DISABLED, restarted.protectionStatus())
+    }
+
     private class RecordingProtectedLauncher : TunnelLauncher {
         val events = mutableListOf<String>()
         val children = mutableListOf<Child>()
         var launches = 0
         var persisted: ValidatedSingBoxConfig? = null
+        var persistedStanding: SelectedAppProtection? = null
         var failArm = false
         var failClear = false
         var failPersist = false
@@ -226,9 +251,22 @@ class SelectedProtectionLifecycleTest {
             persisted = null
         }
 
+        override fun loadStandingProtection(): SelectedAppProtection? = persistedStanding
+
+        override fun persistStandingProtection(protection: SelectedAppProtection) {
+            events += "persistStanding"
+            persistedStanding = protection
+        }
+
+        override fun clearStandingProtection() {
+            events += "clearStanding"
+            persistedStanding = null
+        }
+
         override fun armProtection(config: ValidatedSingBoxConfig) {
             events += "arm"
             if (failArm) throw IOException("arm failed")
+            released = false
         }
 
         override fun permitProtection(config: ValidatedSingBoxConfig, confirmChildAlive: () -> Unit): ProtectionPermitResult {

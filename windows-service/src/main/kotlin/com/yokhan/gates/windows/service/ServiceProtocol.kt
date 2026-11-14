@@ -17,6 +17,8 @@ enum class ServiceCommand(val wireValue: String) {
     STATUS("STATUS"),
     CONFIG_DIGEST("CONFIG_DIGEST"),
     PROTECTION_STATUS("PROTECTION_STATUS"),
+    ARM_PROTECTION("ARM_PROTECTION"),
+    DISARM_PROTECTION("DISARM_PROTECTION"),
 }
 
 sealed interface ServiceRequest {
@@ -61,6 +63,21 @@ data class ProtectionStatusRequest(
     override val command = ServiceCommand.PROTECTION_STATUS
 }
 
+data class ArmProtectionRequest(
+    override val version: Int,
+    override val authProof: String,
+    val encodedProtection: String,
+) : ServiceRequest {
+    override val command = ServiceCommand.ARM_PROTECTION
+}
+
+data class DisarmProtectionRequest(
+    override val version: Int,
+    override val authProof: String,
+) : ServiceRequest {
+    override val command = ServiceCommand.DISARM_PROTECTION
+}
+
 enum class ProtocolErrorCode {
     FRAME_TOO_LARGE,
     INVALID_FRAME,
@@ -103,7 +120,11 @@ object ServiceProtocolParser {
     fun format(request: ServiceRequest): String {
         require(request.version == CURRENT_PROTOCOL_VERSION) { "Unsupported protocol version" }
         require(AUTH_PROOF_PATTERN.matches(request.authProof)) { "Invalid auth proof" }
-        val payload = (request as? StartTunnelRequest)?.encodedConfig.orEmpty()
+        val payload = when (request) {
+            is StartTunnelRequest -> request.encodedConfig
+            is ArmProtectionRequest -> request.encodedProtection
+            else -> ""
+        }
         val frame = listOf(request.version, request.authProof, request.command.wireValue, payload)
             .joinToString(PROTOCOL_DELIMITER.toString())
         require(frame.toByteArray(Charsets.UTF_8).size <= MAX_FRAME_BYTES) { "Protocol frame exceeds the maximum length" }
@@ -137,6 +158,8 @@ object ServiceProtocolParser {
             ServiceCommand.STATUS.wireValue -> parseEmptyPayload(version, authProof, ServiceCommand.STATUS, parts[3])
             ServiceCommand.CONFIG_DIGEST.wireValue -> parseEmptyPayload(version, authProof, ServiceCommand.CONFIG_DIGEST, parts[3])
             ServiceCommand.PROTECTION_STATUS.wireValue -> parseEmptyPayload(version, authProof, ServiceCommand.PROTECTION_STATUS, parts[3])
+            ServiceCommand.ARM_PROTECTION.wireValue -> parseArmProtection(version, authProof, parts[3])
+            ServiceCommand.DISARM_PROTECTION.wireValue -> parseEmptyPayload(version, authProof, ServiceCommand.DISARM_PROTECTION, parts[3])
             else -> reject(ProtocolErrorCode.UNSUPPORTED_COMMAND, "Command is not permitted")
         }
     }
@@ -147,6 +170,14 @@ object ServiceProtocolParser {
             return reject(ProtocolErrorCode.FRAME_TOO_LARGE, "START_TUNNEL payload exceeds the frame bound")
         }
         return ProtocolParseResult.Accepted(StartTunnelRequest(version, authProof, payload))
+    }
+
+    private fun parseArmProtection(version: Int, authProof: String, payload: String): ProtocolParseResult {
+        if (payload.isBlank()) return reject(ProtocolErrorCode.INVALID_FRAME, "ARM_PROTECTION requires a protection payload")
+        if (payload.length > MAX_FRAME_BYTES - MAX_PROTOCOL_OVERHEAD_BYTES) {
+            return reject(ProtocolErrorCode.FRAME_TOO_LARGE, "ARM_PROTECTION payload exceeds the frame bound")
+        }
+        return ProtocolParseResult.Accepted(ArmProtectionRequest(version, authProof, payload))
     }
 
     private fun parseEmptyPayload(
@@ -161,7 +192,9 @@ object ServiceProtocolParser {
             ServiceCommand.STATUS -> StatusRequest(version, authProof)
             ServiceCommand.CONFIG_DIGEST -> ConfigDigestRequest(version, authProof)
             ServiceCommand.PROTECTION_STATUS -> ProtectionStatusRequest(version, authProof)
+            ServiceCommand.DISARM_PROTECTION -> DisarmProtectionRequest(version, authProof)
             ServiceCommand.START_TUNNEL -> error("START_TUNNEL requires a payload")
+            ServiceCommand.ARM_PROTECTION -> error("ARM_PROTECTION requires a payload")
         }
         return ProtocolParseResult.Accepted(request)
     }

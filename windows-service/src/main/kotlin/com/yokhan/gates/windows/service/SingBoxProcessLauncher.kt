@@ -120,6 +120,39 @@ class SingBoxProcessLauncher(
         }
     }
 
+    override fun loadStandingProtection(): SelectedAppProtection? {
+        if (!Files.isRegularFile(paths.standingProtectionFile)) return null
+        return when (val result = SingBoxConfigValidator.validateProtectionPayload(
+            Files.readAllBytes(paths.standingProtectionFile),
+            coreExecutablePath(),
+            reservedProtectionPaths(),
+        )) {
+            is ProtectionPayloadResult.Accepted -> result.protection
+            is ProtectionPayloadResult.Rejected -> null
+        }
+    }
+
+    override fun persistStandingProtection(protection: SelectedAppProtection) {
+        Files.createDirectories(paths.dataDirectory)
+        val temporaryFile = Files.createTempFile(paths.dataDirectory, "standing-protection-", ".json")
+        val payload = com.google.gson.JsonObject().apply {
+            addProperty("schema", 1)
+            add("protected_executables", com.google.gson.JsonArray().also { array ->
+                protection.protectedExecutables.forEach(array::add)
+            })
+        }
+        Files.writeString(temporaryFile, com.google.gson.Gson().toJson(payload), StandardCharsets.UTF_8)
+        try {
+            Files.move(temporaryFile, paths.standingProtectionFile, ATOMIC_MOVE, REPLACE_EXISTING)
+        } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+            Files.move(temporaryFile, paths.standingProtectionFile, REPLACE_EXISTING)
+        }
+    }
+
+    override fun clearStandingProtection() {
+        Files.deleteIfExists(paths.standingProtectionFile)
+    }
+
     override fun armProtection(config: ValidatedSingBoxConfig) = protection.arm(config)
     override fun permitProtection(
         config: ValidatedSingBoxConfig,

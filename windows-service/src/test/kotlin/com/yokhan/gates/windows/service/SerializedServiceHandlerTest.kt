@@ -90,6 +90,30 @@ class SerializedServiceHandlerTest {
         assertEquals("2|ERROR|STOP_FAILED", handler.handle("2|$proof|STOP|", clientNonce, serverNonce))
     }
 
+    @Test
+    fun armsAndDisarmsStandingProtectionOverControlProtocol() {
+        var armedStatus = ProtectionStatus.DISABLED
+        var standing: SelectedAppProtection? = null
+        val launcher = object : TunnelLauncher {
+            override fun launch(config: ValidatedSingBoxConfig): TunnelChild = FakeTunnelChild()
+            override fun armProtection(config: ValidatedSingBoxConfig) { armedStatus = ProtectionStatus.BLOCKED }
+            override fun releaseProtection() { armedStatus = ProtectionStatus.DISABLED }
+            override fun persistStandingProtection(protection: SelectedAppProtection) { standing = protection }
+            override fun loadStandingProtection(): SelectedAppProtection? = standing
+            override fun clearStandingProtection() { standing = null }
+            override fun protectionStatus(): ProtectionStatus = armedStatus
+        }
+        val handler = SerializedServiceHandler(SerializedTunnelSupervisor(launcher), token)
+        val proof = ControlAuthentication.clientProof(token, clientNonce, serverNonce)
+        val payload = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString("""{"schema":1,"protected_executables":["C:\\Apps\\browser.exe"]}""".toByteArray())
+
+        assertEquals("2|OK|BLOCKED", handler.handle("2|$proof|ARM_PROTECTION|$payload", clientNonce, serverNonce))
+        assertEquals(listOf("C:\\Apps\\browser.exe"), standing?.protectedExecutables)
+        assertEquals("2|OK|DISABLED", handler.handle("2|$proof|DISARM_PROTECTION|", clientNonce, serverNonce))
+        assertEquals(null, standing)
+    }
+
     private fun startFrame(
         config: String,
         authProof: String = ControlAuthentication.clientProof(token, clientNonce, serverNonce),

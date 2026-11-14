@@ -26,6 +26,7 @@ fun cleanupSelectedProtection(
     val archive = if (guardedConfig != null && activeBytes != null) {
         archiveAndClearGuardedConfig(paths, activeBytes, nowMillis())
     } else null
+    Files.deleteIfExists(paths.standingProtectionFile)
 
     try {
         val backend = backendFactory()

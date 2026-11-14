@@ -52,6 +52,14 @@ data class GatesAccessUiLabels(
     val accountCardTitle: String = "Аккаунт",
     val manualCaption: String = "Ссылка подписки GATES",
     val manualPlaceholder: String = "https://…",
+    val bootstrapTitle: String = "Мудрое Древо · Разовый доступ",
+    val bootstrapCaption: String = "Пароль Древа",
+    val bootstrapPlaceholder: String = "Произнеси пароль…",
+    val bootstrapAction: String = "Произнести пароль",
+    val bootstrapChallengeTrigger: String = "Пройти испытание Древа (15 мин)",
+    val bootstrapHint: String = "Перед тобой стоит Мудрое Древо. Из пустоты доносится шёпот:\n«Эта дверь открывается лишь ищущему знания… Произнеси пароль, Сладкий.»",
+    val bootstrapScopeNote: String = "Откроет только вход в GATES и получение вашего ключа на 15 минут. Остальной интернет останется закрыт.",
+    val bootstrapRemainingLabel: String = "Проход Древа открыт",
     val showSecret: String = "Показать",
     val hideSecret: String = "Скрыть",
     val addSubscription: String = "Добавить подписку",
@@ -98,10 +106,17 @@ fun GatesAccessScreen(
     onRetryConfig: (() -> Unit)? = null,
     onRestartLogin: (() -> Unit)? = null,
     onRequestAccess: (() -> Unit)? = null,
+    onBootstrapClaim: ((String) -> Unit)? = null,
+    bootstrapBusy: Boolean = false,
+    bootstrapMessage: String = "",
+    bootstrapRemaining: String = "",
     labels: GatesAccessUiLabels = GatesAccessUiLabels.Russian,
 ) {
     var manualMode by rememberSaveable { mutableStateOf(false) }
     var secretVisible by rememberSaveable { mutableStateOf(false) }
+    var bootstrapInput by rememberSaveable { mutableStateOf("") }
+    var bootstrapSecretVisible by rememberSaveable { mutableStateOf(false) }
+    var bootstrapExpanded by rememberSaveable { mutableStateOf(false) }
     val back: (() -> Unit)? = when {
         busy -> null
         manualMode -> ({ manualMode = false })
@@ -138,6 +153,109 @@ fun GatesAccessScreen(
                     if (onCancelAuthorization != null) YokhanRouteButton(labels.cancelBrowser, false, true,
                         palette, typography, onCancelAuthorization, actionModifier.testTag("form.action.cancel-auth"))
                 })
+            }
+        }
+        if (!signedIn && onBootstrapClaim != null) {
+            val showBootstrapBody = bootstrapExpanded || bootstrapMessage.isNotBlank() || bootstrapRemaining.isNotBlank()
+            YokhanRouteCard(labels.bootstrapTitle, palette, typography) {
+                YokhanCaption(labels.bootstrapScopeNote, palette, typography)
+                if (bootstrapRemaining.isNotBlank()) {
+                    YokhanMonoValue(
+                        "${labels.bootstrapRemainingLabel}: $bootstrapRemaining",
+                        palette,
+                        typography,
+                    )
+                }
+                if (!showBootstrapBody) {
+                    YokhanRouteButton(
+                        text = labels.bootstrapChallengeTrigger,
+                        primary = false,
+                        enabled = !busy && !bootstrapBusy,
+                        colors = palette,
+                        typography = typography,
+                        onClick = { bootstrapExpanded = true },
+                        modifier = Modifier.fillMaxWidth().testTag("form.action.bootstrap-open"),
+                    )
+                } else {
+                    YokhanBody(labels.bootstrapHint, palette, typography)
+                    if (bootstrapMessage.isNotBlank()) {
+                        YokhanBody(bootstrapMessage, palette, typography)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        YokhanCaption(labels.bootstrapCaption, palette, typography)
+                        YokhanRouteButton(
+                            text = if (bootstrapSecretVisible) labels.hideSecret else labels.showSecret,
+                            primary = false,
+                            enabled = !busy && !bootstrapBusy,
+                            colors = palette,
+                            typography = typography,
+                            onClick = { bootstrapSecretVisible = !bootstrapSecretVisible },
+                            modifier = Modifier.testTag("form.action.toggle-bootstrap-visibility"),
+                        )
+                    }
+                    val submitBootstrap: () -> Unit = {
+                        val value = bootstrapInput.trim()
+                        if (!busy && !bootstrapBusy && value.isNotEmpty()) {
+                            bootstrapInput = ""
+                            onBootstrapClaim(value)
+                        }
+                    }
+                    BasicTextField(
+                        value = bootstrapInput,
+                        onValueChange = { bootstrapInput = it },
+                        enabled = !busy && !bootstrapBusy,
+                        singleLine = true,
+                        visualTransformation = if (bootstrapSecretVisible) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
+                        cursorBrush = SolidColor(palette.accent),
+                        textStyle = TextStyle(
+                            color = palette.primary,
+                            fontFamily = typography.mono,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                        ),
+                        decorationBox = { innerTextField ->
+                            Box(Modifier.fillMaxWidth()) {
+                                if (bootstrapInput.isEmpty()) {
+                                    Text(
+                                        text = labels.bootstrapPlaceholder,
+                                        color = palette.tertiary,
+                                        fontFamily = typography.mono,
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp,
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                            .onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) {
+                                    submitBootstrap()
+                                    true
+                                } else false
+                            }
+                            .testTag("form.input.bootstrap-password")
+                            .padding(vertical = YokhanSpacing.CompactGap)
+                            .yokhanOutlinedSurface(palette).padding(YokhanSpacing.ControlHorizontal),
+                    )
+                    YokhanRouteButton(
+                        labels.bootstrapAction,
+                        true,
+                        !busy && !bootstrapBusy && bootstrapInput.isNotBlank(),
+                        palette,
+                        typography,
+                        submitBootstrap,
+                        Modifier.fillMaxWidth().testTag("form.action.bootstrap"),
+                    )
+                }
             }
         }
         YokhanRouteCard(if (manualMode) labels.manualTitle else labels.accountCardTitle, palette, typography) {

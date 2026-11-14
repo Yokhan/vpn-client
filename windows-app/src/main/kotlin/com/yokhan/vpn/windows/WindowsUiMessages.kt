@@ -10,7 +10,7 @@ internal fun windowsUiResultMessage(command: String, result: RuntimeCommandResul
             "GATES_PROTECTION_REQUIRES_TUN" in result.output || "GATES_PROTECTION_REQUIRES_SERVICE" in result.output ->
                 return "Защита при обрыве работает только через службу TUN. Прямой запуск прокси запрещён."
             "GATES_PROTECTION_SERVICE_UNAVAILABLE" in result.output ->
-                return "Эта служба GATES не поддерживает защиту при обрыве. Подключение без защиты не запущено."
+                return "Эта служба GATES не поддерживает защиту при обрыве. Обновите установку GATES или переустановите службу."
             "GATES_PROTECTION" in result.output ->
                 return "Защита при обрыве не подтверждена. Трафик может оставаться заблокированным."
         }
@@ -70,6 +70,7 @@ internal fun windowsUiResultMessage(command: String, result: RuntimeCommandResul
         "disable-autostart" -> "Автозапуск выключен."
         "set-route" -> "Активный маршрут обновлён."
         "set-runtime" -> "Режим работы ядра обновлён."
+        "set-kill-switch" -> localizedFirstLineOrFallback(result.output, "Защита при обрыве обновлена.")
         "set-tun-routing" -> "Режим разделения приложений обновлён."
         "add-app-proxy" -> "Приложение добавлено в маршрут «Через GATES»."
         "add-app-direct" -> "Приложение добавлено в маршрут «Напрямую»."

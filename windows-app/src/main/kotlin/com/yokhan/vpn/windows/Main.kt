@@ -510,6 +510,33 @@ private fun WindowsApp(
     var authJob by remember { mutableStateOf<Job?>(null) }
     var accessFailure by remember { mutableStateOf<WindowsAccessFailure?>(null) }
     var accessPending by remember { mutableStateOf(false) }
+    var bootstrapMessage by remember { mutableStateOf("") }
+    var bootstrapExpiresAt by remember { mutableStateOf(0L) }
+    var bootstrapNow by remember { mutableStateOf(System.currentTimeMillis()) }
+    val bootstrapRemaining = if (bootstrapExpiresAt > bootstrapNow) {
+        val left = ((bootstrapExpiresAt - bootstrapNow).coerceAtLeast(0L) / 1000L)
+        "%02d:%02d".format(left / 60L, left % 60L)
+    } else {
+        ""
+    }
+    LaunchedEffect(bootstrapExpiresAt) {
+        if (bootstrapExpiresAt <= 0L) return@LaunchedEffect
+        while (bootstrapExpiresAt > System.currentTimeMillis()) {
+            bootstrapNow = System.currentTimeMillis()
+            delay(1000)
+        }
+        bootstrapNow = System.currentTimeMillis()
+        if (qa == null) {
+            val cfg = withContext(Dispatchers.IO) { runCatching { controller.readConfig() }.getOrNull() }
+            if (cfg != null && cfg.profileSource == "bootstrap" && cfg.bootstrapExpiresAtEpochMillis in 1..System.currentTimeMillis()) {
+                runCatching { withContext(Dispatchers.IO) { controller.run("stop") } }
+                connectionStatus = ConnectionStatus.Disconnected
+                bootstrapExpiresAt = 0L
+                bootstrapMessage = "Время разового доступа Древа истекло. Войдите в аккаунт или подключите подписку."
+                lastMessage = bootstrapMessage
+            }
+        }
+    }
     val authorizationPrompt by if (qa == null || qa.realAccess) controller.authorizationPrompt.collectAsState()
         else remember { mutableStateOf<WindowsAuthorizationPrompt?>(null) }
     val authorizationPhase by if (qa == null || qa.realAccess) controller.authorizationPhase.collectAsState()
@@ -544,6 +571,7 @@ private fun WindowsApp(
         activeRoute = cfg.activeRoute
         runtimeMode = cfg.runtimeMode
         killSwitchEnabled = cfg.killSwitchEnabled
+        bootstrapExpiresAt = cfg.bootstrapExpiresAtEpochMillis
         autoUploadRecoveryReports = cfg.autoUploadRecoveryReports
         enableRuBypass = cfg.enableRuBypass
         wholeTrafficMode = cfg.wholeTrafficMode
@@ -944,7 +972,7 @@ private fun WindowsApp(
                 if (command == "set-runtime" && result.exitCode == 0) runtimeMode = argument ?: "tun"
                 if (command == "set-kill-switch" && result.exitCode == 0) killSwitchEnabled = argument == "true"
                 if (command in setOf(
-                        "set-ru-bypass", "set-whole-traffic", "set-bypass-lan",
+                        "set-kill-switch", "set-ru-bypass", "set-whole-traffic", "set-bypass-lan",
                         "set-block-quic", "set-route-order", "enable-autostart",
                         "disable-autostart", "reconnect", "sync-runtime", "set-route",
                     ) && result.exitCode == 0
@@ -980,7 +1008,7 @@ private fun WindowsApp(
             if (qa != null || busy) continue
             when {
                 action == "toggle" -> {
-                    if (connectionStatus == ConnectionStatus.Connected || protectionState.retainsProtection) {
+                    if (connectionStatus == ConnectionStatus.Connected || (!killSwitchEnabled && protectionState.retainsProtection)) {
                         connectionStatus = ConnectionStatus.Disconnecting
                         launchRuntime("Отключение", "stop", nextStatus = ConnectionStatus.Disconnected)
                     } else {
@@ -1219,7 +1247,8 @@ private fun WindowsApp(
                     readRoutes = controller::availableRoutes,
                 )
                 sessionState = snapshot.session
-                activeRoute = snapshot.config.activeRoute
+                applyConfigSnapshot(snapshot.config)
+                if (snapshot.config.bootstrapExpiresAtEpochMillis == 0L) bootstrapMessage = ""
                 availableRoutes = snapshot.routes
                 appRoutingState = snapshot.appRouting
                 applyAccessOutcome(command, result)
@@ -1250,10 +1279,54 @@ private fun WindowsApp(
                     readRoutes = controller::availableRoutes,
                 )
                 sessionState = snapshot.session
-                activeRoute = snapshot.config.activeRoute
+                applyConfigSnapshot(snapshot.config)
+                if (snapshot.config.bootstrapExpiresAtEpochMillis == 0L) bootstrapMessage = ""
                 availableRoutes = snapshot.routes
                 appRoutingState = snapshot.appRouting
                 applyAccessOutcome(WINDOWS_ACCESS_REQUEST_COMMAND, result)
+            }
+        }
+    }
+
+    fun launchBootstrapClaim(code: String) {
+        if (qa != null && !qa.realAccess) {
+            lastMessage = "Операция недоступна в тестовом режиме."
+            return
+        }
+        if (busy || code.isBlank()) return
+        authJob = scope.launch {
+            if (busy) return@launch
+            runWindowsUiAction(
+                setBusy = { busy = it },
+                onFailure = {
+                    lastMessage = it
+                    bootstrapMessage = it
+                },
+            ) {
+                bootstrapMessage = "Древо проверяет пароль…"
+                val result = withContext(Dispatchers.IO) {
+                    controller.run("bootstrap-claim", code)
+                }
+                val snapshot = loadWindowsUiSnapshot(
+                    readConfig = controller::readConfig,
+                    readSession = controller::sessionState,
+                    readAppRouting = controller::appRoutingState,
+                    readRoutes = controller::availableRoutes,
+                )
+                sessionState = snapshot.session
+                applyConfigSnapshot(snapshot.config)
+                if (snapshot.config.bootstrapExpiresAtEpochMillis == 0L) bootstrapMessage = ""
+                availableRoutes = snapshot.routes
+                appRoutingState = snapshot.appRouting
+                bootstrapMessage = result.output
+                if (result.exitCode == 0) {
+                    bootstrapExpiresAt = snapshot.config.bootstrapExpiresAtEpochMillis
+                        .takeIf { it > 0L } ?: (System.currentTimeMillis() + 15 * 60 * 1000L)
+                    accessFailure = null
+                    accessPending = false
+                    lastMessage = result.output
+                    routeStack = routeStack.resetToDashboard()
+                }
             }
         }
     }
@@ -1279,7 +1352,8 @@ private fun WindowsApp(
                     readRoutes = controller::availableRoutes,
                 )
                 sessionState = snapshot.session
-                activeRoute = snapshot.config.activeRoute
+                applyConfigSnapshot(snapshot.config)
+                if (snapshot.config.bootstrapExpiresAtEpochMillis == 0L) bootstrapMessage = ""
                 availableRoutes = snapshot.routes
                 appRoutingState = snapshot.appRouting
                 lastMessage = windowsUiResultMessage("import-sub", result)
@@ -1517,7 +1591,7 @@ private fun WindowsApp(
                         if (qa != null) {
                             lastMessage = "Операция недоступна в тестовом режиме."
                         } else if (!busy) {
-                            if (connectionStatus == ConnectionStatus.Connected || protectionState.retainsProtection) {
+                            if (connectionStatus == ConnectionStatus.Connected || (!killSwitchEnabled && protectionState.retainsProtection)) {
                                 connectionStatus = ConnectionStatus.Disconnecting
                                 launchRuntime("Отключение", "stop", nextStatus = ConnectionStatus.Disconnected)
                             } else {
@@ -1832,9 +1906,51 @@ private fun WindowsApp(
                                 runtimeMode = runtimeMode,
                                 killSwitchEnabled = killSwitchEnabled,
                                 protectionMessage = windowsProtectionLabel(protectionState),
+                                appProxyProcessPaths = appRoutingState.proxyProcessPaths,
                                 onKillSwitchChange = if (qa == null) ({ enabled ->
-                                    launchRuntime("Защита", "set-kill-switch", argument = enabled.toString())
+                                    if (!enabled) {
+                                        launchRuntime("Защита", "set-kill-switch", argument = "false")
+                                    } else {
+                                        scope.launch {
+                                            if (busy) return@launch
+                                            val pickedExe = if (appRoutingState.proxyProcessPaths.isEmpty()) {
+                                                chooseExeFile(ownerWindow).also { selected ->
+                                                    if (selected == null) {
+                                                        lastMessage = "Выберите хотя бы один .exe файл для защиты."
+                                                    }
+                                                } ?: return@launch
+                                            } else null
+                                            runWindowsUiAction(
+                                                setBusy = { busy = it },
+                                                onFailure = { lastMessage = it },
+                                            ) {
+                                                val result = withContext(Dispatchers.IO) {
+                                                    if (pickedExe != null) {
+                                                        val added = controller.addAppRouting(pickedExe, proxy = true)
+                                                        if (added.exitCode != 0) return@withContext added
+                                                    }
+                                                    if (controller.readConfig().runtimeMode != "tun") {
+                                                        val tunSet = controller.run("set-runtime", "tun")
+                                                        if (tunSet.exitCode != 0) return@withContext tunSet
+                                                    }
+                                                    controller.run("set-kill-switch", "true")
+                                                }
+                                                val refreshedCfg = withContext(Dispatchers.IO) { controller.readConfig() }
+                                                applyConfigSnapshot(refreshedCfg)
+                                                appRoutingState = withContext(Dispatchers.IO) { controller.appRoutingState() }
+                                                val live = withContext(Dispatchers.IO) { runCatching { controller.queryLiveRuntimeStatus() }.getOrNull() }
+                                                if (live != null) protectionState = live.protectionState
+                                                lastMessage = windowsUiResultMessage("set-kill-switch", result)
+                                            }
+                                        }
+                                    }
                                 }) else null,
+                                onPickProtectedExe = if (qa == null) ({
+                                    chooseExeFile(ownerWindow)?.let { path ->
+                                        launchAppRouting("Приложение", "add-app-proxy", path)
+                                    }
+                                }) else null,
+                                onOpenRouting = { routeStack = routeStack.switchTab(WindowsRoute.Routing) },
                                 autoUploadRecoveryReports = autoUploadRecoveryReports,
                                 onAutoUploadRecoveryReportsChange = if (qa == null) { enabled ->
                                     scope.launch {
@@ -1957,6 +2073,10 @@ private fun WindowsApp(
                                 ) {
                                     { launchRequestAccess() }
                                 } else null,
+                                onBootstrapClaim = { launchBootstrapClaim(it) },
+                                bootstrapBusy = busy,
+                                bootstrapMessage = bootstrapMessage,
+                                bootstrapRemaining = bootstrapRemaining,
                             )
                         }
 
@@ -1990,6 +2110,25 @@ private fun WindowsApp(
                                     modifier = Modifier.fillMaxSize(),
                                     visibility = ProductionDashboardVisibility,
                                     companionContent = { colors, typography ->
+                                        if (bootstrapRemaining.isNotBlank()) {
+                                            YokhanRouteCard("Мудрое Древо · разовый доступ ($bootstrapRemaining)", colors, typography) {
+                                                YokhanCaption(
+                                                    text = "Открыт только вход в GATES и получение вашего ключа. Остальной интернет временно закрыт.",
+                                                    colors = colors,
+                                                    typography = typography,
+                                                )
+                                                Spacer(Modifier.height(YokhanSpacing.CompactGap))
+                                                YokhanRouteButton(
+                                                    text = "Войти в аккаунт / вставить ключ",
+                                                    primary = true,
+                                                    enabled = !busy,
+                                                    colors = colors,
+                                                    typography = typography,
+                                                    onClick = { routeStack = routeStack.push(WindowsRoute.Access) },
+                                                    modifier = Modifier.fillMaxWidth().testTag("dashboard.bootstrap.login"),
+                                                )
+                                            }
+                                        }
                                         YokhanRouteCard("Сводка туннеля и телеметрия", colors, typography) {
                                             val routeDisplay = if (activeRoute == "auto" && resolvedActiveRoute.isNotBlank() && resolvedActiveRoute != "auto") {
                                                 "AUTO → ${activeRouteLabel(resolvedActiveRoute)}"

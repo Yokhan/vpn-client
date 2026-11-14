@@ -10,6 +10,8 @@ import com.yokhan.gates.windows.service.StatusRequest
 import com.yokhan.gates.windows.service.StopRequest
 import com.yokhan.gates.windows.service.ConfigDigestRequest
 import com.yokhan.gates.windows.service.ProtectionStatusRequest
+import com.yokhan.gates.windows.service.ArmProtectionRequest
+import com.yokhan.gates.windows.service.DisarmProtectionRequest
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import java.io.DataInputStream
@@ -34,6 +36,8 @@ interface WindowsRuntimeControl {
     fun stop(): RuntimeCommandResult
     fun configurationDigest(): RuntimeCommandResult = RuntimeCommandResult(1, "Runtime configuration is unverified")
     fun protectionStatus(): RuntimeCommandResult = RuntimeCommandResult(1, "UNAVAILABLE")
+    fun armProtection(protectionJson: String): RuntimeCommandResult = RuntimeCommandResult(1, "UNSUPPORTED_COMMAND")
+    fun disarmProtection(): RuntimeCommandResult = RuntimeCommandResult(1, "UNSUPPORTED_COMMAND")
 }
 
 class WindowsRuntimeServiceClient(
@@ -61,6 +65,18 @@ class WindowsRuntimeServiceClient(
 
     override fun protectionStatus(): RuntimeCommandResult = withControlToken { token ->
         exchange(token) { proof -> ProtectionStatusRequest(CURRENT_PROTOCOL_VERSION, proof) }
+    }
+
+    override fun armProtection(protectionJson: String): RuntimeCommandResult {
+        val encoded = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(protectionJson.toByteArray(StandardCharsets.UTF_8))
+        return withControlToken { token ->
+            exchange(token) { proof -> ArmProtectionRequest(CURRENT_PROTOCOL_VERSION, proof, encoded) }
+        }
+    }
+
+    override fun disarmProtection(): RuntimeCommandResult = withControlToken { token ->
+        exchange(token) { proof -> DisarmProtectionRequest(CURRENT_PROTOCOL_VERSION, proof) }
     }
 
     private fun withControlToken(action: (String) -> RuntimeCommandResult): RuntimeCommandResult {

@@ -31,6 +31,7 @@ class ProtectionCleanupTest {
     fun removesOwnedRulesAndArchivesGuardedConfigWithoutDroppingProfile() = withPaths { paths ->
         val original = guardedConfig.toByteArray()
         Files.write(paths.configFile, original)
+        Files.writeString(paths.standingProtectionFile, """{"schema":1,"protected_executables":["C:\\Apps\\browser.exe"]}""")
         val backend = FakeBackend()
 
         cleanupSelectedProtection(paths, { false }, { backend }, { 1_797_000_000_000L })
@@ -42,6 +43,7 @@ class ProtectionCleanupTest {
         val archived = archives.use { it.findFirst().orElseThrow() }
         assertTrue(original.contentEquals(Files.readAllBytes(archived)))
         assertFalse(Files.exists(paths.configFile))
+        assertFalse(Files.exists(paths.standingProtectionFile))
         assertEquals(null, SingBoxProcessLauncher(paths).loadPersistedConfig())
         val archivedJson = Files.readString(archived)
         assertTrue(archivedJson.contains("gates_protection"))

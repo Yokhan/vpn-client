@@ -108,6 +108,125 @@ class WindowsKillSwitchTest {
         assertEquals(1, controller.run("connect").exitCode)
     }
 
+    @Test fun disconnectedKillSwitchArmsAndDisarmsStandingWfpProtection() = runBlocking {
+        var armedPayloads = mutableListOf<String>()
+        var protectionStatus = "DISABLED"
+        val controller = WindowsRuntimeController(
+            appDir = Files.createTempDirectory("gates-protection-standing").toFile(),
+            runtimeServiceInstalled = { true },
+            runtimeService = object : WindowsRuntimeControl {
+                override fun health() = RuntimeCommandResult(0, "STOPPED")
+                override fun configurationDigest() = RuntimeCommandResult(0, "NONE")
+                override fun protectionStatus() = RuntimeCommandResult(0, protectionStatus)
+                override fun armProtection(protectionJson: String): RuntimeCommandResult {
+                    armedPayloads += protectionJson
+                    protectionStatus = "BLOCKED"
+                    return RuntimeCommandResult(0, "BLOCKED")
+                }
+                override fun disarmProtection(): RuntimeCommandResult {
+                    protectionStatus = "DISABLED"
+                    return RuntimeCommandResult(0, "DISABLED")
+                }
+                override fun startTunnel(configJson: String): RuntimeCommandResult = error("Must not start tunnel")
+                override fun stop(): RuntimeCommandResult = error("Must not stop tunnel")
+            },
+            prepareRuntimeService = { error("Already running") },
+        )
+        controller.writeConfig(config.copy(killSwitchEnabled = false))
+
+        assertEquals(0, controller.run("set-kill-switch", "true").exitCode)
+        assertTrue(controller.readConfig().killSwitchEnabled)
+        assertEquals(1, armedPayloads.size)
+        assertEquals("BLOCKED", controller.queryLiveRuntimeStatus().protectionState.name)
+
+        // Adding another exe while disconnected and Kill Switch ON updates standing WFP policy.
+        assertEquals(0, controller.addAppRouting("C:\\Apps\\Chat\\chat.exe", proxy = true).exitCode)
+        assertEquals(2, armedPayloads.size)
+        assertTrue("chat.exe" in armedPayloads.last())
+
+        // Turning Kill Switch OFF while BLOCKED succeeds and disarms WFP.
+        assertEquals(0, controller.run("set-kill-switch", "false").exitCode)
+        assertFalse(controller.readConfig().killSwitchEnabled)
+        assertEquals("DISABLED", controller.queryLiveRuntimeStatus().protectionState.name)
+    }
+
+    @Test fun armFailureRollsBackKillSwitchConfigCleanly() = runBlocking {
+        val controller = WindowsRuntimeController(
+            appDir = Files.createTempDirectory("gates-protection-rollback").toFile(),
+            runtimeServiceInstalled = { true },
+            runtimeService = object : WindowsRuntimeControl {
+                override fun health() = RuntimeCommandResult(0, "STOPPED")
+                override fun configurationDigest() = RuntimeCommandResult(0, "NONE")
+                override fun protectionStatus() = RuntimeCommandResult(0, "DISABLED")
+                override fun armProtection(protectionJson: String) =
+                    RuntimeCommandResult(1, "GATES Runtime rejected the request: UNSUPPORTED_COMMAND")
+                override fun startTunnel(configJson: String): RuntimeCommandResult = error("Must not start")
+                override fun stop(): RuntimeCommandResult = error("Must not stop")
+            },
+            prepareRuntimeService = { RuntimeCommandResult(0, "ok") },
+        )
+        controller.writeConfig(config.copy(killSwitchEnabled = false))
+
+        val result = controller.run("set-kill-switch", "true")
+        assertEquals(1, result.exitCode)
+        assertTrue("GATES_PROTECTION_SERVICE_UNAVAILABLE" in result.output)
+        assertFalse(controller.readConfig().killSwitchEnabled)
+    }
+
+    @Test fun connectedKillSwitchToggleStopsDisarmsAndRestartsTunnel() = runBlocking {
+        val events = mutableListOf<String>()
+        var running = true
+        var protectionStatus = "ARMED"
+        val controller = WindowsRuntimeController(
+            appDir = Files.createTempDirectory("gates-protection-connected-").toFile(),
+            runtimeServiceInstalled = { true },
+            runtimeService = object : WindowsRuntimeControl {
+                override fun health() = RuntimeCommandResult(0, if (running) "RUNNING" else "STOPPED")
+                override fun configurationDigest() = RuntimeCommandResult(0, if (running) "a".repeat(64) else "NONE")
+                override fun protectionStatus() = RuntimeCommandResult(0, protectionStatus)
+                override fun armProtection(protectionJson: String): RuntimeCommandResult {
+                    events += "arm"
+                    protectionStatus = "BLOCKED"
+                    return RuntimeCommandResult(0, "BLOCKED")
+                }
+                override fun disarmProtection(): RuntimeCommandResult {
+                    events += "disarm"
+                    protectionStatus = "DISABLED"
+                    return RuntimeCommandResult(0, "DISABLED")
+                }
+                override fun startTunnel(configJson: String): RuntimeCommandResult {
+                    events += if ("gates_protection" in configJson) "start-guarded" else "start-unguarded"
+                    running = true
+                    protectionStatus = if ("gates_protection" in configJson) "ARMED" else "DISABLED"
+                    return RuntimeCommandResult(0, "STARTED")
+                }
+                override fun stop(): RuntimeCommandResult {
+                    events += "stop"
+                    running = false
+                    if (protectionStatus == "ARMED") protectionStatus = "BLOCKED"
+                    return RuntimeCommandResult(0, "STOPPED")
+                }
+            },
+            validateGeneratedConfig = { RuntimeCommandResult(0, "ok") },
+            prepareRuntimeService = { RuntimeCommandResult(0, "ok") },
+        )
+        val profile = """{"inbounds":[{"type":"tun","tag":"tun-in"}],"outbounds":[{"type":"direct","tag":"direct"},{"type":"vless","tag":"bridge","server":"203.0.113.10","server_port":443,"uuid":"00000000-0000-4000-8000-000000000001"}]}"""
+        controller.writeConfig(config.copy(killSwitchEnabled = true, activeRoute = "bridge", physicalBindInterface = "Wi-Fi", physicalBindIpv4 = "192.0.2.10"))
+        assertEquals(0, controller.storeImportedProfile("manual", profile).exitCode)
+        assertEquals(0, controller.run("generate").exitCode)
+
+        val off = controller.run("set-kill-switch", "false")
+        assertEquals(0, off.exitCode, off.output)
+        assertFalse(controller.readConfig().killSwitchEnabled)
+        assertEquals("DISABLED", controller.queryLiveRuntimeStatus().protectionState.name)
+
+        val on = controller.run("set-kill-switch", "true")
+        assertEquals(0, on.exitCode, on.output)
+        assertTrue(controller.readConfig().killSwitchEnabled)
+        assertEquals("ARMED", controller.queryLiveRuntimeStatus().protectionState.name)
+        assertEquals(listOf("stop", "disarm", "start-unguarded", "stop", "arm", "start-guarded"), events)
+    }
+
     private fun offlineController() = WindowsRuntimeController(
         appDir = Files.createTempDirectory("gates-protection-preference").toFile(),
         runtimeServiceInstalled = { false },

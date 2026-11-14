@@ -78,8 +78,14 @@ internal fun windowsImportedProfileConfig(config: WindowsAppConfig, source: Stri
     }.distinct()
     val tags = outbounds.mapNotNull { it.asJsonObject.get("tag")?.asString }.toSet()
     // XHTTP is the only transport that survives the current DPI, so an account
-    // profile selects it automatically instead of leaving the user on a dead route.
-    val preferredRoute = if (source == "account" && "xhttp" in tags) "xhttp" else config.activeRoute
+    // or bootstrap profile selects it automatically instead of leaving the user on a dead route.
+    val preferredRoute = when {
+        source in setOf("account", "bootstrap") && "xhttp" in tags -> "xhttp"
+        config.profileSource == "bootstrap" && source != "bootstrap" &&
+            config.activeRoute != "auto" && config.activeRoute !in tags ->
+            if ("auto" in tags) "auto" else proxyTags.firstOrNull() ?: config.activeRoute
+        else -> config.activeRoute
+    }
     require(preferredRoute == "auto" || preferredRoute in tags) { "Selected route is missing from profile" }
     val order = when {
         source == "manual" && "auto" !in tags -> proxyTags
