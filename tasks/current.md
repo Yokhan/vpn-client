@@ -1,3 +1,19 @@
+## Актуальное состояние (2026-11-13): Windows GATES 1.7.14 и Android GATES 1.8.15 DEBUG собраны и проверены, готовы к переключению
+
+- **Worktree сборки:** Windows/shared-ui — `c:\Users\iohan\Documents\.worktrees\gates-windows-xray-build` (`1.7.14`), Android/shared-ui — `c:\Users\iohan\Documents\.worktrees\gates-android-xray-sidecar` (`1.8.15`, `VERSION_CODE=536`).
+- **Что выполнено:** [windows-client-parity-plan.md](file:///C:/Users/iohan/Documents/.worktrees/gates-windows-xray-build/docs/windows-client-parity-plan.md) дополнен и реализован: двухколоночный desktop companion (`>= 840.dp`), 6-вкладочный `GatesBottomNavigation` без бургера/Drawer на обеих платформах, монолитный заголовок окна (`WindowsWindowChrome`), `WindowsSingleInstance`, обновлённый DnD (`NativeFileDropTarget` + бинарный `.lnk` + Squirrel + глубина папок 4 + HiDPI + `.url` подсказка), горячие клавиши и ПКМ-меню приложений, JNA-реестр установленных программ и ленивые иконки, JNA живая телеметрия и список активных сетевых процессов («Кто сейчас в сети»), локальный 3s polling, расширенный трей на русском и устранение лага запуска/выключения на Android.
+- **Проверки Windows:**
+  - `.\gradlew.bat :shared-ui:desktopTest :windows-service:test :windows-app:check --no-daemon` -> `BUILD SUCCESSFUL`: `:shared-ui:desktopTest` (`9/9`), `:windows-service:test` (`152/152`), `:windows-app:test` (`228/228`), release/encoding/design/runtime checks PASSED.
+  - `.\gradlew.bat :windows-app:packageMsi :windows-app:packageExe --no-daemon` -> `BUILD SUCCESSFUL`:
+    - `windows-app\build\compose\binaries\main\msi\GATES-1.7.14.msi` (`bytes=161374208`, `sha256=AC2C6D0D799C698120A23DBFC60E99FF0764F25BD0DF66DA359D6FA9FD6F3CAE`)
+    - `windows-app\build\compose\binaries\main\exe\GATES-1.7.14.exe` (`bytes=162097664`, `sha256=458544447F8E3DF7B0BD512078E33FBA0C247B1EC0ABDB4A40D`)
+    - Откат: `_archive\rollback-1.7.12\GATES-1.7.12.msi` (`bytes=160739328`, `sha256=F2BC7FE4D525238DDBAFF9DB85903A02EE961CB2FB9B676ECCE86479269F3093`)
+  - `Test-GatesInstallerContract.ps1` (`ExpectedProductVersion 1.7.14`) -> exit `0`; `Invoke-Pester` (`Test-GatesInstallerContract.Tests.ps1`) -> `4/4` passed.
+- **Проверки Android и паритет `shared/ui/src`:**
+  - `.\gradlew.bat :shared-ui:testDebugUnitTest :app:testOssDebugUnitTest :app:assembleOssDebug --no-daemon` -> `BUILD SUCCESSFUL`: `:shared-ui:testDebugUnitTest` (`9/9`), `:app:testOssDebugUnitTest` (`108/108`), APK `GATES-1.8.15-arm64-v8a-debug.apk` (`bytes=55174248`, `sha256=312AFB48251728DBBD3A5F67363196E0FC98DCD2B547750632DC07036AB097DC`).
+  - SHA-256 паритет `shared/ui/src`: `22/22` файлов идентичны (`0` расхождений).
+- **Живой хост и переключение:** служба `GatesVpn` (`1.7.12`, `Running`) не останавливалась; для переключения пользователем обновлён [GATES-switch-local.cmd](file:///C:/Users/iohan/Documents/.worktrees/gates-windows-xray-build/windows-app/tools/GATES-switch-local.cmd) (указывает на `GATES-1.7.14.msi`).
+
 # Текущая задача: Хардкорный форк NekoBox → YokhanVPN
 
 ## Цель

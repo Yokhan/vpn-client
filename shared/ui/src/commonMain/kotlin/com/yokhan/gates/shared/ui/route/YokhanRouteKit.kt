@@ -4,10 +4,11 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,15 +16,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,23 +47,30 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yokhan.gates.shared.ui.design.YokhanGreen
+import com.yokhan.gates.shared.ui.design.YokhanLayout
 import com.yokhan.gates.shared.ui.design.YokhanMotion
 import com.yokhan.gates.shared.ui.design.YokhanPalette
 import com.yokhan.gates.shared.ui.design.YokhanRadius
@@ -70,6 +86,7 @@ data class YokhanRouteAction(
     val title: String,
     val primary: Boolean = false,
     val enabled: Boolean = true,
+    val fullWidth: Boolean = false,
     val onClick: () -> Unit,
 )
 
@@ -78,51 +95,122 @@ fun YokhanRouteFrame(
     title: String,
     systemLabel: String,
     spaceActive: Boolean,
-    onMenuClick: () -> Unit,
+    onMenuClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
-    showMenu: Boolean = true,
+    showMenu: Boolean = false,
+    bottomInsetPaddingDp: Int = 64,
+    subtitle: String = "",
+    fullWidthContent: Boolean = false,
+    companionContent: (@Composable ColumnScope.(YokhanPalette, YokhanTypography) -> Unit)? = null,
     content: @Composable ColumnScope.(YokhanPalette, YokhanTypography) -> Unit,
 ) {
-    val target = yokhanPalette(spaceActive = spaceActive)
-    val colors = target.animate()
+    val colors = yokhanPalette(spaceActive = spaceActive)
+    val bgState = animateColorAsState(
+        targetValue = colors.background,
+        animationSpec = tween(380, easing = YokhanMotion.CssEase),
+        label = "route-frame-bg",
+    )
     val typography = yokhanTypography()
+    val bottomScrollPadding = YokhanSpacing.ScreenBottom +
+        bottomInsetPaddingDp.dp +
+        WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.background),
+            .drawBehind { drawRect(bgState.value) },
     ) {
         YokhanRouteStars(
             active = spaceActive,
             modifier = Modifier.fillMaxSize(),
         )
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .safeDrawingPadding(),
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+                ),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            YokhanRouteTopBar(
-                title = title,
-                systemLabel = systemLabel,
-                colors = colors,
-                typography = typography,
-                onMenuClick = onMenuClick,
-                onBack = onBack,
-                showMenu = showMenu,
-            )
+            val useCompanion = companionContent != null && maxWidth >= YokhanLayout.DesktopContentCompanionBreakpoint
+            val expandFullWidth = fullWidthContent && maxWidth >= YokhanLayout.DesktopContentCompanionBreakpoint
+            val topBarMaxWidth = if (useCompanion || expandFullWidth) YokhanLayout.DesktopTotalMaxWidth else YokhanLayout.ReadableMaxWidth
+
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = YokhanSpacing.ScreenHorizontal)
-                    .padding(
-                        top = YokhanSpacing.ScreenTop,
-                        bottom = YokhanSpacing.ScreenBottom,
-                    ),
-                verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap),
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                content(colors, typography)
+                YokhanRouteTopBar(
+                    title = title,
+                    subtitle = subtitle,
+                    systemLabel = systemLabel,
+                    colors = colors,
+                    typography = typography,
+                    onMenuClick = onMenuClick,
+                    onBack = onBack,
+                    showMenu = showMenu,
+                    maxWidth = topBarMaxWidth,
+                )
+                if (useCompanion) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .widthIn(max = YokhanLayout.DesktopTotalMaxWidth)
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(YokhanLayout.DesktopColumnGap),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(0.47f)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState())
+                                .padding(
+                                    top = YokhanSpacing.ScreenTop,
+                                    bottom = bottomScrollPadding,
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap),
+                        ) {
+                            content(colors, typography)
+                        }
+                        Column(
+                            modifier = Modifier
+                                .weight(0.53f)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState())
+                                .padding(
+                                    top = YokhanSpacing.ScreenTop,
+                                    bottom = bottomScrollPadding,
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap),
+                        ) {
+                            companionContent?.invoke(this, colors, typography)
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.TopCenter,
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .widthIn(max = YokhanLayout.ReadableMaxWidth)
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = YokhanSpacing.ScreenHorizontal)
+                                .padding(
+                                    top = YokhanSpacing.ScreenTop,
+                                    bottom = bottomScrollPadding,
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap),
+                        ) {
+                            content(colors, typography)
+                        }
+                    }
+                }
             }
         }
     }
@@ -133,48 +221,121 @@ fun YokhanRouteLazyFrame(
     title: String,
     systemLabel: String,
     spaceActive: Boolean,
-    onMenuClick: () -> Unit,
+    onMenuClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    showMenu: Boolean = false,
+    bottomInsetPaddingDp: Int = 64,
+    subtitle: String = "",
+    fullWidthContent: Boolean = false,
+    companionContent: (@Composable ColumnScope.(YokhanPalette, YokhanTypography) -> Unit)? = null,
     content: LazyListScope.(YokhanPalette, YokhanTypography) -> Unit,
 ) {
-    val target = yokhanPalette(spaceActive = spaceActive)
-    val colors = target.animate()
+    val colors = yokhanPalette(spaceActive = spaceActive)
+    val bgState = animateColorAsState(
+        targetValue = colors.background,
+        animationSpec = tween(380, easing = YokhanMotion.CssEase),
+        label = "route-lazy-bg",
+    )
     val typography = yokhanTypography()
+    val bottomScrollPadding = YokhanSpacing.ScreenBottom +
+        bottomInsetPaddingDp.dp +
+        WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.background),
+            .drawBehind { drawRect(bgState.value) },
     ) {
         YokhanRouteStars(
             active = spaceActive,
             modifier = Modifier.fillMaxSize(),
         )
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .safeDrawingPadding(),
-        ) {
-            YokhanRouteTopBar(
-                title = title,
-                systemLabel = systemLabel,
-                colors = colors,
-                typography = typography,
-                onMenuClick = onMenuClick,
-                onBack = onBack,
-            )
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = YokhanSpacing.ScreenHorizontal,
-                    top = YokhanSpacing.ScreenTop,
-                    end = YokhanSpacing.ScreenHorizontal,
-                    bottom = YokhanSpacing.ScreenBottom,
+                .windowInsetsPadding(
+                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
                 ),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            val useCompanion = companionContent != null && maxWidth >= YokhanLayout.DesktopContentCompanionBreakpoint
+            val expandFullWidth = fullWidthContent && maxWidth >= YokhanLayout.DesktopContentCompanionBreakpoint
+            val topBarMaxWidth = if (useCompanion || expandFullWidth) YokhanLayout.DesktopTotalMaxWidth else YokhanLayout.ReadableMaxWidth
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                content(colors, typography)
+                YokhanRouteTopBar(
+                    title = title,
+                    subtitle = subtitle,
+                    systemLabel = systemLabel,
+                    colors = colors,
+                    typography = typography,
+                    onMenuClick = onMenuClick,
+                    onBack = onBack,
+                    showMenu = showMenu,
+                    maxWidth = topBarMaxWidth,
+                )
+                if (useCompanion) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .widthIn(max = YokhanLayout.DesktopTotalMaxWidth)
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(YokhanLayout.DesktopColumnGap),
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(0.48f)
+                                .fillMaxHeight(),
+                            verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                top = YokhanSpacing.ScreenTop,
+                                bottom = bottomScrollPadding,
+                            ),
+                        ) {
+                            content(colors, typography)
+                        }
+                        Column(
+                            modifier = Modifier
+                                .weight(0.52f)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState())
+                                .padding(
+                                    top = YokhanSpacing.ScreenTop,
+                                    bottom = bottomScrollPadding,
+                                ),
+                            verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap),
+                        ) {
+                            companionContent?.invoke(this, colors, typography)
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.TopCenter,
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .widthIn(max = if (expandFullWidth) YokhanLayout.DesktopTotalMaxWidth else YokhanLayout.ReadableMaxWidth),
+                            verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                start = YokhanSpacing.ScreenHorizontal,
+                                top = YokhanSpacing.ScreenTop,
+                                end = YokhanSpacing.ScreenHorizontal,
+                                bottom = bottomScrollPadding,
+                            ),
+                        ) {
+                            content(colors, typography)
+                        }
+                    }
+                }
             }
         }
     }
@@ -185,18 +346,23 @@ fun YokhanRouteSurface(
     title: String,
     systemLabel: String,
     spaceActive: Boolean,
-    onMenuClick: () -> Unit,
+    onMenuClick: () -> Unit = {},
     modifier: Modifier = Modifier,
+    showMenu: Boolean = false,
     content: @Composable ColumnScope.(YokhanPalette, YokhanTypography) -> Unit,
 ) {
-    val target = yokhanPalette(spaceActive = spaceActive)
-    val colors = target.animate()
+    val colors = yokhanPalette(spaceActive = spaceActive)
+    val bgState = animateColorAsState(
+        targetValue = colors.background,
+        animationSpec = tween(380, easing = YokhanMotion.CssEase),
+        label = "route-surface-bg",
+    )
     val typography = yokhanTypography()
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.background),
+            .drawBehind { drawRect(bgState.value) },
     ) {
         YokhanRouteStars(
             active = spaceActive,
@@ -206,6 +372,7 @@ fun YokhanRouteSurface(
             modifier = Modifier
                 .fillMaxSize()
                 .safeDrawingPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             YokhanRouteTopBar(
                 title = title,
@@ -213,6 +380,7 @@ fun YokhanRouteSurface(
                 colors = colors,
                 typography = typography,
                 onMenuClick = onMenuClick,
+                showMenu = showMenu,
             )
             content(colors, typography)
         }
@@ -405,7 +573,7 @@ fun Modifier.yokhanOutlinedSurface(
     colors: YokhanPalette,
     radius: Dp = YokhanRadius.Card,
     borderColor: Color = colors.border,
-    backgroundColor: Color = Color.Transparent,
+    backgroundColor: Color = colors.surface,
 ): Modifier {
     val shape = RoundedCornerShape(radius)
     return clip(shape)
@@ -471,28 +639,62 @@ fun YokhanButtonGrid(
     typography: YokhanTypography,
     modifier: Modifier = Modifier,
 ) {
+    val rows = mutableListOf<List<YokhanRouteAction>>()
+    var pendingPair = mutableListOf<YokhanRouteAction>()
+    for (action in actions) {
+        if (action.fullWidth) {
+            if (pendingPair.isNotEmpty()) {
+                rows += pendingPair.toList()
+                pendingPair = mutableListOf()
+            }
+            rows += listOf(action)
+        } else {
+            pendingPair += action
+            if (pendingPair.size == 2) {
+                rows += pendingPair.toList()
+                pendingPair = mutableListOf()
+            }
+        }
+    }
+    if (pendingPair.isNotEmpty()) {
+        rows += pendingPair.toList()
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
     ) {
-        actions.chunked(2).forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
-            ) {
-                row.forEach { action ->
-                    YokhanRouteButton(
-                        text = action.title,
-                        primary = action.primary,
-                        enabled = action.enabled,
-                        colors = colors,
-                        typography = typography,
-                        onClick = action.onClick,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (row.size == 1) {
-                    Spacer(Modifier.weight(1f))
+        rows.forEach { row ->
+            if (row.size == 1 && row[0].fullWidth) {
+                val action = row[0]
+                YokhanRouteButton(
+                    text = action.title,
+                    primary = action.primary,
+                    enabled = action.enabled,
+                    colors = colors,
+                    typography = typography,
+                    onClick = action.onClick,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap),
+                ) {
+                    row.forEach { action ->
+                        YokhanRouteButton(
+                            text = action.title,
+                            primary = action.primary,
+                            enabled = action.enabled,
+                            colors = colors,
+                            typography = typography,
+                            onClick = action.onClick,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (row.size == 1) {
+                        Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }
@@ -510,21 +712,39 @@ fun YokhanRouteButton(
     modifier: Modifier = Modifier,
 ) {
     val alpha = if (enabled) 1f else 0.42f
-    val background = if (primary) colors.accent.copy(alpha = 0.92f) else Color.Transparent
-    val border = if (primary) colors.accent.copy(alpha = 0.9f) else colors.border
-    val textColor = if (primary) Color.White else colors.primary
+    val background = if (primary) colors.accent else colors.surface
+    val border = if (primary) colors.accent else colors.border
+    val textColor = if (primary) colors.onAccent else colors.primary
+    val shape = RoundedCornerShape(YokhanRadius.Control)
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && enabled) 0.98f else 1f,
+        animationSpec = tween(110),
+        label = "route-btn-scale",
+    )
 
     Box(
         modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .heightIn(min = YokhanSpacing.ControlMinHeight)
-            .clip(RoundedCornerShape(YokhanRadius.Pill))
+            .clip(shape)
             .background(background)
-            .border(YokhanStroke.Thin, border, RoundedCornerShape(YokhanRadius.Pill))
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .border(YokhanStroke.Thin, border, shape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+            )
             .alpha(alpha)
             .padding(
-                horizontal = YokhanSpacing.ControlHorizontal,
-                vertical = YokhanSpacing.ControlVertical,
+                horizontal = 10.dp,
+                vertical = 10.dp,
             ),
         contentAlignment = Alignment.Center,
     ) {
@@ -533,9 +753,11 @@ fun YokhanRouteButton(
             color = textColor,
             fontFamily = typography.mono,
             fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
+            lineHeight = 14.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
             letterSpacing = 0.sp,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
     }
@@ -598,6 +820,79 @@ fun YokhanCheckboxRow(
 }
 
 @Composable
+fun YokhanActionRow(
+    title: String,
+    colors: YokhanPalette,
+    typography: YokhanTypography,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    enabled: Boolean = true,
+    trailingText: String = "›",
+    accent: Boolean = false,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed && enabled) 0.985f else 1f,
+        animationSpec = tween(100),
+        label = "action-row-scale",
+    )
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = YokhanSpacing.ControlMinHeight)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
+            .clip(RoundedCornerShape(YokhanRadius.Panel))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .alpha(if (enabled) 1f else 0.42f)
+            .padding(vertical = 8.dp, horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.InlineGap),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = if (accent) colors.accent else colors.primary,
+                fontFamily = typography.text,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (!subtitle.isNullOrBlank()) {
+                YokhanBody(
+                    text = subtitle,
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 3.dp),
+                    maxLines = 2,
+                )
+            }
+        }
+        if (trailingText.isNotEmpty()) {
+            Text(
+                text = trailingText,
+                color = if (accent) colors.accent else colors.secondary,
+                fontFamily = typography.mono,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
 fun YokhanStatusPill(
     text: String,
     active: Boolean,
@@ -636,52 +931,70 @@ private fun YokhanRouteTopBar(
     colors: YokhanPalette,
     typography: YokhanTypography,
     onMenuClick: () -> Unit,
+    subtitle: String = "",
     onBack: (() -> Unit)? = null,
-    showMenu: Boolean = true,
+    showMenu: Boolean = false,
+    backContentDescription: String = "Назад",
+    maxWidth: Dp = YokhanLayout.ReadableMaxWidth,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(YokhanSpacing.TopBarHeight)
-            .padding(horizontal = YokhanSpacing.ScreenHorizontal),
+            .widthIn(max = maxWidth)
+            .heightIn(min = YokhanSpacing.TopBarHeight)
+            .padding(horizontal = YokhanSpacing.ScreenHorizontal, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.Icon),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (onBack == null && showMenu) {
-            YokhanMenuGlyph(colors = colors, onClick = onMenuClick)
+            YokhanMenuGlyph(
+                colors = colors,
+                onClick = onMenuClick,
+            )
         } else if (onBack != null) {
             IconButton(onClick = onBack, modifier = Modifier.testTag("route.back")) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = colors.primary)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = backContentDescription, tint = colors.primary)
             }
         }
-        Text(
-            text = title,
-            color = colors.primary,
-            fontFamily = typography.text,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 0.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = title,
+                color = colors.primary,
+                fontFamily = typography.text,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = (-0.2).sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (subtitle.isNotBlank()) {
+                Text(
+                    text = subtitle,
+                    color = colors.secondary,
+                    fontFamily = typography.text,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
                 text = systemLabel.uppercase(),
                 color = colors.secondary,
                 fontFamily = typography.mono,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.Medium,
                 letterSpacing = 0.sp,
                 maxLines = 1,
             )
             YokhanRouteStatusDot(
                 active = true,
                 colors = colors,
-                size = YokhanSpacing.ControlDot,
+                size = 6.dp,
             )
         }
     }
@@ -692,32 +1005,33 @@ private fun YokhanMenuGlyph(
     colors: YokhanPalette,
     onClick: () -> Unit,
 ) {
-    Canvas(
+    Box(
         modifier = Modifier
-            .size(YokhanSpacing.MenuGlyph)
-            .clip(RoundedCornerShape(YokhanRadius.MenuGlyph))
-            .clickable(onClick = onClick)
-            .padding(3.dp),
+            .size(width = 36.dp, height = 34.dp)
+            .testTag("route.menu")
+            .clip(RoundedCornerShape(YokhanRadius.Small))
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        val stroke = 2.4.dp.toPx()
-        val x0 = 4.dp.toPx()
-        val x1 = size.width - 4.dp.toPx()
-        listOf(8.dp.toPx(), 16.dp.toPx(), 24.dp.toPx()).forEach { y ->
-            drawLine(
-                color = colors.primary.copy(alpha = 0.78f),
-                start = Offset(x0, y),
-                end = Offset(x1, y),
-                strokeWidth = stroke,
-                cap = StrokeCap.Square,
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            repeat(3) {
+                Box(
+                    modifier = Modifier
+                        .width(22.dp)
+                        .height(2.dp)
+                        .clip(RoundedCornerShape(YokhanRadius.Tiny))
+                        .background(colors.primary.copy(alpha = 0.74f)),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun YokhanToggle(
+fun YokhanToggle(
     checked: Boolean,
     colors: YokhanPalette,
+    modifier: Modifier = Modifier,
 ) {
     val knobOffset by animateDpAsState(
         targetValue = if (checked) 22.dp else 2.dp,
@@ -726,7 +1040,7 @@ private fun YokhanToggle(
     )
     val density = LocalDensity.current
     Box(
-        modifier = Modifier
+        modifier = modifier
             .width(48.dp)
             .height(28.dp)
             .clip(RoundedCornerShape(999.dp))
@@ -749,28 +1063,24 @@ private fun YokhanRouteStars(
     active: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val alpha by animateFloatAsState(
+    var mounted by remember { mutableStateOf(active) }
+    LaunchedEffect(active) {
+        if (active) {
+            mounted = true
+        } else {
+            delay(480)
+            mounted = false
+        }
+    }
+    val alphaState = animateFloatAsState(
         targetValue = if (active) 1f else 0f,
-        animationSpec = tween(600, easing = YokhanMotion.CssEase),
+        animationSpec = tween(420, easing = YokhanMotion.CssEase),
         label = "route-stars-alpha",
     )
-    if (active || alpha > 0.01f) {
+    if (mounted) {
         YokhanStarfield(
-            modifier = modifier.alpha(alpha),
+            modifier = modifier.graphicsLayer { alpha = alphaState.value },
+            active = mounted,
         )
     }
-}
-
-@Composable
-private fun YokhanPalette.animate(): YokhanPalette {
-    return YokhanPalette(
-        background = animateColorAsState(background, tween(560, easing = YokhanMotion.CssEase), label = "route-bg").value,
-        primary = animateColorAsState(primary, tween(360, easing = YokhanMotion.CssEase), label = "route-primary").value,
-        secondary = animateColorAsState(secondary, tween(360, easing = YokhanMotion.CssEase), label = "route-secondary").value,
-        tertiary = animateColorAsState(tertiary, tween(360, easing = YokhanMotion.CssEase), label = "route-tertiary").value,
-        border = animateColorAsState(border, tween(360, easing = YokhanMotion.CssEase), label = "route-border").value,
-        divider = animateColorAsState(divider, tween(360, easing = YokhanMotion.CssEase), label = "route-divider").value,
-        accent = animateColorAsState(accent, tween(360, easing = YokhanMotion.CssEase), label = "route-accent").value,
-        orbCenter = animateColorAsState(orbCenter, tween(360, easing = YokhanMotion.CssEase), label = "route-orb").value,
-    )
 }

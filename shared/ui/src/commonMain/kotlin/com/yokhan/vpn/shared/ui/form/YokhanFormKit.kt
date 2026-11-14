@@ -91,7 +91,7 @@ fun YokhanFormScreen(
             typography = typography,
             onEvent = onEvent,
         )
-        Spacer(Modifier.height(YokhanSpacing.ScreenHorizontal))
+        Spacer(Modifier.height(YokhanSpacing.CardPadding))
     }
 }
 

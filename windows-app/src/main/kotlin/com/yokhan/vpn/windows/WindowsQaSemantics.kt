@@ -106,4 +106,5 @@ internal class WindowsQaSemantics : PlatformContext.RootForTestListener {
 }
 
 internal fun isWindowsQaTag(tag: String): Boolean =
-    tag.length in 1..72 && tag.matches(Regex("(?:dashboard|settings|routing|report|route|form|history)\\.[a-z0-9_.-]+"))
+    tag.length in 1..72 &&
+        tag.matches(Regex("(?:nav|dashboard|access|settings|routes|routing|drawer|logs|tools|report|route|form|history)\\.[a-z0-9_.-]+"))

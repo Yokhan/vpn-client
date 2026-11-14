@@ -42,6 +42,11 @@ internal fun windowsUiResultMessage(command: String, result: RuntimeCommandResul
         "check-update" -> "Не удалось проверить обновления."
         "connect" -> "Не удалось подключиться."
         "stop" -> "Не удалось отключиться."
+        "set-route" -> "Не удалось переключить маршрут."
+        "set-runtime" -> "Не удалось переключить режим работы ядра."
+        "set-tun-routing" -> "Не удалось изменить режим разделения приложений."
+        "add-app-proxy", "add-app-direct" -> "Не удалось добавить правило для приложения."
+        "remove-app-proxy", "remove-app-direct" -> "Не удалось удалить правило для приложения."
         else -> "Не удалось сохранить изменения."
     }
     return when (command) {
@@ -56,8 +61,38 @@ internal fun windowsUiResultMessage(command: String, result: RuntimeCommandResul
         }
         "connect" -> "Подключено."
         "stop" -> "Отключено."
+        "reconnect", "sync-runtime" -> "Туннель и конфигурация службы синхронизированы."
+        "probe-routes" -> "Диагностика маршрутов завершена."
+        "test" -> "Проверка соединения завершена."
+        "support-bundle" -> "Диагностический архив сохранён."
+        "disable-system-proxy" -> "Системный прокси восстановлен."
+        "enable-autostart" -> "Автозапуск включён."
+        "disable-autostart" -> "Автозапуск выключен."
+        "set-route" -> "Активный маршрут обновлён."
+        "set-runtime" -> "Режим работы ядра обновлён."
+        "set-tun-routing" -> "Режим разделения приложений обновлён."
+        "add-app-proxy" -> "Приложение добавлено в маршрут «Через GATES»."
+        "add-app-direct" -> "Приложение добавлено в маршрут «Напрямую»."
+        "remove-app-proxy" -> "Правило «Через GATES» удалено."
+        "remove-app-direct" -> "Правило «Напрямую» удалено."
+        "set-ru-bypass" -> localizedFirstLineOrFallback(result.output, "Настройки автообхода РФ сохранены.")
+        "set-whole-traffic" -> localizedFirstLineOrFallback(result.output, "Режим трафика обновлён.")
+        "set-bypass-lan" -> localizedFirstLineOrFallback(result.output, "Параметры локальной сети (LAN) сохранены.")
+        "set-block-quic" -> localizedFirstLineOrFallback(result.output, "Параметры блокировки QUIC сохранены.")
+        "set-route-order" -> localizedFirstLineOrFallback(result.output, "Приоритет маршрутов обновлён.")
         else -> "Изменения сохранены."
     }
+}
+
+private fun localizedFirstLineOrFallback(output: String, fallback: String): String {
+    val firstLine = output.lineSequence().firstOrNull()?.trim().orEmpty()
+    if (firstLine.isBlank()) return fallback
+    val hasCyrillic = firstLine.any { it in '\u0400'..'\u04FF' }
+    val hasLeakage = firstLine.contains("C:\\", ignoreCase = true) ||
+        firstLine.contains("Exception", ignoreCase = true) ||
+        firstLine.contains("token=", ignoreCase = true) ||
+        firstLine.contains("password=", ignoreCase = true)
+    return if (hasCyrillic && !hasLeakage) firstLine else fallback
 }
 
 internal fun windowsUiFailureCode(command: String, result: RuntimeCommandResult): String? {

@@ -13,23 +13,30 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -46,7 +53,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -56,7 +65,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -67,11 +78,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.yokhan.gates.shared.domain.ConnectionStatus
 import com.yokhan.gates.shared.domain.DashboardState
-import com.yokhan.gates.shared.ui.design.YokhanAccent
-import com.yokhan.gates.shared.ui.design.YokhanGreen
+import com.yokhan.gates.shared.ui.design.YokhanLayout
 import com.yokhan.gates.shared.ui.design.YokhanMotion
 import com.yokhan.gates.shared.ui.design.YokhanPalette
-import com.yokhan.gates.shared.ui.design.YokhanRed
+import com.yokhan.gates.shared.ui.design.YokhanRadius
+import com.yokhan.gates.shared.ui.design.YokhanSpacing
+import com.yokhan.gates.shared.ui.design.YokhanStroke
 import com.yokhan.gates.shared.ui.design.YokhanTypography
 import com.yokhan.gates.shared.ui.design.YokhanStarfield
 import com.yokhan.gates.shared.ui.design.yokhanPalette
@@ -101,6 +113,7 @@ data class DashboardUiActions(
     val onSelectProfile: (Long) -> Unit = {},
     val onEditProfile: (Long) -> Unit = {},
     val onOpenProfileMenu: (Long) -> Unit = {},
+    val onCurrentConfigClick: () -> Unit = {},
 )
 
 @Immutable
@@ -120,11 +133,12 @@ data class DashboardUiTuning(
 
 @Immutable
 data class DashboardUiVisibility(
-    val showMenu: Boolean = true,
+    val showMenu: Boolean = false,
     val showConnectionTest: Boolean = true,
     val showProfiles: Boolean = true,
     val showAddProfile: Boolean = true,
     val showProfileActions: Boolean = true,
+    val addProfileEnabled: Boolean = true,
 )
 
 object DashboardRocketTokens {
@@ -166,6 +180,7 @@ data class DashboardUiLabels(
     val latency: String,
     val status: String,
     val protocol: String,
+    val menu: String = "Меню",
 ) {
     companion object {
         val Russian = DashboardUiLabels(
@@ -208,76 +223,34 @@ fun YokhanDashboardScreen(
     visibility: DashboardUiVisibility = DashboardUiVisibility(),
     scrollToTopSignal: Int = 0,
     drawBackgroundEffects: Boolean = true,
+    companionContent: (@Composable ColumnScope.(YokhanPalette, YokhanTypography) -> Unit)? = null,
 ) {
     val connected = state.connectionStatus == ConnectionStatus.Connected
     val scrollState = rememberScrollState()
-    var visualSpaceActive by remember { mutableStateOf(state.shouldAnimateSpace) }
-    var starfieldMounted by remember { mutableStateOf(state.shouldAnimateSpace) }
-    val themeSpaceActive = state.shouldAnimateSpace || state.connectionStatus == ConnectionStatus.Disconnecting
+    val themeSpaceActive = state.shouldAnimateSpace
+    var starfieldMounted by remember { mutableStateOf(themeSpaceActive) }
     LaunchedEffect(scrollToTopSignal) {
         if (scrollToTopSignal > 0 && scrollState.value > 0) {
             scrollState.animateScrollTo(0, tween(520, easing = CssEaseOut))
         }
     }
-    LaunchedEffect(state.connectionStatus, state.shouldAnimateSpace) {
-        if (state.shouldAnimateSpace || state.connectionStatus == ConnectionStatus.Disconnecting) {
-            visualSpaceActive = true
+    LaunchedEffect(themeSpaceActive) {
+        if (themeSpaceActive) {
             starfieldMounted = true
-        } else if (visualSpaceActive) {
-            delay(1400)
-            visualSpaceActive = false
-            delay(1200)
-            starfieldMounted = false
         } else {
+            delay(480)
             starfieldMounted = false
         }
     }
-    val targetColors = yokhanPalette(spaceActive = themeSpaceActive)
-    val colors = DashboardColors(
-        background = animateColorAsState(
-            targetValue = targetColors.background,
-            animationSpec = tween(600, easing = CssEase),
-            label = "dashboard-background",
-        ).value,
-        primary = animateColorAsState(
-            targetValue = targetColors.primary,
-            animationSpec = tween(400, easing = CssEase),
-            label = "dashboard-primary",
-        ).value,
-        secondary = animateColorAsState(
-            targetValue = targetColors.secondary,
-            animationSpec = tween(400, easing = CssEase),
-            label = "dashboard-secondary",
-        ).value,
-        tertiary = animateColorAsState(
-            targetValue = targetColors.tertiary,
-            animationSpec = tween(400, easing = CssEase),
-            label = "dashboard-tertiary",
-        ).value,
-        border = animateColorAsState(
-            targetValue = targetColors.border,
-            animationSpec = tween(400, easing = CssEase),
-            label = "dashboard-border",
-        ).value,
-        divider = animateColorAsState(
-            targetValue = targetColors.divider,
-            animationSpec = tween(400, easing = CssEase),
-            label = "dashboard-divider",
-        ).value,
-        accent = animateColorAsState(
-            targetValue = targetColors.accent,
-            animationSpec = tween(400, easing = CssEase),
-            label = "dashboard-accent",
-        ).value,
-        orbCenter = animateColorAsState(
-            targetValue = targetColors.orbCenter,
-            animationSpec = tween(400, easing = CssEase),
-            label = "dashboard-orb-center",
-        ).value,
+    val colors = yokhanPalette(spaceActive = themeSpaceActive)
+    val animatedBgState = animateColorAsState(
+        targetValue = colors.background,
+        animationSpec = tween(420, easing = CssEase),
+        label = "dashboard-background",
     )
-    val spaceLayerAlpha by animateFloatAsState(
-        targetValue = if (visualSpaceActive) 1f else 0f,
-        animationSpec = tween(600, easing = CssEase),
+    val spaceLayerAlphaState = animateFloatAsState(
+        targetValue = if (themeSpaceActive) 1f else 0f,
+        animationSpec = tween(420, easing = CssEase),
         label = "dashboard-space-layer",
     )
     val typography = dashboardTypography()
@@ -285,51 +258,122 @@ fun YokhanDashboardScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (drawBackgroundEffects) colors.background else Color.Transparent)
+            .drawBehind {
+                if (drawBackgroundEffects) {
+                    drawRect(animatedBgState.value)
+                }
+            },
     ) {
         if (drawBackgroundEffects) {
             YokhanStarfield(
                 modifier = Modifier.fillMaxSize().graphicsLayer {
-                    alpha = if (starfieldMounted) spaceLayerAlpha else 0f
+                    alpha = if (starfieldMounted) spaceLayerAlphaState.value else 0f
                 },
                 active = starfieldMounted,
             )
         }
 
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp)) {
-                DashboardToolbar(colors, labels, typography, actions, visibility)
-                DashboardTelemetryStrip(
-                    latencyLabel = state.latencyLabel,
-                    testRunning = state.isConnectionTestRunning,
-                    protocolLabel = state.activeProfileProtocolLabel,
-                    connected = connected,
-                    colors = colors,
-                    labels = labels,
-                    typography = typography,
-                )
-            }
+            val useCompanion = companionContent != null && maxWidth >= YokhanLayout.DesktopContentCompanionBreakpoint
+            val headerMaxWidth = if (useCompanion) YokhanLayout.DesktopTotalMaxWidth else YokhanLayout.ReadableMaxWidth
+            val sidePadding = if (useCompanion) 16.dp else 12.dp
+
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .verticalScroll(scrollState)
-                    .padding(start = 12.dp, end = 12.dp, bottom = tuning.contentBottomPadding.dp),
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                CurrentConfigCard(state.activeProfileName, state.activeProfileSubtitle, colors, labels, typography)
-                LaunchPanel(state.connectionStatus, state.uploadLabel, state.downloadLabel, connected, visualSpaceActive, colors, labels, typography, actions, tuning)
-                ConnectionStatusRow(state.connectionStatus, state.timerLabel, connected, colors, labels, typography)
-                if (visibility.showConnectionTest) {
-                    ConnectionTestButton(state.isConnectionTestRunning, state.canRunConnectionTest, colors, labels, typography, actions, tuning)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = headerMaxWidth)
+                        .padding(horizontal = sidePadding),
+                ) {
+                    DashboardToolbar(colors, labels, typography, actions, visibility)
+                    DashboardTelemetryStrip(
+                        latencyLabel = state.latencyLabel,
+                        testRunning = state.isConnectionTestRunning,
+                        protocolLabel = state.activeProfileProtocolLabel,
+                        connected = connected,
+                        colors = colors,
+                        labels = labels,
+                        typography = typography,
+                    )
                 }
-                if (visibility.showProfiles) {
-                    ProfilesCard(profiles, colors, labels, typography, actions, visibility)
+
+                if (useCompanion) {
+                    val companionScrollState = rememberScrollState()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = YokhanLayout.DesktopTotalMaxWidth)
+                            .weight(1f)
+                            .padding(horizontal = sidePadding),
+                        horizontalArrangement = Arrangement.spacedBy(YokhanLayout.DesktopColumnGap),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(0.47f)
+                                .fillMaxHeight()
+                                .verticalScroll(scrollState)
+                                .padding(bottom = tuning.contentBottomPadding.dp),
+                        ) {
+                            LaunchPanel(state.connectionStatus, state.uploadLabel, state.downloadLabel, connected, themeSpaceActive, colors, labels, typography, actions, tuning)
+                            Spacer(Modifier.height(44.dp))
+                            ConnectionStatusRow(state.connectionStatus, state.timerLabel, connected, colors, labels, typography)
+                            if (visibility.showConnectionTest) {
+                                ConnectionTestButton(state.isConnectionTestRunning, state.canRunConnectionTest, colors, labels, typography, actions, tuning)
+                            }
+                            Spacer(Modifier.height(40.dp))
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .weight(0.53f)
+                                .fillMaxHeight()
+                                .verticalScroll(companionScrollState)
+                                .padding(top = 6.dp, bottom = tuning.contentBottomPadding.dp),
+                            verticalArrangement = Arrangement.spacedBy(YokhanSpacing.SectionGap),
+                        ) {
+                            if (visibility.showProfiles) {
+                                ProfilesCard(profiles, colors, labels, typography, actions, visibility)
+                            }
+                            companionContent?.invoke(this, colors, typography)
+                            Spacer(Modifier.height(40.dp))
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = YokhanLayout.ReadableMaxWidth)
+                            .weight(1f)
+                            .verticalScroll(scrollState)
+                            .padding(start = 12.dp, end = 12.dp, bottom = tuning.contentBottomPadding.dp),
+                    ) {
+                        CurrentConfigCard(
+                            profileName = state.activeProfileName,
+                            profileSubtitle = state.activeProfileSubtitle,
+                            colors = colors,
+                            labels = labels,
+                            typography = typography,
+                            onClick = actions.onCurrentConfigClick,
+                        )
+                        LaunchPanel(state.connectionStatus, state.uploadLabel, state.downloadLabel, connected, themeSpaceActive, colors, labels, typography, actions, tuning)
+                        ConnectionStatusRow(state.connectionStatus, state.timerLabel, connected, colors, labels, typography)
+                        if (visibility.showConnectionTest) {
+                            ConnectionTestButton(state.isConnectionTestRunning, state.canRunConnectionTest, colors, labels, typography, actions, tuning)
+                        }
+                        if (visibility.showProfiles) {
+                            ProfilesCard(profiles, colors, labels, typography, actions, visibility)
+                        }
+                        Spacer(Modifier.height(40.dp))
+                    }
                 }
-                Spacer(Modifier.height(40.dp))
             }
         }
     }
@@ -351,28 +395,31 @@ private fun DashboardToolbar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 12.dp),
+            .height(YokhanSpacing.TopBarHeight),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (visibility.showMenu) {
-            Column(
+            Box(
                 modifier = Modifier
-                    .width(40.dp)
-                    .clickable(onClick = actions.onMenuClick),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+                    .size(width = 36.dp, height = 34.dp)
+                    .testTag("dashboard.menu")
+                    .clip(RoundedCornerShape(YokhanRadius.Small))
+                    .clickable(role = Role.Button, onClick = actions.onMenuClick),
+                contentAlignment = Alignment.CenterStart,
             ) {
-                repeat(3) {
-                    Box(
-                        Modifier
-                            .width(22.dp)
-                            .height(2.dp)
-                            .clip(RoundedCornerShape(1.dp))
-                            .background(colors.primary.copy(alpha = 0.58f))
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    repeat(3) {
+                        Box(
+                            modifier = Modifier
+                                .width(22.dp)
+                                .height(2.dp)
+                                .clip(RoundedCornerShape(YokhanRadius.Tiny))
+                                .background(colors.primary.copy(alpha = 0.74f)),
+                        )
+                    }
                 }
             }
-        } else {
-            Spacer(Modifier.width(40.dp))
         }
         Text(
             text = labels.title,
@@ -380,11 +427,15 @@ private fun DashboardToolbar(
             fontFamily = typography.text,
             fontSize = 18.sp,
             fontWeight = FontWeight.Medium,
+            letterSpacing = (-0.2).sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             Text(
                 text = labels.system,
                 color = colors.secondary,
@@ -395,11 +446,9 @@ private fun DashboardToolbar(
             )
             Box(
                 Modifier
-                    .padding(start = 2.dp)
-                    .offset(y = (-1).dp)
                     .size(6.dp)
                     .clip(CircleShape)
-                    .background(colors.accent)
+                    .background(colors.accent),
             )
         }
     }
@@ -412,12 +461,17 @@ private fun CurrentConfigCard(
     colors: DashboardColors,
     labels: DashboardUiLabels,
     typography: DashboardTypography,
+    onClick: () -> Unit = {},
 ) {
+    val cardShape = RoundedCornerShape(YokhanRadius.Card)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, colors.border, RoundedCornerShape(10.dp))
-            .padding(12.dp),
+            .clip(cardShape)
+            .background(colors.surface)
+            .border(YokhanStroke.Thin, colors.border, cardShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -464,18 +518,46 @@ private fun LaunchPanel(
     actions: DashboardUiActions,
     tuning: DashboardUiTuning,
 ) {
-    Row(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 20.dp)
             .graphicsLayer { clip = false }
             .zIndex(2f),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        SpeedPanel(labels.upload, uploadLabel, ICON_UPLOAD, colors, typography, false)
-        OrbScene(connectionStatus, connected, running, colors, labels, typography, actions.onToggleConnection, tuning)
-        SpeedPanel(labels.download, downloadLabel, ICON_DOWNLOAD, colors, typography, true)
+        val stacked = maxWidth < YokhanLayout.CompactBreakpoint
+        val compactSideWidth = if (maxWidth < 392.dp && !stacked) 68.dp else 80.dp
+        if (stacked) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer { clip = false },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OrbScene(connectionStatus, connected, running, colors, labels, typography, actions.onToggleConnection, tuning)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SpeedPanel(labels.upload, uploadLabel, ICON_UPLOAD, connected, colors, typography, false, width = 120.dp)
+                    SpeedPanel(labels.download, downloadLabel, ICON_DOWNLOAD, connected, colors, typography, true, width = 120.dp)
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer { clip = false },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                SpeedPanel(labels.upload, uploadLabel, ICON_UPLOAD, connected, colors, typography, false, width = compactSideWidth)
+                OrbScene(connectionStatus, connected, running, colors, labels, typography, actions.onToggleConnection, tuning)
+                SpeedPanel(labels.download, downloadLabel, ICON_DOWNLOAD, connected, colors, typography, true, width = compactSideWidth)
+            }
+        }
     }
 }
 
@@ -484,12 +566,14 @@ private fun SpeedPanel(
     label: String,
     value: String,
     arrow: String,
+    active: Boolean,
     colors: DashboardColors,
     typography: DashboardTypography,
     alignEnd: Boolean,
+    width: androidx.compose.ui.unit.Dp = 80.dp,
 ) {
     Column(
-        modifier = Modifier.width(80.dp),
+        modifier = Modifier.width(width),
         horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
     ) {
         Text(
@@ -514,13 +598,14 @@ private fun SpeedPanel(
             )
             Text(
                 text = arrow,
-                color = colors.accent,
+                color = if (active) colors.accent else colors.secondary.copy(alpha = 0.55f),
                 fontFamily = typography.mono,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 4.dp),
             )
         }
         WaveLine(
+            active = active,
             colors = colors,
             modifier = Modifier
                 .padding(top = 4.dp)
@@ -544,6 +629,14 @@ private fun OrbScene(
     val rocketRunning = connectionStatus == ConnectionStatus.Connecting ||
         connectionStatus == ConnectionStatus.Connected ||
         connectionStatus == ConnectionStatus.Disconnecting
+    val haptics = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.965f else 1f,
+        animationSpec = tween(110),
+        label = "orb-press-scale",
+    )
     val ringScale = rememberDashboardPulse(
         active = connected,
         initialValue = 1f,
@@ -562,8 +655,20 @@ private fun OrbScene(
     Box(
         modifier = Modifier
             .size(192.dp)
-            .graphicsLayer { clip = false }
-            .clickable(role = Role.Button, onClick = onClick)
+            .graphicsLayer {
+                clip = false
+                scaleX = pressScale
+                scaleY = pressScale
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                role = Role.Button,
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onClick()
+                },
+            )
             .testTag("dashboard.toggle"),
         contentAlignment = Alignment.Center,
     ) {
@@ -694,15 +799,6 @@ private fun ConnectionTestButton(
         animationSpec = tween(220, easing = CssEase),
         label = "connection-test-border",
     )
-    val backgroundAlpha by animateFloatAsState(
-        targetValue = when {
-            testRunning -> 0.12f
-            canRunTest -> 0.055f
-            else -> 0.028f
-        },
-        animationSpec = tween(260, easing = CssEase),
-        label = "connection-test-bg",
-    )
     val pulse = rememberDashboardPulse(
         active = testRunning,
         initialValue = 0.72f,
@@ -718,19 +814,11 @@ private fun ConnectionTestButton(
     ) {
         Row(
             modifier = Modifier
-                .shadow(if (testRunning) 5.dp else 3.dp, RoundedCornerShape(22.dp), clip = false)
+                .shadow(if (testRunning) 5.dp else 2.dp, RoundedCornerShape(YokhanRadius.Control), clip = false)
                 .height(38.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            colors.primary.copy(alpha = backgroundAlpha + 0.035f),
-                            colors.background.copy(alpha = 0.065f),
-                            colors.primary.copy(alpha = backgroundAlpha * 0.55f),
-                        )
-                    )
-                )
-                .border(1.dp, borderColor, RoundedCornerShape(22.dp))
+                .clip(RoundedCornerShape(YokhanRadius.Control))
+                .background(colors.surface)
+                .border(YokhanStroke.Thin, borderColor, RoundedCornerShape(YokhanRadius.Control))
                 .clickable(enabled = canRequestTest, onClick = actions.onRunConnectionTest)
                 .padding(horizontal = 17.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -776,12 +864,15 @@ private fun ProfilesCard(
     actions: DashboardUiActions,
     visibility: DashboardUiVisibility,
 ) {
+    val cardShape = RoundedCornerShape(YokhanRadius.Card)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 16.dp)
-            .border(1.dp, colors.border, RoundedCornerShape(10.dp))
-            .padding(12.dp),
+            .clip(cardShape)
+            .background(colors.surface)
+            .border(YokhanStroke.Thin, colors.border, cardShape)
+            .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SectionLabel(
@@ -794,11 +885,15 @@ private fun ProfilesCard(
             if (visibility.showAddProfile) {
                 Text(
                     text = labels.add,
-                    color = DashboardAccent,
+                    color = colors.accent.copy(alpha = if (visibility.addProfileEnabled) 1f else 0.55f),
                     fontFamily = typography.mono,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable(onClick = actions.onAddProfile),
+                    modifier = Modifier.clickable(
+                        enabled = visibility.addProfileEnabled,
+                        role = Role.Button,
+                        onClick = actions.onAddProfile,
+                    ),
                 )
             }
         }
@@ -820,12 +915,20 @@ private fun FirstRunCard(
     actions: DashboardUiActions,
     visibility: DashboardUiVisibility,
 ) {
+    val shape = RoundedCornerShape(YokhanRadius.Control)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 14.dp)
-            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
-            .clickable(enabled = visibility.showAddProfile, onClick = actions.onAddProfile)
+            .clip(shape)
+            .background(colors.surfaceRaised)
+            .border(YokhanStroke.Thin, colors.border, shape)
+            .clickable(
+                enabled = visibility.showAddProfile && visibility.addProfileEnabled,
+                role = Role.Button,
+                onClick = actions.onAddProfile,
+            )
+            .alpha(if (visibility.addProfileEnabled) 1f else 0.72f)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -835,7 +938,7 @@ private fun FirstRunCard(
             fontFamily = typography.mono,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 1.0.sp,
+            letterSpacing = 0.sp,
         )
         Text(
             text = labels.firstRunBody,
@@ -846,11 +949,27 @@ private fun FirstRunCard(
         )
         Text(
             text = labels.firstRunAction,
-            color = DashboardAccent,
+            color = colors.accent,
             fontFamily = typography.mono,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
         )
+        if (!visibility.addProfileEnabled) {
+            val pulseAlpha = rememberDashboardPulse(
+                active = true,
+                initialValue = 0.25f,
+                targetValue = 0.9f,
+                durationMillis = 650,
+                label = "first-run-busy",
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.5.dp)
+                    .clip(RoundedCornerShape(YokhanRadius.Pill))
+                    .background(colors.accent.copy(alpha = pulseAlpha.value)),
+            )
+        }
     }
 }
 
@@ -909,22 +1028,28 @@ private fun ProfileRow(
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            Text(
-                text = ICON_EDIT,
-                color = colors.secondary.copy(alpha = if (visibility.showProfileActions) 1f else 0f),
-                fontSize = if (visibility.showProfileActions) 22.sp else 0.sp,
-                modifier = Modifier
-                    .padding(horizontal = if (visibility.showProfileActions) 10.dp else 0.dp)
-                    .clickable { actions.onEditProfile(item.id) },
-            )
-            Text(
-                text = ICON_MORE,
-                color = colors.secondary.copy(alpha = if (visibility.showProfileActions) 1f else 0f),
-                fontSize = if (visibility.showProfileActions) 24.sp else 0.sp,
-                modifier = Modifier
-                    .padding(start = if (visibility.showProfileActions) 6.dp else 0.dp)
-                    .clickable { actions.onOpenProfileMenu(item.id) },
-            )
+            if (visibility.showProfileActions) {
+                Text(
+                    text = ICON_EDIT,
+                    color = colors.secondary,
+                    fontSize = 20.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(YokhanRadius.Small))
+                        .clickable(role = Role.Button) { actions.onEditProfile(item.id) }
+                        .testTag("dashboard.profile.edit.${item.id}")
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+                Text(
+                    text = ICON_MORE,
+                    color = colors.secondary,
+                    fontSize = 22.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(YokhanRadius.Small))
+                        .clickable(role = Role.Button) { actions.onOpenProfileMenu(item.id) }
+                        .testTag("dashboard.profile.more.${item.id}")
+                        .padding(start = 6.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                )
+            }
         }
     }
 }
@@ -940,20 +1065,14 @@ private fun DashboardTelemetryStrip(
     typography: DashboardTypography,
     modifier: Modifier = Modifier,
 ) {
+    val stripShape = RoundedCornerShape(YokhanRadius.Card)
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        colors.primary.copy(alpha = 0.035f),
-                        colors.background.copy(alpha = 0.0f),
-                    ),
-                ),
-                RoundedCornerShape(16.dp),
-            )
-            .border(1.dp, colors.border, RoundedCornerShape(16.dp)),
+            .clip(stripShape)
+            .background(colors.surface)
+            .border(YokhanStroke.Thin, colors.border, stripShape),
     ) {
         Row(
             modifier = Modifier
@@ -964,13 +1083,14 @@ private fun DashboardTelemetryStrip(
         ) {
             StatsSegment(ICON_LATENCY, if (testRunning) "..." else latencyLabel, labels.latency, colors, typography)
             StatsDivider(colors)
+            val statusColor = if (connected) colors.success else colors.danger
             StatsSegment(
                 ICON_STATUS,
                 if (connected) labels.connected else labels.disconnected,
                 labels.status,
-                colors.copy(primary = if (connected) DashboardGreen else DashboardRed),
+                colors.copy(primary = statusColor),
                 typography,
-                iconColor = if (connected) DashboardGreen else DashboardRed,
+                iconColor = statusColor,
             )
             StatsDivider(colors)
             StatsSegment(ICON_PROTOCOL, protocolLabel, labels.protocol, colors, typography)
@@ -1090,20 +1210,21 @@ private fun SignalBox(colors: DashboardColors) {
 }
 
 @Composable
-private fun WaveLine(colors: DashboardColors, modifier: Modifier = Modifier) {
+private fun WaveLine(active: Boolean, colors: DashboardColors, modifier: Modifier = Modifier) {
+    val lineAlpha = if (active) 0.55f else 0.16f
     Canvas(modifier) {
         val segment = size.width / 8f
         repeat(8) { index ->
             val x = index * segment
             drawLine(
-                color = colors.accent.copy(alpha = 0.25f),
+                color = colors.accent.copy(alpha = lineAlpha),
                 start = Offset(x, size.height / 2f),
                 end = Offset(x + segment / 2f, size.height / 4f),
                 strokeWidth = 1.1.dp.toPx(),
                 cap = StrokeCap.Round,
             )
             drawLine(
-                color = colors.accent.copy(alpha = 0.25f),
+                color = colors.accent.copy(alpha = lineAlpha),
                 start = Offset(x + segment / 2f, size.height / 4f),
                 end = Offset(x + segment, size.height / 2f),
                 strokeWidth = 1.1.dp.toPx(),
@@ -1298,9 +1419,6 @@ private fun DashboardRocket(
     }
 }
 
-private val DashboardAccent = YokhanAccent
-private val DashboardGreen = YokhanGreen
-private val DashboardRed = YokhanRed
 private val CssEase = YokhanMotion.CssEase
 private val CssEaseIn = YokhanMotion.CssEaseIn
 private val CssEaseOut = YokhanMotion.CssEaseOut

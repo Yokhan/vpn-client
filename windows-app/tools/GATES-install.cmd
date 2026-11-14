@@ -10,12 +10,31 @@ net session >nul 2>&1
 if not "%errorlevel%"=="0" (
   echo Requesting administrator privileges...
   call :log "elevation requested"
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+  if "%~1"=="" (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+  ) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -ArgumentList '\"%~1\"' -Verb RunAs"
+  )
   exit /b
 )
 
 set "URL=https://cloak.yokhan.xyz/downloads/GATES-latest-windows.msi"
 set "MSI=%TEMP%\GATES-latest-windows.msi"
+set "LOCAL_MSI=%~1"
+
+if not "%LOCAL_MSI%"=="" (
+  if exist "%LOCAL_MSI%" (
+    for %%A in ("%LOCAL_MSI%") do if %%~zA GEQ 100000000 (
+      set "MSI=%~f1"
+      echo Using local MSI: "%MSI%"
+      call :log "local msi %MSI%"
+      goto :msi_ready
+    )
+  )
+  echo Local MSI is missing or too small: "%LOCAL_MSI%"
+  call :log "local msi invalid %LOCAL_MSI%"
+  goto :download_failed
+)
 
 echo Downloading GATES...
 call :log "download %URL%"
@@ -26,6 +45,7 @@ if errorlevel 1 (
 )
 if not exist "%MSI%" goto :download_failed
 for %%A in ("%MSI%") do if %%~zA LSS 100000000 goto :download_failed
+:msi_ready
 
 echo Stopping GATES...
 call :log "stop application and service"

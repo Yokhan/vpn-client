@@ -126,8 +126,141 @@ jobs:
         run: |
           mkdir -p dist/apk
           find app/build/outputs/apk/oss/release -type f \( -name "*.apk" -o -name "*.dm" -o -name "output-metadata.json" \) -exec cp --parents {} dist/apk \;
-      - name: Publish APK release
-        if: ${{ needs.prepare.outputs.publish == 'true' }}
+      - name: Upload Android release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gates-android-release
+          path: dist/apk/**/*.apk
+          if-no-files-found: error
+  windows:
+    name: Build Windows installers
+    runs-on: windows-latest
+    needs:
+      - prepare
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Restore pinned Windows runtime
+        shell: pwsh
+        run: |
+          $singBoxUrl = "https://github.com/SagerNet/sing-box/releases/download/v1.13.12/sing-box-1.13.12-windows-amd64.zip"
+          Invoke-WebRequest -Uri $singBoxUrl -OutFile sing-box.zip
+          Expand-Archive -LiteralPath sing-box.zip -DestinationPath runtime
+          $runtime = (Resolve-Path "runtime\sing-box-1.13.12-windows-amd64").Path
+
+          $xrayArchiveUrl = "https://github.com/XTLS/Xray-core/releases/download/v26.10.31/Xray-windows-64.zip"
+          $expectedXrayArchiveSha = "2e04a9995a6f2ad1b28c0bb25c708ecb2695e43a1c9c7889c4b6ac2b48cf7a6a"
+          $expectedXrayExeSha = "d5b558191cccb1e92a5772b68b8cab67717b26f634b0f15153215f65ae982a7e"
+          Invoke-WebRequest -Uri $xrayArchiveUrl -OutFile xray.zip
+          $actualArchiveSha = (Get-FileHash -LiteralPath xray.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualArchiveSha -ne $expectedXrayArchiveSha) {
+            throw "Xray-windows-64.zip SHA-256 mismatch: expected $expectedXrayArchiveSha, got $actualArchiveSha"
+          }
+          Expand-Archive -LiteralPath xray.zip -DestinationPath xray-runtime
+          $xrayExe = Join-Path "xray-runtime" "xray.exe"
+          $xrayLicense = Join-Path "xray-runtime" "LICENSE"
+          if (-not (Test-Path -LiteralPath $xrayExe)) { throw "xray.exe missing in Xray-windows-64.zip" }
+          if (-not (Test-Path -LiteralPath $xrayLicense)) { throw "LICENSE missing in Xray-windows-64.zip" }
+          $actualExeSha = (Get-FileHash -LiteralPath $xrayExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualExeSha -ne $expectedXrayExeSha) {
+            throw "xray.exe SHA-256 mismatch: expected $expectedXrayExeSha, got $actualExeSha"
+          }
+          Copy-Item -LiteralPath $xrayExe -Destination (Join-Path $runtime "xray.exe") -Force
+          Copy-Item -LiteralPath $xrayLicense -Destination (Join-Path $runtime "LICENSE-Xray-core") -Force
+          [IO.File]::WriteAllText((Join-Path $runtime "xray.sha256"), "$expectedXrayExeSha`n", [Text.Encoding]::ASCII)
+
+          "YOKHAN_SING_BOX_DIR=$runtime" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Configure optional Windows signing
+        id: windows-signing
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.GATES_WINDOWS_SIGNING_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.GATES_WINDOWS_SIGNING_PFX_PASSWORD }}
+          EXPECTED_SIGNER: ${{ secrets.GATES_WINDOWS_UPDATE_SIGNER_SHA1 }}
+        run: |
+          $provided = @($env:PFX_BASE64, $env:PFX_PASSWORD, $env:EXPECTED_SIGNER) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+          if ($provided.Count -ne 0 -and $provided.Count -ne 3) {
+            throw "Windows signing is optional, but PFX, PFX password, and expected signer must be provided together."
+          }
+          if ($provided.Count -eq 0) {
+            "enabled=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Output "Windows artifacts will be unsigned; updater downloads will remain manual."
+            return
+          }
+          $thumbprint = $env:EXPECTED_SIGNER -replace '\s', ''
+          if ($thumbprint -notmatch '^[0-9A-Fa-f]{40}$') {
+            throw "GATES_WINDOWS_UPDATE_SIGNER_SHA1 must be a 40-character certificate thumbprint."
+          }
+          try {
+            $pfxBytes = [Convert]::FromBase64String($env:PFX_BASE64)
+          } catch {
+            throw "GATES_WINDOWS_SIGNING_PFX_BASE64 is invalid base64."
+          }
+          if ($pfxBytes.Length -eq 0) { throw "Windows signing PFX is empty." }
+          [IO.File]::WriteAllBytes("windows-signing.pfx", $pfxBytes)
+          "enabled=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - name: Test and package
+        shell: pwsh
+        env:
+          GATES_WINDOWS_UPDATE_SIGNER_SHA1: ${{ secrets.GATES_WINDOWS_UPDATE_SIGNER_SHA1 }}
+        run: |
+          .\gradlew.bat :shared-domain:test :shared-ui:desktopTest :windows-service:test :windows-app:test :windows-app:check :windows-app:packageDistributionForCurrentOS --no-daemon
+      - name: Sign and verify
+        if: steps.windows-signing.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          GATES_WINDOWS_SIGNING_PFX: ${{ github.workspace }}\windows-signing.pfx
+          GATES_WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.GATES_WINDOWS_SIGNING_PFX_PASSWORD }}
+          GATES_WINDOWS_UPDATE_SIGNER_SHA1: ${{ secrets.GATES_WINDOWS_UPDATE_SIGNER_SHA1 }}
+        run: |
+          .\windows-app\tools\sign-release.ps1
+      - name: Collect Windows artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist\windows -Force | Out-Null
+          Copy-Item windows-app\build\compose\binaries\main\exe\GATES-*.exe dist\windows\
+          Copy-Item windows-app\build\compose\binaries\main\msi\GATES-*.msi dist\windows\
+          $artifacts = Get-ChildItem -LiteralPath dist\windows -File |
+            Where-Object { $_.Extension -in @('.exe', '.msi') } |
+            Sort-Object Name
+          if ($artifacts.Count -ne 2) { throw "Expected exactly one final EXE and one final MSI." }
+          $checksums = foreach ($artifact in $artifacts) {
+            $hash = (Get-FileHash -LiteralPath $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($artifact.Name)"
+          }
+          [IO.File]::WriteAllLines((Join-Path (Resolve-Path dist\windows).Path 'SHA256SUMS.txt'), $checksums, [Text.Encoding]::ASCII)
+      - name: Upload Windows release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gates-windows-release
+          path: dist/windows/*
+          if-no-files-found: error
+  publish:
+    name: Publish release artifacts
+    if: ${{ needs.prepare.outputs.publish == 'true' }}
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - build
+      - windows
+    steps:
+      - name: Download Android artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: gates-android-release
+          path: dist/android
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: gates-windows-release
+          path: dist/windows
+      - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
@@ -135,9 +268,12 @@ jobs:
           name: ${{ needs.prepare.outputs.tag }}
           draft: ${{ needs.prepare.outputs.draft == 'true' }}
           generate_release_notes: true
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
           files: |
-            dist/apk/**/*.apk
+            dist/android/**/*.apk
+            dist/windows/**/*.exe
+            dist/windows/**/*.msi
+            dist/windows/SHA256SUMS.txt
   play:
     name: Build Play Bundle
     if: ${{ needs.prepare.outputs.play == 'true' }}

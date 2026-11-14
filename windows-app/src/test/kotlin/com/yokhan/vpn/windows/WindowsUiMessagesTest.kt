@@ -69,4 +69,22 @@ class WindowsUiMessagesTest {
         assertTrue(limited.contains("Подождите"))
         assertFalse(limited.contains("SECRET_DETAIL"))
     }
+    @Test fun routingAndRuleCommandsReturnRussianMessagesWithoutEnglishLeakage() {
+        assertEquals(
+            "Настройки автообхода РФ сохранены.",
+            windowsUiResultMessage("set-ru-bypass", RuntimeCommandResult(0, "RU bypass enabled; token=secret")),
+        )
+        assertEquals(
+            "Приложение добавлено в маршрут «Через GATES».",
+            windowsUiResultMessage("add-app-proxy", RuntimeCommandResult(0, "Added C:\\game.exe")),
+        )
+        assertEquals(
+            "Активный маршрут обновлён.",
+            windowsUiResultMessage("set-route", RuntimeCommandResult(0, "route switched")),
+        )
+        assertEquals(
+            "Не удалось добавить правило для приложения.",
+            windowsUiResultMessage("add-app-proxy", RuntimeCommandResult(1, "failed C:\\foo.exe")),
+        )
+    }
 }

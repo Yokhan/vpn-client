@@ -288,7 +288,7 @@ class WindowsQaServer(private val target: WindowsQaTarget) : AutoCloseable {
             0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
         )
         private val allowedActions = setOf(
-            "perf.reset", "perf.stop", "viewport.compact", "viewport.default", "viewport.wide",
+            "perf.reset", "perf.stop", "viewport.compact", "viewport.default", "viewport.wide", "viewport.desktop",
             "scroll.forward", "scroll.back",
             "key.tab", "key.escape",
             "focus.first",
@@ -299,7 +299,10 @@ class WindowsQaServer(private val target: WindowsQaTarget) : AutoCloseable {
             "nav.dashboard",
             "nav.settings",
             "nav.access",
+            "nav.routes",
             "nav.routing",
+            "nav.logs",
+            "nav.tools",
             "nav.history",
             "nav.bug",
             "nav.back",

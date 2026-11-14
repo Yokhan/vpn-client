@@ -107,7 +107,7 @@ internal class WindowsQaSession(val realAccess: Boolean = false) : WindowsQaTarg
             val controls = semantics.controls()
             current.copy(actions = current.actions + controls.filter { it.clickable }.map { "click.${it.id}" } +
                 (if (realAccess && Files.isRegularFile(sessionDirectory.resolve("manual-input.txt"), LinkOption.NOFOLLOW_LINKS)) listOf("input.access.private") else emptyList()) +
-                listOf("perf.reset", "perf.stop", "viewport.compact", "viewport.default", "viewport.wide", "scroll.forward", "scroll.back", "key.tab", "key.escape", "focus.first") +
+                listOf("perf.reset", "perf.stop", "viewport.compact", "viewport.default", "viewport.wide", "viewport.desktop", "scroll.forward", "scroll.back", "key.tab", "key.escape", "focus.first") +
                 controls.filter { it.editable }.flatMap { control -> when (control.id) {
                     "report.message" -> listOf("input.report.sample", "input.report.clear")
                     "form.input.manual-input" -> listOf("input.access.sample", "input.access.clear")
@@ -177,6 +177,7 @@ internal class WindowsQaSession(val realAccess: Boolean = false) : WindowsQaTarg
                     id.startsWith("viewport.") -> window?.size = when (id) {
                         "viewport.compact" -> java.awt.Dimension(360, 640)
                         "viewport.wide" -> java.awt.Dimension(760, 820)
+                        "viewport.desktop" -> java.awt.Dimension(1180, 780)
                         else -> java.awt.Dimension(430, 820)
                     }
                     else -> perform?.invoke(id) ?: throw WindowsQaException(503, "ui_not_ready")

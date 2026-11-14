@@ -23,6 +23,12 @@ data class YokhanPalette(
     val divider: Color,
     val accent: Color,
     val orbCenter: Color,
+    val surface: Color = background,
+    val surfaceRaised: Color = border,
+    val surfaceMuted: Color = background,
+    val onAccent: Color = Color.White,
+    val success: Color = YokhanGreen,
+    val danger: Color = YokhanRed,
 )
 
 @Immutable
@@ -50,30 +56,43 @@ fun yokhanPalette(spaceActive: Boolean): YokhanPalette {
     return if (spaceActive) YokhanSpacePalette else YokhanLightPalette
 }
 
-val YokhanAccent = Color(0xFFE55A1B)
+val YokhanAccent = Color(0xFFF26316)
 val YokhanGreen = Color(0xFF28B44F)
-val YokhanRed = Color(0xFFE53E3E)
+val YokhanRed = Color(0xFFB54436)
+val YokhanSuccess = Color(0xFF23734F)
 
 val YokhanLightPalette = YokhanPalette(
-    background = Color(0xFFF3F3F7),
-    primary = Color(0xFF111117),
-    secondary = Color(0xFF6C6C74),
-    tertiary = Color(0xFFA3A3AB),
-    border = Color(0x14000000),
-    divider = Color(0x0D000000),
+    background = Color(0xFFF5F6F6),
+    primary = Color(0xFF292C2D),
+    secondary = Color(0xFF5D6163),
+    tertiary = Color(0xFF7D8284),
+    border = Color(0xFFC6CAC7),
+    divider = Color(0xFFE0E3E0),
     accent = YokhanAccent,
-    orbCenter = Color.White,
+    orbCenter = Color(0xFFFFFFFF),
+    surface = Color(0xFFFFFFFF),
+    surfaceRaised = Color(0xFFE9E9E5),
+    surfaceMuted = Color(0xFFECEEEB),
+    onAccent = Color(0xFFFFFFFF),
+    success = YokhanSuccess,
+    danger = YokhanRed,
 )
 
 val YokhanSpacePalette = YokhanPalette(
     background = Color(0xFF0A0A18),
-    primary = Color(0xFFE8E8F0),
-    secondary = Color(0xFF8888A0),
-    tertiary = Color(0xFF8888A0),
-    border = Color(0x1AFFFFFF),
-    divider = Color(0x0DFFFFFF),
+    primary = Color(0xFFF2F3EF),
+    secondary = Color(0xFF9EA2B0),
+    tertiary = Color(0xFF7E8394),
+    border = Color(0x28FFFFFF),
+    divider = Color(0x16FFFFFF),
     accent = YokhanGreen,
     orbCenter = Color(0xFF1C1C34),
+    surface = Color(0xFF141626),
+    surfaceRaised = Color(0xFF1C1F33),
+    surfaceMuted = Color(0xFF171929),
+    onAccent = Color(0xFF08140D),
+    success = YokhanGreen,
+    danger = Color(0xFFE5534B),
 )
 
 object YokhanMotion {
@@ -88,10 +107,13 @@ object YokhanMotion {
 object YokhanRadius {
     val Tiny = 1.dp
     val SectionMarker = 1.5.dp
-    val Small = 5.dp
+    val Small = 6.dp
     val MenuGlyph = 8.dp
-    val Panel = 14.dp
-    val Card = 18.dp
+    val Control = 12.dp
+    val Panel = 12.dp
+    val Card = 12.dp
+    val NavItem = 18.dp
+    val NavRail = 24.dp
     val Pill = 999.dp
 }
 
@@ -104,7 +126,7 @@ object YokhanSpacing {
     val Icon = 18.dp
     val MenuGlyph = 32.dp
     val TopBarHeight = 58.dp
-    val ScreenHorizontal = 24.dp
+    val ScreenHorizontal = 12.dp
     val ScreenTop = 10.dp
     val ScreenBottom = 44.dp
     val SectionGap = 10.dp
@@ -122,4 +144,24 @@ object YokhanSpacing {
 
 object YokhanStroke {
     val Thin = 1.dp
+}
+
+object YokhanLayout {
+    val ReadableMaxWidth = 672.dp
+    val CompactBreakpoint = 360.dp
+    val StackedSpeedBreakpoint = 316.dp
+    val DesktopCompanionBreakpoint = 840.dp
+    val DesktopContentCompanionBreakpoint = 580.dp
+    val DesktopPrimaryColumnWidth = 460.dp
+    val DesktopTotalMaxWidth = 1120.dp
+    val DesktopNavMaxWidth = 920.dp
+    val DesktopColumnGap = 16.dp
+}
+
+/** Converts a Compose [Color] into a Win32 COLORREF integer (`0x00BBGGRR`). */
+fun Color.toWin32ColorRef(): Int {
+    val r = (red.coerceIn(0f, 1f) * 255f).toInt() and 0xFF
+    val g = (green.coerceIn(0f, 1f) * 255f).toInt() and 0xFF
+    val b = (blue.coerceIn(0f, 1f) * 255f).toInt() and 0xFF
+    return (b shl 16) or (g shl 8) or r
 }

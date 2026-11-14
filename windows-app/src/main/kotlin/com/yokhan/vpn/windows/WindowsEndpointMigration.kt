@@ -5,10 +5,29 @@ import com.google.gson.JsonArray
 
 internal const val GATES_AUTH_ISSUER = "https://auth.yokhan.xyz/realms/yokhan"
 internal const val GATES_APP_API_BASE_URL = "https://app.yokhan.xyz/gates"
+internal const val GATES_CLOAK_APP_API_BASE_URL = "https://cloak.yokhan.xyz/gates"
 internal const val GATES_DOWNLOAD_PAGE_URL = "https://fitness.yokhan.xyz/download"
 internal const val GATES_BUG_REPORT_URL = "$GATES_APP_API_BASE_URL/api/app/bug-report"
 private const val LEGACY_WINDOWS_AUTH_ISSUER = "https://auth.yokhanfitness.ru/realms/yokhan"
 private const val LEGACY_WINDOWS_APP_API_BASE_URL = "https://cloak.yokhanfitness.ru"
+
+internal fun windowsCandidateAppApiBases(configuredBase: String): List<String> =
+    listOf(
+        configuredBase.trim().trimEnd('/'),
+        GATES_CLOAK_APP_API_BASE_URL,
+        GATES_APP_API_BASE_URL,
+    )
+        .filter { it.startsWith("https://", ignoreCase = true) }
+        .distinct()
+
+internal fun windowsCandidateBugReportUrls(configuredUrls: List<String>): List<String> =
+    (configuredUrls + listOf(
+        "$GATES_CLOAK_APP_API_BASE_URL/api/app/bug-report",
+        GATES_BUG_REPORT_URL,
+    ))
+        .map { it.trim() }
+        .filter { it.startsWith("https://", ignoreCase = true) }
+        .distinct()
 
 internal fun migrateWindowsDownloadPage(value: String): String =
     if (value.trimEnd('/') in setOf(
