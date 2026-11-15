@@ -673,7 +673,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.9.0"
+private const val WINDOWS_APP_VERSION = "1.9.1"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -1208,6 +1208,7 @@ class WindowsRuntimeController(
                     val context = currentCoroutineContext()
                     runInterruptible(Dispatchers.IO) { login { context.ensureActive() } }
                 }
+                "logout" -> logout()
                 "import-app" -> importAuthenticatedAppConfig()
                 "access-request" -> requestAppAccess()
                 "bootstrap-claim" -> claimBootstrapAccess(route.orEmpty())
@@ -3980,6 +3981,14 @@ class WindowsRuntimeController(
 
     private fun requireReauthentication(config: WindowsAppConfig) = authStateStore.transaction {
         readAuthState(config)?.let { authStateStore.write(gson.toJson(it.copy(requiresReauthentication = true))) }
+    }
+
+    private fun logout(): RuntimeCommandResult {
+        ensureDirs()
+        authorizationPrompt.value = null
+        authorizationPhase.value = WindowsAuthorizationPhase.Idle
+        authStateStore.clear()
+        return RuntimeCommandResult(0, "Вы вышли из аккаунта.")
     }
 
     private fun authSummary(): String {

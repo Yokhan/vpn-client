@@ -404,9 +404,33 @@ class ConfigurationFragment @JvmOverloads constructor(
                         .fillMaxWidth()
                         .padding(top = YokhanSpacing.CardTitleGap),
                 )
+                if (signedIn) {
+                    YokhanRouteButton(
+                        text = stringResource(R.string.yokhan_auth_restart_action),
+                        primary = false,
+                        enabled = !authBusy,
+                        colors = colors,
+                        typography = typography,
+                        onClick = { (activity as? MainActivity)?.startYokhanForceLogin() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = YokhanSpacing.CompactGap),
+                    )
+                    YokhanRouteButton(
+                        text = stringResource(R.string.yokhan_auth_sign_out_action),
+                        primary = false,
+                        enabled = !authBusy,
+                        colors = colors,
+                        typography = typography,
+                        onClick = { (activity as? MainActivity)?.signOutYokhan() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = YokhanSpacing.CompactGap),
+                    )
+                }
                 YokhanDivider(colors, Modifier.padding(vertical = 10.dp))
             }
-            if (!signedIn && BuildConfig.YOKHAN_APP_API_BASE_URL.isNotBlank()) {
+            if (BuildConfig.YOKHAN_APP_API_BASE_URL.isNotBlank()) {
                 WiseTreeBootstrapSection(
                     authBusy = authBusy,
                     colors = colors,

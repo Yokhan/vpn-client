@@ -46,7 +46,9 @@ data class GatesAccessUiLabels(
     val loginTitle: String = "Вход",
     val accessTitle: String = "Доступ",
     val manualTitle: String = "Подписка",
-    val browserCardTitle: String = "Вход через браузер",
+    val browserCardTitle: String = "Вход через QR-код или браузер",
+    val qrHint: String = "Отсканируйте QR-код камерой телефона (где работает GATES или интернет) — или подтвердите вход в браузере на этом ПК.",
+    val copyAuthLink: String = "Скопировать ссылку",
     val openBrowser: String = "Открыть браузер",
     val cancelBrowser: String = "Отменить вход",
     val accountCardTitle: String = "Аккаунт",
@@ -63,13 +65,14 @@ data class GatesAccessUiLabels(
     val showSecret: String = "Показать",
     val hideSecret: String = "Скрыть",
     val addSubscription: String = "Добавить подписку",
-    val loginBrowser: String = "Войти через браузер",
+    val loginBrowser: String = "Войти через браузер / QR",
     val requestAccess: String = "Запросить доступ",
     val checkStatus: String = "Проверить статус",
     val checkAccess: String = "Проверить доступ",
     val retryConfig: String = "Повторить получение",
     val refreshAccess: String = "Обновить доступ",
-    val restartLogin: String = "Войти заново",
+    val restartLogin: String = "Войти заново (QR / браузер)",
+    val signOut: String = "Выйти из аккаунта",
     val supportCardTitle: String = "Поддержка",
     val historyAction: String = "История соединения",
     val bugReportAction: String = "Сообщить об ошибке",
@@ -97,19 +100,23 @@ fun GatesAccessScreen(
     canCancel: Boolean = false,
     onHistory: (() -> Unit)? = null,
     authorizationCode: String = "",
+    authorizationUri: String = "",
     authorizationPending: Boolean = false,
     onOpenAuthorization: (() -> Unit)? = null,
+    onCopyAuthorizationUri: (() -> Unit)? = null,
     onCancelAuthorization: (() -> Unit)? = null,
     profileReady: Boolean = true,
     accountLabel: String = "",
     accessPending: Boolean = false,
     onRetryConfig: (() -> Unit)? = null,
     onRestartLogin: (() -> Unit)? = null,
+    onSignOut: (() -> Unit)? = null,
     onRequestAccess: (() -> Unit)? = null,
     onBootstrapClaim: ((String) -> Unit)? = null,
     bootstrapBusy: Boolean = false,
     bootstrapMessage: String = "",
     bootstrapRemaining: String = "",
+    suggestBootstrap: Boolean = false,
     labels: GatesAccessUiLabels = GatesAccessUiLabels.Russian,
 ) {
     var manualMode by rememberSaveable { mutableStateOf(false) }
@@ -145,6 +152,14 @@ fun GatesAccessScreen(
         if (message.isNotBlank()) YokhanBody(message, palette, typography)
         if (authorizationPending) {
             YokhanRouteCard(labels.browserCardTitle, palette, typography) {
+                if (authorizationUri.isNotBlank()) {
+                    YokhanCaption(labels.qrHint, palette, typography)
+                    YokhanQrCode(
+                        content = authorizationUri,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                            .padding(vertical = YokhanSpacing.CompactGap),
+                    )
+                }
                 if (authorizationCode.isNotBlank()) YokhanMonoValue(authorizationCode, palette, typography)
                 YokhanAdaptiveActionPair(first = { actionModifier ->
                     if (onOpenAuthorization != null) YokhanRouteButton(labels.openBrowser, true, true,
@@ -153,10 +168,21 @@ fun GatesAccessScreen(
                     if (onCancelAuthorization != null) YokhanRouteButton(labels.cancelBrowser, false, true,
                         palette, typography, onCancelAuthorization, actionModifier.testTag("form.action.cancel-auth"))
                 })
+                if (onCopyAuthorizationUri != null && authorizationUri.isNotBlank()) {
+                    YokhanRouteButton(
+                        labels.copyAuthLink,
+                        false,
+                        true,
+                        palette,
+                        typography,
+                        onCopyAuthorizationUri,
+                        Modifier.fillMaxWidth().testTag("form.action.copy-auth-uri"),
+                    )
+                }
             }
         }
-        if (!signedIn && onBootstrapClaim != null) {
-            val showBootstrapBody = bootstrapExpanded || bootstrapMessage.isNotBlank() || bootstrapRemaining.isNotBlank()
+        if (onBootstrapClaim != null) {
+            val showBootstrapBody = bootstrapExpanded || suggestBootstrap || bootstrapMessage.isNotBlank() || bootstrapRemaining.isNotBlank()
             YokhanRouteCard(labels.bootstrapTitle, palette, typography) {
                 YokhanCaption(labels.bootstrapScopeNote, palette, typography)
                 if (bootstrapRemaining.isNotBlank()) {
@@ -336,6 +362,10 @@ fun GatesAccessScreen(
                         if (onRestartLogin != null) {
                             YokhanRouteButton(labels.restartLogin, false, !busy, palette, typography,
                                 onRestartLogin, Modifier.fillMaxWidth().testTag("form.action.restart-login"))
+                        }
+                        if (onSignOut != null) {
+                            YokhanRouteButton(labels.signOut, false, !busy, palette, typography,
+                                onSignOut, Modifier.fillMaxWidth().testTag("form.action.sign-out"))
                         }
                     }
                     YokhanRouteButton(labels.addSubscription, false, !busy, palette, typography,

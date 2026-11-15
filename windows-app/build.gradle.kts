@@ -39,7 +39,7 @@ val defaultRuntimeDir = rootProject.projectDir.parentFile
 val windowsRuntimeDir = providers.environmentVariable("YOKHAN_SING_BOX_DIR")
     .map { file(it) }
     .orElse(defaultRuntimeDir)
-val windowsPackageVersion = "1.9.0"
+val windowsPackageVersion = "1.9.1"
 val windowsUpdateSignerSha1 = providers.environmentVariable("GATES_WINDOWS_UPDATE_SIGNER_SHA1").orElse("")
 val winswVersion = "2.12.0"
 val winswSha256 = "05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da"
@@ -380,5 +380,57 @@ fun registerSelfHealingJPackageOverride(taskName: String, packageType: String, f
 
 afterEvaluate {
     registerSelfHealingJPackageOverride("packageMsi", "msi", "msi")
-    registerSelfHealingJPackageOverride("packageExe", "exe", "exe")
+
+    val bootstrapperSource = layout.projectDirectory.file("src/main/installer/GatesBootstrapper.cs").asFile
+    val bootstrapperManifest = layout.projectDirectory.file("src/main/installer/GatesBootstrapper.manifest").asFile
+    val brandIcon = project.file("src/main/resources/branding/gates.ico")
+    val msiDir = layout.buildDirectory.dir("compose/binaries/main/msi")
+
+    tasks.named<org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask>("packageExe") {
+        dependsOn("packageMsi")
+        inputs.file(bootstrapperSource)
+        inputs.file(bootstrapperManifest)
+        inputs.file(brandIcon)
+        inputs.dir(msiDir)
+        doLast {
+            val osName = System.getProperty("os.name").lowercase()
+            if (!osName.contains("win")) return@doLast
+            val msiFile = File(msiDir.get().asFile, "GATES-$windowsPackageVersion.msi")
+            check(msiFile.isFile) { "Missing packaged MSI for self-healing EXE wrapper: $msiFile" }
+            val outDir = destinationDir.get().asFile
+            outDir.mkdirs()
+            val targetInstaller = File(outDir, "GATES-$windowsPackageVersion.exe")
+            if (targetInstaller.exists()) {
+                check(targetInstaller.delete()) { "Could not replace $targetInstaller" }
+            }
+            val cscCandidates = listOf(
+                File("C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"),
+                File("C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe"),
+            )
+            val cscExe = cscCandidates.firstOrNull { it.isFile }
+                ?: error("Could not find .NET Framework v4 csc.exe to build self-healing GATES EXE installer.")
+            val result = project.exec {
+                commandLine(
+                    cscExe.absolutePath,
+                    "/nologo",
+                    "/target:winexe",
+                    "/platform:x64",
+                    "/optimize+",
+                    "/utf8output",
+                    "/win32icon:${brandIcon.absolutePath}",
+                    "/win32manifest:${bootstrapperManifest.absolutePath}",
+                    "/reference:System.dll",
+                    "/reference:System.Drawing.dll",
+                    "/reference:System.Windows.Forms.dll",
+                    "/resource:${msiFile.absolutePath},GATES.msi",
+                    "/out:${targetInstaller.absolutePath}",
+                    bootstrapperSource.absolutePath,
+                )
+            }
+            result.assertNormalExitValue()
+            check(targetInstaller.isFile && targetInstaller.length() >= msiFile.length()) {
+                "Self-healing EXE installer was not built properly: $targetInstaller"
+            }
+        }
+    }
 }

@@ -51,6 +51,7 @@ internal fun windowsUiResultMessage(command: String, result: RuntimeCommandResul
     }
     return when (command) {
         "login", "import-app" -> "Доступ обновлён."
+        "logout" -> "Вы вышли из аккаунта."
         "access-request" -> "Заявка на доступ отправлена. Ожидайте одобрения."
         "import-sub" -> "Подписка добавлена."
         "report-bug" -> "Отчёт отправлен."
@@ -145,19 +146,19 @@ internal fun windowsUiAccessFailureMessage(command: String, failure: WindowsAcce
         WindowsAccessCode.SERVER_ERROR ->
             "Сервер временно недоступен. Повторите позже."
         WindowsAccessCode.TRANSPORT_ERROR ->
-            "Нет связи с сервером. Проверьте интернет и повторите."
+            "Нет связи с сервером без VPN. Откройте «Мудрое Древо (15 мин)» ниже, вставьте подписку вручную или проверьте интернет."
         WindowsAccessCode.NOT_FOUND ->
             "Аккаунт или устройство не найдено на сервере GATES."
         WindowsAccessCode.CONFLICT ->
             "Конфликт настроек комнаты или маршрута. Повторите позже."
         WindowsAccessCode.AUTH_REQUIRED ->
-            "Сессия входа истекла. Войдите снова."
+            "Сессия входа истекла. Войдите снова или выйдите из аккаунта."
         WindowsAccessCode.AUTH_UNAVAILABLE ->
-            "Сервер входа временно недоступен. Проверьте соединение и повторите."
+            "Сервер входа временно недоступен без VPN. Попробуйте «Мудрое Древо (15 мин)» ниже или повторите позже."
         WindowsAccessCode.AUTH_FORBIDDEN ->
             "Сервер отклонил вход для этого аккаунта."
         WindowsAccessCode.AUTH_START_FAILED ->
-            "Не удалось начать вход. Проверьте соединение и повторите."
+            "Не удалось начать вход без VPN. Откройте «Мудрое Древо (15 мин)» ниже или вставьте подписку вручную."
         WindowsAccessCode.AUTH_DENIED ->
             "Вход отклонён в браузере. Попробуйте снова."
         WindowsAccessCode.AUTH_EXPIRED ->

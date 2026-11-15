@@ -64,11 +64,14 @@ taskkill /IM GATES.exe >nul 2>&1
 timeout /t 2 /nobreak >nul
 taskkill /F /IM GATES.exe >nul 2>&1
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$root='C:\Program Files\GATES\'; Get-Process xray,sing-box -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($root,[System.StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force -ErrorAction SilentlyContinue"
+call :log "uninstall prior GATES MSI entries"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$roots=@('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'); $seen=@{}; foreach($r in $roots){ Get-ItemProperty -Path $r -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^\{[0-9A-Fa-f-]+\}$' -and $_.DisplayName -eq 'GATES' } | ForEach-Object { $g=$_.PSChildName; if(-not $seen.ContainsKey($g)){ $seen[$g]=$true; Write-Output ('REMOVING_OLD_MSI=' + $g + ' VER=' + $_.DisplayVersion); Start-Process -FilePath msiexec.exe -ArgumentList @('/x', $g, '/qn', '/norestart', 'MSIRESTARTMANAGERCONTROL=Disable') -Wait -WindowStyle Hidden } } }" >>"%LOG%" 2>&1
+taskkill /F /IM GATES.exe >nul 2>&1
 timeout /t 2 /nobreak >nul
 
 echo Installing...
 call :log "msiexec /i"
-msiexec.exe /i "%MSI%" /passive /norestart MSIRESTARTMANAGERCONTROL=Disable
+msiexec.exe /i "%MSI%" /passive /norestart MSIRESTARTMANAGERCONTROL=Disable /l*v "C:\ProgramData\GATES\installer-msi.log"
 set "RC=%errorlevel%"
 call :log "msiexec_i_exit=%RC%"
 if "%RC%"=="0" goto :repair

@@ -1367,6 +1367,35 @@ private fun WindowsApp(
         }
     }
 
+    fun launchLogout() {
+        if (qa != null && !qa.realAccess) {
+            lastMessage = "Операция недоступна в тестовом режиме."
+            return
+        }
+        scope.launch {
+            if (busy) return@launch
+            runWindowsUiAction(
+                setBusy = { busy = it },
+                onFailure = { lastMessage = it },
+            ) {
+                controller.run("logout")
+                val snapshot = loadWindowsUiSnapshot(
+                    readConfig = controller::readConfig,
+                    readSession = controller::sessionState,
+                    readAppRouting = controller::appRoutingState,
+                    readRoutes = controller::availableRoutes,
+                )
+                sessionState = snapshot.session
+                applyConfigSnapshot(snapshot.config)
+                availableRoutes = snapshot.routes
+                appRoutingState = snapshot.appRouting
+                accessFailure = null
+                accessPending = false
+                lastMessage = "Вышли из аккаунта. Войдите через браузер/QR, Мудрое Древо или вставьте подписку."
+            }
+        }
+    }
+
     fun navigateToRoute(target: WindowsRoute) {
         lastMessage = ""
         when (target) {
@@ -2053,8 +2082,15 @@ private fun WindowsApp(
                                 colors = windowPalette,
                                 spaceActive = windowSpaceActive,
                                 authorizationCode = authorizationPrompt?.userCode.orEmpty(),
+                                authorizationUri = authorizationPrompt?.verificationUri.orEmpty(),
                                 authorizationPending = authorizationPrompt != null,
                                 onOpenAuthorization = { scope.launch(Dispatchers.IO) { controller.reopenAuthorization() } },
+                                onCopyAuthorizationUri = authorizationPrompt?.verificationUri?.takeIf { it.isNotBlank() }?.let { uri ->
+                                    {
+                                        clipboardManager.setText(AnnotatedString(uri))
+                                        lastMessage = "Ссылка для входа скопирована. Откройте её на телефоне или в браузере."
+                                    }
+                                },
                                 onCancelAuthorization = {
                                     if (controller.cancelPendingAuthorization { authJob?.cancel() }) lastMessage = "Вход отменён."
                                 },
@@ -2067,6 +2103,9 @@ private fun WindowsApp(
                                 onRestartLogin = if (sessionState.signedIn) {
                                     { launchAuthSetup(forceLogin = true) }
                                 } else null,
+                                onSignOut = if (sessionState.signedIn) {
+                                    { launchLogout() }
+                                } else null,
                                 onRequestAccess = if (sessionState.signedIn && !accessPending &&
                                     (accessFailure?.code == WindowsAccessCode.ACCESS_NOT_LINKED ||
                                         accessFailure?.code == WindowsAccessCode.USER_NOT_FOUND)
@@ -2077,6 +2116,11 @@ private fun WindowsApp(
                                 bootstrapBusy = busy,
                                 bootstrapMessage = bootstrapMessage,
                                 bootstrapRemaining = bootstrapRemaining,
+                                suggestBootstrap = accessFailure?.code in setOf(
+                                    WindowsAccessCode.AUTH_START_FAILED,
+                                    WindowsAccessCode.AUTH_UNAVAILABLE,
+                                    WindowsAccessCode.TRANSPORT_ERROR,
+                                ),
                             )
                         }
 

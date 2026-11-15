@@ -874,4 +874,7 @@
     <string name="settings_protection_off">Системная защита не настроена</string>
     <string name="settings_protection_summary">На Android системный Kill Switch («Блокировать подключения без VPN») управляется системой. При включении он гарантирует отсутствие утечек вне туннеля; RU-обход при этом автоматически работает внутри ядра.</string>
     <string name="settings_protection_open_system">Системные настройки VPN</string>
+    <string name="yokhan_auth_restart_action">Войти заново</string>
+    <string name="yokhan_auth_sign_out_action">Выйти из аккаунта</string>
+    <string name="yokhan_auth_signed_out">Вы вышли из аккаунта.</string>
 </resources>

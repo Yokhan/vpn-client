@@ -113,6 +113,20 @@ object YokhanKeycloakAuth {
         }
     }
 
+    fun signOut(activity: MainActivity) {
+        if (mutableBusy.value) return
+        val appContext = activity.applicationContext
+        mutableSessionAvailable.value = false
+        authScope.launch {
+            sessionGate.withLock { YokhanAuthStore.clear(appContext) }
+            withContext(Dispatchers.Main) {
+                if (!activity.isFinishing && !activity.isDestroyed) {
+                    activity.showDashboardMessage(R.string.yokhan_auth_signed_out)
+                }
+            }
+        }
+    }
+
     fun syncOrLogin(activity: MainActivity, authService: AuthorizationService) {
         if (mutableBusy.value) return
         if (!mutableSessionAvailable.value) {
@@ -650,5 +664,12 @@ private object YokhanAuthStore {
             store.failWrite(output)
             throw error
         }
+    }
+
+    fun clear(context: Context) {
+        val store = file(context)
+        store.delete()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY_AUTH_STATE).apply()
+        context.getSharedPreferences("gates_auth_request", Context.MODE_PRIVATE).edit().clear().apply()
     }
 }

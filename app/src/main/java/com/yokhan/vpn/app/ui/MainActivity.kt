@@ -686,6 +686,14 @@ class MainActivity : ThemedActivity(),
         YokhanKeycloakAuth.syncOrLogin(this, yokhanAuthService)
     }
 
+    fun startYokhanForceLogin() {
+        YokhanKeycloakAuth.startLogin(this, yokhanAuthService)
+    }
+
+    fun signOutYokhan() {
+        YokhanKeycloakAuth.signOut(this)
+    }
+
     private fun handleIncomingIntent(intent: Intent?) {
         val incomingIntent = intent ?: return
         if (YokhanKeycloakAuth.handleAuthorizationIntent(this, yokhanAuthService, incomingIntent)) {

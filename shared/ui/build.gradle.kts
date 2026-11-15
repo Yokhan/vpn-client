@@ -26,6 +26,7 @@ kotlin {
             implementation(compose.material3)
             implementation(compose.components.resources)
             implementation(compose.ui)
+            implementation("com.google.zxing:core:3.3.3")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

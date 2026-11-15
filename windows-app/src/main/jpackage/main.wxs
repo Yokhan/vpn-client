@@ -52,13 +52,13 @@
         Property="JP_UPGRADABLE_FOUND"
         Maximum="$(var.JpAppVersion)"
         MigrateFeatures="yes"
-        IncludeMaximum="$(var.JpUpgradeVersionOnlyDetectUpgrade)" />
+        IncludeMaximum="yes" />
       <UpgradeVersion
         OnlyDetect="$(var.JpUpgradeVersionOnlyDetectDowngrade)"
         Property="JP_DOWNGRADABLE_FOUND"
         Minimum="$(var.JpAppVersion)"
         MigrateFeatures="yes"
-        IncludeMinimum="$(var.JpUpgradeVersionOnlyDetectDowngrade)" />
+        IncludeMinimum="no" />
     </Upgrade>
 
     <?ifndef JpAllowUpgrades ?>
@@ -165,10 +165,11 @@
       <Custom Action="CloseGatesTrayUi" Before="InstallValidate" />
       <Custom Action="SetStopGatesRuntime" After="InstallInitialize" />
       <Custom Action="StopGatesRuntime" After="SetStopGatesRuntime" />
-      <InstallExecute After="PublishProduct" />
+      <InstallExecute After="StopGatesRuntime" />
       <RemoveExistingProducts After="InstallExecute" />
-      <Custom Action="SetStartGatesRuntime" After="RemoveExistingProducts">NOT (REMOVE=&quot;ALL&quot;)</Custom>
+      <Custom Action="SetStartGatesRuntime" After="PublishProduct">NOT (REMOVE=&quot;ALL&quot;)</Custom>
       <Custom Action="StartGatesRuntime" After="SetStartGatesRuntime">NOT (REMOVE=&quot;ALL&quot;)</Custom>
+      <InstallFinalize />
     </InstallExecuteSequence>
 
   </Product>

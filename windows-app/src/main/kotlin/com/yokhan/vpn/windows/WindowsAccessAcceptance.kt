@@ -3,7 +3,7 @@ package com.yokhan.gates.windows
 import java.io.File
 
 internal val WINDOWS_ACCESS_ONLY_COMMANDS = setOf(
-    "login", "import-app", "import-sub", WINDOWS_ACCESS_REQUEST_COMMAND,
+    "login", "logout", "import-app", "import-sub", WINDOWS_ACCESS_REQUEST_COMMAND,
 )
 
 internal fun windowsAccessAcceptanceController(directory: File): WindowsRuntimeController =

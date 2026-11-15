@@ -84,6 +84,12 @@ internal class WindowsEncryptedJsonStore(
         val plain = unprotector.unprotect(protected)
         StoredJson(plain.toString(StandardCharsets.UTF_8), needsMigration = false)
     }
+
+    fun clear() = transaction {
+        Files.deleteIfExists(file.toPath())
+        Files.deleteIfExists(File(file.parentFile, "${file.name}.tmp").toPath())
+        Unit
+    }
 }
 
 private fun ByteArray.startsWith(prefix: ByteArray): Boolean {

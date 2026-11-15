@@ -1,8 +1,8 @@
 {
   "schema": "gates-platform-parity-v1",
-  "unifiedVersion": "1.9.0",
-  "androidVersion": "1.9.0",
-  "windowsVersion": "1.9.0",
+  "unifiedVersion": "1.9.1",
+  "androidVersion": "1.9.1",
+  "windowsVersion": "1.9.1",
   "parityMode": "strict",
   "author": "Yokhan (Igor Nazarov)",
   "contact": "iohanrace@gmail.com",
@@ -54,6 +54,14 @@
       "windowsPattern": "buildWindowsQualityTelemetryPayload",
       "androidAnchor": "app/src/main/java/com/yokhan/vpn/app/diagnostics/YokhanDiagnosticsCollector.kt",
       "androidPattern": "coroutineScope"
+    },
+    {
+      "id": "account_recovery_signout",
+      "description": "Explicit sign-out / account reset & unrestricted Wise Tree bootstrap access",
+      "windowsAnchor": "windows-app/src/main/kotlin/com/yokhan/vpn/windows/WindowsRuntimeController.kt",
+      "windowsPattern": "private fun logout",
+      "androidAnchor": "app/src/main/java/com/yokhan/vpn/app/auth/YokhanKeycloakAuth.kt",
+      "androidPattern": "fun signOut"
     }
   ],
   "divergences": []

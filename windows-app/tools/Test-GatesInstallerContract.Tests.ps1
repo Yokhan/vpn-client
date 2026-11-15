@@ -27,23 +27,31 @@ Describe 'GATES installer service launcher contract' {
         ($source.IndexOf('sc.exe stop GatesVpn') -lt $source.IndexOf('taskkill /F /IM GATES.exe')) | Should Be $true
     }
 
-    It 'embeds self-healing service stop and deferred RemoveExistingProducts in main.wxs' {
+    It 'embeds self-healing service stop, same-version upgrade, and early RemoveExistingProducts in main.wxs' {
         $wxsPath = Join-Path $PSScriptRoot '..\src\main\jpackage\main.wxs'
         $wxs = Get-Content -LiteralPath $wxsPath -Raw
 
         $wxs | Should Match 'MSIRESTARTMANAGERCONTROL'
         $wxs | Should Match 'StopGatesRuntime'
         $wxs | Should Match 'StartGatesRuntime'
+        $wxs | Should Match 'IncludeMaximum="yes"'
+        $wxs | Should Match 'InstallExecute After="StopGatesRuntime"'
         $wxs | Should Match 'RemoveExistingProducts After="InstallExecute"'
+        ($wxs.IndexOf('RemoveExistingProducts After="InstallExecute"') -lt $wxs.IndexOf('Custom Action="SetStartGatesRuntime"')) | Should Be $true
     }
 
-    It 'repairs the MSI and verifies the complete app image before starting the service' {
+    It 'repairs the MSI, removes conflicting GATES MSIs, and verifies the complete app image' {
         $source = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'GATES-install.cmd') -Raw
+        $boot = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\src\main\installer\GatesBootstrapper.cs') -Raw
 
         $source | Should Match 'msiexec\.exe /fa'
         $source | Should Match 'runtime\\lib\\modules'
         $source | Should Match 'Gates\.Service\.jar'
         $source | Should Match 'GATES\.cfg'
         $source | Should Match 'MISSING'
+        $source | Should Match 'DisplayName -eq ''GATES'''
+        $boot | Should Match 'GatesSetupInstallerMutex'
+        $boot | Should Match 'RemoveExistingGatesMsiRegistrations'
+        $boot | Should Match 'FindMissingInstalledFiles'
     }
 }
