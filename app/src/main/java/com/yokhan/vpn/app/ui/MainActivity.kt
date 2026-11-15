@@ -50,7 +50,9 @@ import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import com.yokhan.gates.app.auth.YokhanKeycloakAuth
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.yokhan.gates.app.manifest.YokhanRouteManifestManager
 import com.yokhan.gates.app.migration.YokhanPackageMigration
 import com.yokhan.gates.app.ui.compose.YokhanServiceStateConsumer
@@ -711,10 +713,38 @@ class MainActivity : ThemedActivity(),
         showDashboardMessage(getString(R.string.yokhan_auth_import_success, profileCount))
     }
 
+    suspend fun ensureBootstrapTunnelConnected(): Boolean {
+        withContext(kotlinx.coroutines.Dispatchers.Main) {
+            if (DataStore.serviceState.canStop) {
+                SagerNet.reloadServiceAsync()
+            } else {
+                connect.launch(null)
+            }
+        }
+        val deadline = System.currentTimeMillis() + 18_000L
+        var sawConnecting = false
+        while (System.currentTimeMillis() < deadline) {
+            val state = DataStore.serviceState
+            if (state == BaseService.State.Connected) {
+                delay(500L)
+                return true
+            }
+            if (state == BaseService.State.Connecting) {
+                sawConnecting = true
+            } else if (sawConnecting && state == BaseService.State.Stopped) {
+                return false
+            }
+            delay(200L)
+        }
+        return DataStore.serviceState == BaseService.State.Connected
+    }
+
     fun onYokhanBootstrapComplete() {
         dashboardController.refreshDashboard()
         displayRoute(YokhanShellRoute.Home)
-        if (!DataStore.serviceState.canStop) {
+        if (DataStore.serviceState.canStop) {
+            SagerNet.reloadServiceAsync()
+        } else {
             connect.launch(null)
         }
         showDashboardMessage(getString(R.string.wise_tree_success))

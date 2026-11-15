@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.yokhan.gates.shared.domain.access.WiseTreeAccess
 import java.awt.Desktop
 import java.io.File
 import java.io.RandomAccessFile
@@ -673,7 +674,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.9.2"
+private const val WINDOWS_APP_VERSION = "1.9.3"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -768,6 +769,7 @@ class WindowsRuntimeController(
         System.getenv("ProgramData")?.takeIf { it.isNotBlank() } ?: "C:\\ProgramData",
         "GATES\\Service",
     ),
+    private val verifyBootstrapCode: (String) -> Boolean = WiseTreeAccess::verifyCode,
 ) {
     internal val authorizationPrompt = MutableStateFlow<WindowsAuthorizationPrompt?>(null)
     internal val authorizationPhase = MutableStateFlow(WindowsAuthorizationPhase.Idle)
@@ -1711,45 +1713,68 @@ class WindowsRuntimeController(
     }
 
     /**
-     * Pre-login Tree gate: a short-lived XHTTP subscription for exactly one
-     * device. The temporary UUID is published to the XHTTP pilot by the
-     * existing sync endpoint and disappears together with the server state.
+     * Pre-login Tree gate: validates the passphrase offline first so direct access to the
+     * control plane is not required to check it. If direct /api/bootstrap/claim is blocked
+     * without VPN, raises a tightly-scoped embedded seed XHTTP tunnel (yokhan.xyz only)
+     * and enforces the server's 24-hour per-device ban + personal 15-minute UUID through it.
      */
     private fun claimBootstrapAccess(code: String): RuntimeCommandResult {
         ensureDirs()
         val config = readConfig()
         val normalizedCode = code.trim()
         if (normalizedCode.isBlank()) return RuntimeCommandResult(1, "Введите пароль Древа.")
-        val deviceId = bootstrapDeviceId()
-        val payload = JsonObject().apply {
-            addProperty("code", normalizedCode)
-            addProperty("device_id", deviceId)
-            addProperty("platform", "windows")
+        if (!verifyBootstrapCode(normalizedCode)) {
+            return bootstrapClaimErrorResult(403)
         }
-        val response = try {
+        val deviceId = bootstrapDeviceId()
+        val payloadJson = gson.toJson(
+            JsonObject().apply {
+                addProperty("code", normalizedCode)
+                addProperty("device_id", deviceId)
+                addProperty("platform", "windows")
+            },
+        )
+        val directResponse = runCatching {
             sendAppApiPostWithFallback(
                 config = config,
                 path = "/api/bootstrap/claim",
-                bodyJson = gson.toJson(payload),
-                timeoutSeconds = 25,
+                bodyJson = payloadJson,
+                timeoutSeconds = 12,
                 extraHeaders = mapOf("X-Yokhan-Device" to deviceId),
                 allowRedirects = false,
             )
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            return RuntimeCommandResult(1, "Не удалось связаться с сервером разового доступа.")
+        }.getOrElse { error ->
+            if (error is CancellationException) throw error
+            null
         }
-        if (response.statusCode() !in 200..299) {
-            val message = when (response.statusCode()) {
-                403 -> "Древо молчит: пароль не подошёл. Попробуйте ещё раз."
-                429 -> "Разовый доступ для этого устройства уже использован. Следующий — через 24 часа."
-                503 -> "Разовый доступ временно недоступен."
-                else -> "Разовый доступ не выдан: HTTP ${response.statusCode()}."
+        if (directResponse != null && directResponse.statusCode() < 500) {
+            return if (directResponse.statusCode() in 200..299) {
+                applyClaimedBootstrapSubscription(directResponse.body())
+            } else {
+                bootstrapClaimErrorResult(directResponse.statusCode())
             }
-            return RuntimeCommandResult(response.statusCode(), message)
         }
-        val bodyObj = runCatching { JsonParser.parseString(response.body()).asJsonObject }.getOrNull()
+        return claimBootstrapThroughEmbeddedTunnel(payloadJson, deviceId)
+    }
+
+    private fun bootstrapClaimErrorResult(statusCode: Int): RuntimeCommandResult {
+        val message = when (statusCode) {
+            403 -> "Древо молчит: пароль не подошёл. Попробуйте ещё раз."
+            429 -> "Разовый доступ для этого устройства уже использован. Следующий — через 24 часа."
+            503 -> "Разовый доступ временно недоступен."
+            else -> "Разовый доступ не выдан: HTTP $statusCode."
+        }
+        return RuntimeCommandResult(statusCode, message)
+    }
+
+    private fun isBootstrapTunnelRunning(): Boolean {
+        val serviceRunning = allowRuntimeServiceDelegation && runtimeService.health().isRunningServiceTunnel()
+        val localRunning = isManagedProcessRunning(managedProcessId(), managedProcess())
+        return serviceRunning || localRunning
+    }
+
+    private fun applyClaimedBootstrapSubscription(responseBody: String): RuntimeCommandResult {
+        val bodyObj = runCatching { JsonParser.parseString(responseBody).asJsonObject }.getOrNull()
         val subscriptionUrl = bodyObj?.get("subscription_url")?.asString?.trim().orEmpty()
         if (subscriptionUrl.isBlank()) {
             return RuntimeCommandResult(1, "Сервер не вернул подписку.")
@@ -1764,6 +1789,9 @@ class WindowsRuntimeController(
             bootstrapExpiresAtEpochMillis = expiresAtMillis,
         )
         if (imported.exitCode != 0) return imported
+        if (isBootstrapTunnelRunning()) {
+            stop()
+        }
         val connected = connect()
         return if (connected.exitCode == 0) {
             awaitBootstrapRelayReady(readConfig())
@@ -1774,6 +1802,84 @@ class WindowsRuntimeController(
         } else {
             connected
         }
+    }
+
+    private fun claimBootstrapThroughEmbeddedTunnel(
+        payloadJson: String,
+        deviceId: String,
+    ): RuntimeCommandResult {
+        val bootstrapProfileFile = profileFile("bootstrap")
+        val prevBootstrapProfile = bootstrapProfileFile.takeIf { it.isFile }?.let(profileStore::readBytes)
+        val prevAppConfigBytes = appConfigFile.takeIf { it.isFile }?.let(profileStore::readBytes)
+        val rollback = {
+            if (isBootstrapTunnelRunning()) {
+                stop()
+            }
+            runCatching {
+                if (prevBootstrapProfile != null) {
+                    profileStore.writeAtomic(bootstrapProfileFile, prevBootstrapProfile)
+                } else {
+                    bootstrapProfileFile.delete()
+                }
+                if (prevAppConfigBytes != null) {
+                    profileStore.writeAtomic(appConfigFile, prevAppConfigBytes)
+                }
+            }
+        }
+        if (isBootstrapTunnelRunning()) {
+            stop()
+        }
+        val seedExpiresAt = System.currentTimeMillis() + 15 * 60 * 1000L
+        val seedStored = storeImportedProfile(
+            source = "bootstrap",
+            json = WiseTreeAccess.buildEmbeddedBootstrapProfileJson(autoDetectInterface = true),
+            subscriptionUrl = "$GATES_CLOAK_APP_API_BASE_URL/api/bootstrap/seed",
+            bootstrapExpiresAtEpochMillis = seedExpiresAt,
+        )
+        if (seedStored.exitCode != 0) return seedStored
+        val seedConnected = connect()
+        if (seedConnected.exitCode != 0) {
+            rollback()
+            return seedConnected
+        }
+        awaitBootstrapRelayReady(readConfig())
+        var tunnelResponse: HttpResponse<String>? = null
+        val maxAttempts = if (authHttpClient != null) 1 else 3
+        for (attempt in 1..maxAttempts) {
+            val response = runCatching {
+                sendAppApiPostWithFallback(
+                    config = readConfig(),
+                    path = "/api/bootstrap/claim",
+                    bodyJson = payloadJson,
+                    timeoutSeconds = 15,
+                    extraHeaders = mapOf("X-Yokhan-Device" to deviceId),
+                    allowRedirects = false,
+                )
+            }.getOrElse { error ->
+                if (error is CancellationException) throw error
+                null
+            }
+            if (response != null) {
+                tunnelResponse = response
+                if (response.statusCode() < 500) break
+            }
+            if (attempt < maxAttempts) {
+                runCatching { Thread.sleep(1_200L) }
+            }
+        }
+        if (tunnelResponse == null || tunnelResponse.statusCode() >= 500) {
+            rollback()
+            return RuntimeCommandResult(1, "Не удалось связаться с сервером разового доступа.")
+        }
+        if (tunnelResponse.statusCode() !in 200..299) {
+            rollback()
+            return bootstrapClaimErrorResult(tunnelResponse.statusCode())
+        }
+        val applied = applyClaimedBootstrapSubscription(tunnelResponse.body())
+        if (applied.exitCode != 0) {
+            rollback()
+        }
+        return applied
     }
 
     private fun awaitBootstrapRelayReady(config: WindowsAppConfig) {
@@ -1827,20 +1933,56 @@ class WindowsRuntimeController(
         val url = runCatching { subscriptionJsonEndpoint(subscriptionUrl) }.getOrElse {
             return RuntimeCommandResult(1, "Укажите HTTPS-ссылку подписки GATES.")
         }
-        return try {
-            val json = fetchSubscriptionJson?.invoke(url) ?: run {
-                val request = HttpRequest.newBuilder(URI.create(url))
+        val candidateUrls = if (source == "bootstrap" || url.contains("/api/bootstrap/sub/")) {
+            windowsCandidateBootstrapSubUrls(url, config.appApiBaseUrl)
+        } else {
+            listOf(url)
+        }
+        val customFetcher = fetchSubscriptionJson
+        if (customFetcher != null) {
+            var lastFailure: Exception? = null
+            for (candidateUrl in candidateUrls) {
+                try {
+                    val json = customFetcher.invoke(candidateUrl)
+                    return storeImportedProfile(source, json, subscriptionUrl, bootstrapExpiresAtEpochMillis)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    lastFailure = error
+                }
+            }
+            if (lastFailure != null) {
+                return RuntimeCommandResult(1, "Не удалось получить подписку. Сохранённые профили не изменены.")
+            }
+        }
+        var lastStatus = 0
+        var lastError: Exception? = null
+        val client = httpClient(allowRedirects = false)
+        for (candidateUrl in candidateUrls) {
+            val response = try {
+                val request = HttpRequest.newBuilder(URI.create(candidateUrl))
                     .header("Accept", "application/json")
                     .timeout(Duration.ofSeconds(30))
                     .GET().build()
-                val response = httpClient(allowRedirects = false).send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
-                if (response.statusCode() !in 200..299) {
-                    return RuntimeCommandResult(response.statusCode(), "Не удалось получить подписку: HTTP ${response.statusCode()}.")
-                }
-                response.body()
+                client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                lastError = error
+                continue
             }
-            storeImportedProfile(source, json, subscriptionUrl, bootstrapExpiresAtEpochMillis)
-        } catch (_: Exception) {
+            if (response.statusCode() in 200..299) {
+                return storeImportedProfile(source, response.body(), subscriptionUrl, bootstrapExpiresAtEpochMillis)
+            }
+            lastStatus = response.statusCode()
+            if (lastStatus < 500) {
+                return RuntimeCommandResult(lastStatus, "Не удалось получить подписку: HTTP $lastStatus.")
+            }
+        }
+        return if (lastStatus != 0) {
+            RuntimeCommandResult(lastStatus, "Не удалось получить подписку: HTTP $lastStatus.")
+        } else {
+            val _ignored = lastError
             RuntimeCommandResult(1, "Не удалось получить подписку. Сохранённые профили не изменены.")
         }
     }
@@ -2012,7 +2154,7 @@ class WindowsRuntimeController(
                 return RuntimeCommandResult(signedIn.exitCode, steps.joinToString("\n") + "\n" + signedIn.output)
             }
         }
-        if (readAuthState(config) != null && config.profileSource != "manual") {
+        if (readAuthState(config) != null && config.profileSource !in setOf("manual", "bootstrap")) {
             val imported = runCatching { importAuthenticatedAppConfig() }.getOrElse {
                 RuntimeCommandResult(1, "Не удалось обновить аккаунтную конфигурацию.")
             }

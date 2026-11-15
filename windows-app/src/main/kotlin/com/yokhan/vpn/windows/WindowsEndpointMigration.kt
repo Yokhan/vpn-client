@@ -20,6 +20,24 @@ internal fun windowsCandidateAppApiBases(configuredBase: String): List<String> =
         .filter { it.startsWith("https://", ignoreCase = true) }
         .distinct()
 
+internal fun windowsCandidateBootstrapSubUrls(
+    subscriptionUrl: String,
+    configuredBase: String,
+): List<String> {
+    val trimmed = subscriptionUrl.trim()
+    val pathIdx = trimmed.indexOf("/api/bootstrap/sub/")
+    if (pathIdx < 0) return listOf(trimmed).filter { it.isNotBlank() }
+    val suffix = trimmed.substring(pathIdx)
+    return (
+        listOf(trimmed) +
+            windowsCandidateAppApiBases(configuredBase).map { base ->
+                "${base.trimEnd('/')}$suffix"
+            }
+        )
+        .filter { it.startsWith("https://", ignoreCase = true) }
+        .distinct()
+}
+
 internal fun windowsCandidateBugReportUrls(configuredUrls: List<String>): List<String> =
     (configuredUrls + listOf(
         "$GATES_CLOAK_APP_API_BASE_URL/api/app/bug-report",

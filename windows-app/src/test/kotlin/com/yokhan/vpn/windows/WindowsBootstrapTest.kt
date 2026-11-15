@@ -1,6 +1,7 @@
 package com.yokhan.gates.windows
 
 import com.google.gson.JsonParser
+import com.yokhan.gates.shared.domain.access.WiseTreeAccess
 import kotlinx.coroutines.runBlocking
 import java.net.Authenticator
 import java.net.CookieHandler
@@ -30,7 +31,9 @@ class WindowsBootstrapTest {
     @Test
     fun claimRejectsWrongPasswordAndCooldownWithoutOverwritingSavedProfile() = runBlocking {
         val root = Files.createTempDirectory("gates-bootstrap-err-").toFile()
+        var requestCount = 0
         val http = MockHttpClient { request, _ ->
+            requestCount += 1
             val code = request.uri().toString()
             when {
                 code.endsWith("/api/bootstrap/claim") && request.method() == "POST" ->
@@ -48,6 +51,7 @@ class WindowsBootstrapTest {
 
         val wrong = controller.run("bootstrap-claim", "bad-guess")
         assertEquals(403, wrong.exitCode)
+        assertEquals(0, requestCount)
         assertTrue("Древо" in wrong.output)
         assertEquals("manual", controller.readConfig().profileSource)
         assertEquals(0L, controller.readConfig().bootstrapExpiresAtEpochMillis)
@@ -94,6 +98,7 @@ class WindowsBootstrapTest {
             xrayPinProvider = { "d5b558191cccb1e92a5772b68b8cab67717b26f634b0f15153215f65ae982a7e" },
             authHttpClient = http,
             serviceDataDir = root.resolve("svc"),
+            verifyBootstrapCode = { it.trim().equals("tree-secret", ignoreCase = true) },
         )
         // Use proxy mode for pure bootstrap unit test when physical bind adapter may vary; verify full XHTTP scoping cleanly via TUN/fallback.
         val claim = controller.run("bootstrap-claim", "  tree-secret  ")
@@ -152,6 +157,210 @@ class WindowsBootstrapTest {
         val connectResult = controller.run("connect")
         assertEquals(1, connectResult.exitCode)
         assertTrue("истекло" in connectResult.output)
+    }
+
+    @Test
+    fun candidateBootstrapSubUrlsIncludesCloakFallback() {
+        val urls = windowsCandidateBootstrapSubUrls(
+            subscriptionUrl = "https://app.yokhan.xyz/gates/api/bootstrap/sub/tok123",
+            configuredBase = "https://app.yokhan.xyz/gates",
+        )
+        assertEquals(
+            listOf(
+                "https://app.yokhan.xyz/gates/api/bootstrap/sub/tok123",
+                "https://cloak.yokhan.xyz/gates/api/bootstrap/sub/tok123",
+            ),
+            urls,
+        )
+    }
+
+    @Test
+    fun bootstrapWithExistingAuthAndRunningServiceStopsRestartsAndFallsBackSubHost() = runBlocking {
+        val root = Files.createTempDirectory("gates-bootstrap-auth-").toFile()
+        root.resolve("auth-state.json").writeText(
+            """{"issuer":"https://auth.yokhan.xyz/realms/yokhan","clientId":"","tokenEndpoint":"https://auth.yokhan.xyz/realms/yokhan/protocol/openid-connect/token","accessToken":"old-tok","refreshToken":"old-ref","expiresAtEpochSecond":9999999999}""",
+        )
+        val seenRequests = mutableListOf<String>()
+        val client = MockHttpClient { req, _ ->
+            seenRequests += "${req.method()} ${req.uri()}"
+            val uri = req.uri().toString()
+            when {
+                uri.endsWith("/api/bootstrap/claim") -> {
+                    val exp = (System.currentTimeMillis() / 1000L) + 900L
+                    200 to """{"subscription_url":"https://app.yokhan.xyz/gates/api/bootstrap/sub/tok1","expires_at":$exp}"""
+                }
+                uri == "https://app.yokhan.xyz/gates/api/bootstrap/sub/tok1" -> 503 to """{"error":"unavailable"}"""
+                uri == "https://cloak.yokhan.xyz/gates/api/bootstrap/sub/tok1" -> 200 to XHTTP_PROFILE
+                else -> 500 to "{}"
+            }
+        }
+        var running = true
+        var stopCount = 0
+        var startCount = 0
+        var currentDigest = "NONE"
+        val fakeService = object : WindowsRuntimeControl {
+            override fun health(): RuntimeCommandResult =
+                RuntimeCommandResult(0, if (running) "RUNNING" else "STOPPED")
+
+            override fun startTunnel(configJson: String): RuntimeCommandResult {
+                running = true
+                startCount += 1
+                currentDigest = runtimeConfigurationDigest(configJson)
+                return RuntimeCommandResult(0, "STARTED")
+            }
+
+            override fun stop(): RuntimeCommandResult {
+                running = false
+                stopCount += 1
+                currentDigest = "NONE"
+                return RuntimeCommandResult(0, "STOPPED")
+            }
+
+            override fun configurationDigest(): RuntimeCommandResult =
+                RuntimeCommandResult(0, currentDigest)
+        }
+        val controller = WindowsRuntimeController(
+            allowRuntimeServiceDelegation = true,
+            appDir = root,
+            runtimeService = fakeService,
+            prepareRuntimeService = { RuntimeCommandResult(0, "ready") },
+            validateGeneratedConfig = { RuntimeCommandResult(0, "ok") },
+            authHttpClient = client,
+            runtimeServiceInstalled = { true },
+            xrayPinProvider = { "A".repeat(64) },
+            serviceDataDir = root.resolve("service-data"),
+            verifyBootstrapCode = { it.trim().equals("tree-secret", ignoreCase = true) },
+        )
+
+        val result = controller.run("bootstrap-claim", "tree-secret")
+        assertTrue(seenRequests.contains("GET https://app.yokhan.xyz/gates/api/bootstrap/sub/tok1"))
+        assertTrue(seenRequests.contains("GET https://cloak.yokhan.xyz/gates/api/bootstrap/sub/tok1"))
+        assertTrue(seenRequests.none { "/api/app/" in it })
+        assertTrue(seenRequests.none { it.endsWith("/api/bootstrap/revoke") })
+        assertEquals("bootstrap", controller.readConfig().profileSource)
+        if ("Physical bind" !in result.output) {
+            assertEquals(0, result.exitCode, result.output)
+            assertEquals(1, stopCount)
+            assertEquals(1, startCount)
+        }
+    }
+
+    @Test
+    fun directBlockedStartsEmbeddedSeedTunnelAndStopsOnServer429Cooldown() = runBlocking {
+        val root = Files.createTempDirectory("gates-bootstrap-seed-429-").toFile()
+        var running = false
+        var startCount = 0
+        var stopCount = 0
+        var currentDigest = "NONE"
+        val startedPayloads = mutableListOf<String>()
+        val fakeService = object : WindowsRuntimeControl {
+            override fun health() = RuntimeCommandResult(0, if (running) "RUNNING" else "STOPPED")
+            override fun startTunnel(configJson: String): RuntimeCommandResult {
+                running = true
+                startCount += 1
+                startedPayloads += configJson
+                currentDigest = runtimeConfigurationDigest(configJson)
+                return RuntimeCommandResult(0, "STARTED")
+            }
+            override fun stop(): RuntimeCommandResult {
+                running = false
+                stopCount += 1
+                currentDigest = "NONE"
+                return RuntimeCommandResult(0, "STOPPED")
+            }
+            override fun configurationDigest() = RuntimeCommandResult(0, currentDigest)
+        }
+        val http = MockHttpClient { req, _ ->
+            val uri = req.uri().toString()
+            when {
+                uri.endsWith("/api/bootstrap/claim") && !running -> 503 to """{"error":"blocked"}"""
+                uri.endsWith("/api/bootstrap/claim") && running -> 429 to """{"error":"cooldown","retry_after":86400}"""
+                else -> 404 to "{}"
+            }
+        }
+        val controller = WindowsRuntimeController(
+            allowRuntimeServiceDelegation = true,
+            appDir = root,
+            runtimeService = fakeService,
+            prepareRuntimeService = { RuntimeCommandResult(0, "ready") },
+            validateGeneratedConfig = { RuntimeCommandResult(0, "ok") },
+            authHttpClient = http,
+            runtimeServiceInstalled = { true },
+            xrayPinProvider = { "A".repeat(64) },
+            serviceDataDir = root.resolve("service-data"),
+            verifyBootstrapCode = { it.trim() == "tree-secret" },
+        )
+        controller.storeImportedProfile("manual", PLAIN_PROFILE, "https://app.yokhan.xyz/gates/api/sub/keep")
+
+        val result = controller.run("bootstrap-claim", "tree-secret")
+        if ("Physical bind" in result.output) return@runBlocking
+        assertEquals(429, result.exitCode, result.output)
+        assertTrue("24 часа" in result.output)
+        assertEquals(1, startCount)
+        assertTrue(stopCount >= 1)
+        assertFalse(running)
+        assertTrue(WiseTreeAccess.EMBEDDED_UUID in startedPayloads.single())
+        assertEquals("manual", controller.readConfig().profileSource)
+    }
+
+    @Test
+    fun directBlockedStartsEmbeddedSeedTunnelAndUpgradesToPersonalUuid() = runBlocking {
+        val root = Files.createTempDirectory("gates-bootstrap-seed-ok-").toFile()
+        var running = false
+        var startCount = 0
+        var stopCount = 0
+        var currentDigest = "NONE"
+        val startedPayloads = mutableListOf<String>()
+        val fakeService = object : WindowsRuntimeControl {
+            override fun health() = RuntimeCommandResult(0, if (running) "RUNNING" else "STOPPED")
+            override fun startTunnel(configJson: String): RuntimeCommandResult {
+                running = true
+                startCount += 1
+                startedPayloads += configJson
+                currentDigest = runtimeConfigurationDigest(configJson)
+                return RuntimeCommandResult(0, "STARTED")
+            }
+            override fun stop(): RuntimeCommandResult {
+                running = false
+                stopCount += 1
+                currentDigest = "NONE"
+                return RuntimeCommandResult(0, "STOPPED")
+            }
+            override fun configurationDigest() = RuntimeCommandResult(0, currentDigest)
+        }
+        val exp = (System.currentTimeMillis() / 1000L) + 900L
+        val http = MockHttpClient { req, _ ->
+            val uri = req.uri().toString()
+            when {
+                uri.endsWith("/api/bootstrap/claim") && !running -> 503 to """{"error":"blocked"}"""
+                uri.endsWith("/api/bootstrap/claim") && running ->
+                    200 to """{"subscription_url":"https://cloak.yokhan.xyz/gates/api/bootstrap/sub/tok-seed","expires_at":$exp}"""
+                uri == "https://cloak.yokhan.xyz/gates/api/bootstrap/sub/tok-seed" -> 200 to XHTTP_PROFILE
+                else -> 404 to "{}"
+            }
+        }
+        val controller = WindowsRuntimeController(
+            allowRuntimeServiceDelegation = true,
+            appDir = root,
+            runtimeService = fakeService,
+            prepareRuntimeService = { RuntimeCommandResult(0, "ready") },
+            validateGeneratedConfig = { RuntimeCommandResult(0, "ok") },
+            authHttpClient = http,
+            runtimeServiceInstalled = { true },
+            xrayPinProvider = { "A".repeat(64) },
+            serviceDataDir = root.resolve("service-data"),
+            verifyBootstrapCode = { it.trim() == "tree-secret" },
+        )
+
+        val result = controller.run("bootstrap-claim", "tree-secret")
+        if ("Physical bind" in result.output) return@runBlocking
+        assertEquals(0, result.exitCode, result.output)
+        assertEquals(2, startCount)
+        assertEquals(1, stopCount)
+        assertTrue(running)
+        assertTrue(WiseTreeAccess.EMBEDDED_UUID in startedPayloads[0])
+        assertTrue(UUID in startedPayloads[1])
+        assertEquals("bootstrap", controller.readConfig().profileSource)
     }
 
     private class MockHttpClient(

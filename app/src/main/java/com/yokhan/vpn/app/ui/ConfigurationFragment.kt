@@ -578,7 +578,16 @@ class ConfigurationFragment @JvmOverloads constructor(
                         bootstrapBusy = true
                         statusMessage = hostActivity.getString(R.string.wise_tree_checking)
                         scope.launch {
-                            val result = YokhanBootstrapAccess.claim(hostActivity.applicationContext, trimmed)
+                            val result = YokhanBootstrapAccess.claim(
+                                context = hostActivity.applicationContext,
+                                code = trimmed,
+                                ensureEmbeddedTunnelConnected = {
+                                    (hostActivity as? MainActivity)?.ensureBootstrapTunnelConnected() ?: false
+                                },
+                                stopEmbeddedTunnel = {
+                                    SagerNet.stopServiceAsync()
+                                },
+                            )
                             bootstrapBusy = false
                             bootstrapTick += 1
                             result.onSuccess {

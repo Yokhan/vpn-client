@@ -1,6 +1,9 @@
 package com.yokhan.gates.app.auth
 
+import com.yokhan.gates.shared.domain.access.WiseTreeAccess
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -63,5 +66,92 @@ class YokhanBootstrapAccessTest {
         assertTrue(bootstrapClaimErrorMessage(429).contains("24"))
         assertTrue(bootstrapClaimErrorMessage(503).contains("недоступен"))
         assertTrue(bootstrapClaimErrorMessage(502).contains("502"))
+    }
+
+    @Test
+    fun candidateBootstrapSubscriptionUrls_includesCloakFallbackForSubPath() {
+        val urls = candidateBootstrapSubscriptionUrls(
+            subscriptionUrl = "https://app.yokhan.xyz/gates/api/bootstrap/sub/tok123",
+            configuredBase = "https://app.yokhan.xyz/gates",
+        )
+        assertEquals(
+            listOf(
+                "https://app.yokhan.xyz/gates/api/bootstrap/sub/tok123",
+                "https://cloak.yokhan.xyz/gates/api/bootstrap/sub/tok123",
+            ),
+            urls,
+        )
+    }
+
+    @Test
+    fun claimWithDeps_rejectsWrongPasswordOfflineWithoutNetworkCall() = runBlocking {
+        var requests = 0
+        var tunnelStarted = false
+        val result = YokhanBootstrapAccess.claimWithDeps(
+            code = "wrong-passphrase",
+            deviceId = "android-test-1",
+            ensureEmbeddedTunnelConnected = { tunnelStarted = true; true },
+            claimRequester = { _, _, _ -> requests += 1; 200 to "{}" },
+            subFetcher = { "{}" },
+            profileUpdater = { _, _ -> 1 },
+            profileCleaner = {},
+        )
+        assertTrue(result.isFailure)
+        assertEquals(0, requests)
+        assertFalse(tunnelStarted)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("пароль"))
+    }
+
+    @Test
+    fun claimWithDeps_startsEmbeddedTunnelWhenDirectBlockedAndStopsOn429Cooldown() = runBlocking {
+        var tunnelUp = false
+        var stopped = false
+        var cleaned = false
+        val importedPayloads = mutableListOf<String>()
+        val result = YokhanBootstrapAccess.claimWithDeps(
+            code = "tree-secret",
+            codeVerifier = { it == "tree-secret" },
+            deviceId = "android-test-2",
+            ensureEmbeddedTunnelConnected = { tunnelUp = true; true },
+            stopEmbeddedTunnel = { tunnelUp = false; stopped = true },
+            claimRequester = { _, _, _ ->
+                if (!tunnelUp) error("blocked without VPN")
+                429 to """{"error":"cooldown"}"""
+            },
+            subFetcher = { "{}" },
+            profileUpdater = { payload, _ -> importedPayloads += payload; 1 },
+            profileCleaner = { cleaned = true },
+        )
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("24 часа"))
+        assertEquals(1, importedPayloads.size)
+        assertTrue(WiseTreeAccess.EMBEDDED_UUID in importedPayloads.first())
+        assertTrue(stopped)
+        assertTrue(cleaned)
+    }
+
+    @Test
+    fun claimWithDeps_startsEmbeddedTunnelWhenDirectBlockedAndUpgradesOn200() = runBlocking {
+        var tunnelUp = false
+        val importedPayloads = mutableListOf<String>()
+        val exp = (System.currentTimeMillis() / 1000L) + 900L
+        val result = YokhanBootstrapAccess.claimWithDeps(
+            code = "tree-secret",
+            codeVerifier = { it == "tree-secret" },
+            deviceId = "android-test-3",
+            ensureEmbeddedTunnelConnected = { tunnelUp = true; true },
+            stopEmbeddedTunnel = { tunnelUp = false },
+            claimRequester = { _, _, _ ->
+                if (!tunnelUp) error("blocked without VPN")
+                200 to """{"subscription_url":"https://cloak.yokhan.xyz/gates/api/bootstrap/sub/tok99","expires_at":$exp}"""
+            },
+            subFetcher = { """{"outbounds":[{"type":"vless","tag":"xhttp","uuid":"per-device-uuid"}]}""" },
+            profileUpdater = { payload, _ -> importedPayloads += payload; 1 },
+            profileCleaner = {},
+        )
+        assertTrue(result.isSuccess)
+        assertEquals(2, importedPayloads.size)
+        assertTrue(WiseTreeAccess.EMBEDDED_UUID in importedPayloads[0])
+        assertTrue("per-device-uuid" in importedPayloads[1])
     }
 }

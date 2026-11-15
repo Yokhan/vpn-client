@@ -3,6 +3,7 @@ package com.yokhan.gates.app.auth
 import android.content.Context
 import androidx.room.withTransaction
 import com.yokhan.gates.app.backup.ProfileMutations
+import com.yokhan.gates.shared.domain.access.WiseTreeAccess
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.GroupManager
@@ -13,6 +14,7 @@ import io.nekohasekai.sagernet.group.RawUpdater
 import io.nekohasekai.sagernet.ktx.applyDefaultValues
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import moe.matsuri.nb4a.proxy.config.ConfigBean
 import com.google.gson.JsonObject
@@ -39,6 +41,7 @@ internal const val GATES_BOOTSTRAP_PRIMARY_BASE = "https://app.yokhan.xyz/gates"
 private const val BOOTSTRAP_PREFS = "gates_bootstrap_access"
 private const val KEY_EXPIRES_AT_MS = "expires_at_ms"
 private const val BOOTSTRAP_DEFAULT_TTL_MS = 15L * 60L * 1000L
+private const val BOOTSTRAP_PROFILE_NAME = "Edge-xhttp (Древо)"
 
 internal fun candidateBootstrapApiBases(configuredBase: String): List<String> =
     listOf(
@@ -48,6 +51,24 @@ internal fun candidateBootstrapApiBases(configuredBase: String): List<String> =
     )
         .filter { it.startsWith("https://", ignoreCase = true) }
         .distinct()
+
+internal fun candidateBootstrapSubscriptionUrls(
+    subscriptionUrl: String,
+    configuredBase: String = BuildConfig.YOKHAN_APP_API_BASE_URL,
+): List<String> {
+    val trimmed = subscriptionUrl.trim()
+    val pathIdx = trimmed.indexOf("/api/bootstrap/sub/")
+    if (pathIdx < 0) return listOf(trimmed).filter { it.isNotBlank() }
+    val suffix = trimmed.substring(pathIdx)
+    return (
+        listOf(trimmed) +
+            candidateBootstrapApiBases(configuredBase).map { base ->
+                "${base.trimEnd('/')}$suffix"
+            }
+        )
+        .filter { it.startsWith("https://", ignoreCase = true) }
+        .distinct()
+}
 
 internal fun bootstrapClaimErrorMessage(statusCode: Int): String = when (statusCode) {
     403 -> "Древо молчит: пароль не подошёл. Попробуйте ещё раз."
@@ -121,58 +142,187 @@ object YokhanBootstrapAccess {
     suspend fun claim(
         context: Context,
         code: String,
+        codeVerifier: (String) -> Boolean = WiseTreeAccess::verifyCode,
+        ensureEmbeddedTunnelConnected: (suspend () -> Boolean)? = null,
+        stopEmbeddedTunnel: (() -> Unit)? = null,
     ): Result<BootstrapClaimResult> = withContext(Dispatchers.IO) {
         val appContext = context.applicationContext
+        val deviceId = bootstrapDeviceId(appContext)
+        claimWithDeps(
+            code = code,
+            codeVerifier = codeVerifier,
+            deviceId = deviceId,
+            ensureEmbeddedTunnelConnected = ensureEmbeddedTunnelConnected,
+            stopEmbeddedTunnel = stopEmbeddedTunnel,
+            claimRequester = { path, bodyJson, id ->
+                postWithFallback(path = path, bodyJson = bodyJson, deviceId = id)
+            },
+            subFetcher = ::fetchBootstrapSubscription,
+            profileUpdater = { payload, expiresAt ->
+                importBootstrapProfiles(appContext, payload, expiresAt)
+            },
+            profileCleaner = {
+                clearLocalState(appContext)
+                clearBootstrapProfiles(appContext)
+            },
+        )
+    }
+
+    internal suspend fun claimWithDeps(
+        code: String,
+        codeVerifier: (String) -> Boolean = WiseTreeAccess::verifyCode,
+        deviceId: String,
+        ensureEmbeddedTunnelConnected: (suspend () -> Boolean)? = null,
+        stopEmbeddedTunnel: (() -> Unit)? = null,
+        claimRequester: (path: String, bodyJson: String, deviceId: String) -> Pair<Int, String>,
+        subFetcher: (String) -> String,
+        profileUpdater: suspend (payload: String, expiresAtMillis: Long) -> Int,
+        profileCleaner: suspend () -> Unit,
+    ): Result<BootstrapClaimResult> = withContext(Dispatchers.IO) {
         val normalizedCode = code.trim()
         if (normalizedCode.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Введите пароль Древа."))
         }
-        val deviceId = bootstrapDeviceId(appContext)
+        if (!codeVerifier(normalizedCode)) {
+            return@withContext Result.failure(IllegalStateException(bootstrapClaimErrorMessage(403)))
+        }
         val requestJson = JsonObject().apply {
             addProperty("code", normalizedCode)
             addProperty("device_id", deviceId)
             addProperty("platform", "android")
         }.toString()
 
-        val responsePair = try {
-            postWithFallback(
-                path = "/api/bootstrap/claim",
-                bodyJson = requestJson,
-                deviceId = deviceId,
-            )
+        val directResponse = try {
+            claimRequester("/api/bootstrap/claim", requestJson, deviceId)
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (error: Exception) {
+        } catch (_: Exception) {
+            null
+        }
+        if (directResponse != null && directResponse.first < 500) {
+            val (statusCode, responseBody) = directResponse
+            if (statusCode !in 200..299) {
+                return@withContext Result.failure(IllegalStateException(bootstrapClaimErrorMessage(statusCode)))
+            }
+            return@withContext finishClaimWithPayload(responseBody, subFetcher, profileUpdater)
+        }
+
+        if (ensureEmbeddedTunnelConnected == null) {
             return@withContext Result.failure(
-                IllegalStateException("Не удалось связаться с сервером разового доступа.", error),
+                IllegalStateException("Не удалось связаться с сервером разового доступа."),
             )
         }
 
-        val (statusCode, responseBody) = responsePair
-        if (statusCode !in 200..299) {
-            return@withContext Result.failure(IllegalStateException(bootstrapClaimErrorMessage(statusCode)))
+        val seedExpiresAt = System.currentTimeMillis() + BOOTSTRAP_DEFAULT_TTL_MS
+        runCatching {
+            profileUpdater(
+                WiseTreeAccess.buildEmbeddedBootstrapProfileJson(autoDetectInterface = false),
+                seedExpiresAt,
+            )
+        }.getOrElse { error ->
+            return@withContext Result.failure(
+                IllegalStateException("Не удалось подготовить временный профиль: ${error.message ?: error.javaClass.simpleName}", error),
+            )
+        }
+        val tunnelReady = try {
+            ensureEmbeddedTunnelConnected()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            false
+        }
+        if (!tunnelReady) {
+            runCatching { stopEmbeddedTunnel?.invoke() }
+            runCatching { profileCleaner() }
+            return@withContext Result.failure(
+                IllegalStateException("Не удалось запустить временный туннель. Проверьте разрешение VPN."),
+            )
         }
 
+        var tunnelResponse: Pair<Int, String>? = null
+        val maxAttempts = 3
+        for (attempt in 1..maxAttempts) {
+            val attemptPair = try {
+                claimRequester("/api/bootstrap/claim", requestJson, deviceId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+            if (attemptPair != null) {
+                tunnelResponse = attemptPair
+                if (attemptPair.first < 500) break
+            }
+            if (attempt < maxAttempts) {
+                delay(200L)
+            }
+        }
+
+        if (tunnelResponse == null || tunnelResponse.first >= 500) {
+            runCatching { stopEmbeddedTunnel?.invoke() }
+            runCatching { profileCleaner() }
+            return@withContext Result.failure(
+                IllegalStateException("Не удалось связаться с сервером разового доступа."),
+            )
+        }
+        if (tunnelResponse.first !in 200..299) {
+            runCatching { stopEmbeddedTunnel?.invoke() }
+            runCatching { profileCleaner() }
+            return@withContext Result.failure(
+                IllegalStateException(bootstrapClaimErrorMessage(tunnelResponse.first)),
+            )
+        }
+        return@withContext finishClaimWithPayload(tunnelResponse.second, subFetcher, profileUpdater).also { res ->
+            if (res.isFailure) {
+                runCatching { stopEmbeddedTunnel?.invoke() }
+                runCatching { profileCleaner() }
+            }
+        }
+    }
+
+    private suspend fun finishClaimWithPayload(
+        responseBody: String,
+        fetchSub: (String) -> String,
+        updateProfiles: suspend (String, Long) -> Int,
+    ): Result<BootstrapClaimResult> {
         val parsed = runCatching { parseBootstrapClaimPayload(responseBody) }
-            .getOrElse { return@withContext Result.failure(it) }
-
+            .getOrElse { return Result.failure(it) }
         val profileBody = try {
-            fetchBootstrapSubscription(parsed.subscriptionUrl)
+            fetchSub(parsed.subscriptionUrl)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            return@withContext Result.failure(
+            return Result.failure(
                 IllegalStateException("Не удалось получить временный профиль: ${error.message ?: error.javaClass.simpleName}", error),
             )
         }
-
-        val importedCount = importBootstrapProfiles(appContext, profileBody, parsed.expiresAtMillis)
-        Result.success(
+        val importedCount = updateProfiles(profileBody, parsed.expiresAtMillis)
+        return Result.success(
             BootstrapClaimResult(
                 profileCount = importedCount,
                 expiresAtMillis = parsed.expiresAtMillis,
             ),
         )
+    }
+
+    private suspend fun clearBootstrapProfiles(appContext: Context) {
+        ProfileMutations.withLock {
+            DataStore.flushConfiguration()
+            DataStore.refreshConfiguration()
+            val group = YokhanKeycloakAuth.ensureAppGroup(appContext)
+            SagerDatabase.instance.withTransaction {
+                val existing = SagerDatabase.proxyDao.getByGroup(group.id)
+                val removedIds = existing
+                    .filter { it.displayName() == BOOTSTRAP_PROFILE_NAME }
+                    .map { it.id }
+                    .toSet()
+                removedIds.forEach { SagerDatabase.proxyDao.deleteById(it) }
+                val fallbackId = existing.firstOrNull { it.id !in removedIds }?.id ?: 0L
+                if (DataStore.selectedProxy in removedIds) DataStore.selectedProxy = fallbackId
+                if (DataStore.currentProfile in removedIds) DataStore.currentProfile = fallbackId
+            }
+            GroupManager.postReload(group.id)
+        }
     }
 
     suspend fun revokeBestEffort(context: Context) = withContext(Dispatchers.IO) {
@@ -227,20 +377,41 @@ object YokhanBootstrapAccess {
     }
 
     private fun fetchBootstrapSubscription(subscriptionUrl: String): String {
-        val request = Request.Builder()
-            .url(subscriptionUrl)
-            .header("Accept", "application/json, text/plain")
-            .header("X-Yokhan-Client", "GATES-Android")
-            .header("X-Yokhan-App-Version", BuildConfig.VERSION_NAME)
-            .get()
-            .build()
-        YokhanKeycloakAuth.sharedHttpClient.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                throw IllegalStateException("HTTP ${response.code}")
+        val candidateUrls = candidateBootstrapSubscriptionUrls(subscriptionUrl)
+        var lastError: Exception? = null
+        var lastStatusCode = 0
+        for (candidateUrl in candidateUrls) {
+            val request = Request.Builder()
+                .url(candidateUrl)
+                .header("Accept", "application/json, text/plain")
+                .header("X-Yokhan-Client", "GATES-Android")
+                .header("X-Yokhan-App-Version", BuildConfig.VERSION_NAME)
+                .get()
+                .build()
+            try {
+                YokhanKeycloakAuth.sharedHttpClient.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (response.isSuccessful) {
+                        return body
+                    }
+                    lastStatusCode = response.code
+                    if (response.code < 500) {
+                        throw IllegalStateException("HTTP ${response.code}")
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                lastError = error
+                if (lastStatusCode in 400..499) {
+                    throw error
+                }
             }
-            return body
         }
+        if (lastStatusCode >= 500) {
+            throw IllegalStateException("HTTP $lastStatusCode")
+        }
+        throw (lastError ?: IllegalStateException("Не удалось получить временный конфиг."))
     }
 
     private suspend fun importBootstrapProfiles(
