@@ -1,0 +1,60 @@
+{
+  "schema": "gates-platform-parity-v1",
+  "unifiedVersion": "1.9.0",
+  "androidVersion": "1.9.0",
+  "windowsVersion": "1.9.0",
+  "parityMode": "strict",
+  "author": "Yokhan (Igor Nazarov)",
+  "contact": "iohanrace@gmail.com",
+  "requiredCapabilities": [
+    {
+      "id": "wise_tree_bootstrap",
+      "description": "Wise Tree temporary 15-minute access claim (/api/bootstrap/claim) and UI entry point",
+      "windowsAnchor": "windows-app/src/main/kotlin/com/yokhan/vpn/windows/WindowsRuntimeController.kt",
+      "windowsPattern": "claimBootstrapAccess|/api/bootstrap/claim",
+      "androidAnchor": "app/src/main/java/com/yokhan/vpn/app/auth/YokhanBootstrapAccess.kt",
+      "androidPattern": "/api/bootstrap/claim"
+    },
+    {
+      "id": "ru_bypass_routing",
+      "description": "Automatic RU app & domain bypass classification and UI",
+      "windowsAnchor": "windows-app/src/main/kotlin/com/yokhan/vpn/windows/WindowsRuBypass.kt",
+      "windowsPattern": "WindowsRuBypass",
+      "androidAnchor": "app/src/main/java/com/yokhan/vpn/app/routing/RuCompatibilityClassifier.kt",
+      "androidPattern": "RuCompatibilityClassifier"
+    },
+    {
+      "id": "whole_traffic_compliance",
+      "description": "Whole Traffic Policy disabling bypass/LAN exclusions cleanly",
+      "windowsAnchor": "windows-app/src/main/kotlin/com/yokhan/vpn/windows/WindowsRuBypass.kt",
+      "windowsPattern": "wholeTrafficMode",
+      "androidAnchor": "app/src/main/java/com/yokhan/vpn/app/routing/WholeTrafficPolicy.kt",
+      "androidPattern": "WholeTrafficPolicy"
+    },
+    {
+      "id": "xray_xhttp_sidecar",
+      "description": "Xray-core XHTTP sidecar transport",
+      "windowsAnchor": "windows-app/src/main/kotlin/com/yokhan/vpn/windows/WindowsXhttpTransport.kt",
+      "windowsPattern": "WindowsXhttpTransport",
+      "androidAnchor": "app/src/main/java/io/nekohasekai/sagernet/bg/proto/XhttpSidecarBridge.kt",
+      "androidPattern": "XhttpSidecarBridge"
+    },
+    {
+      "id": "protection_visibility",
+      "description": "Kill Switch / Always-on lockdown protection status visibility and conflict guidance",
+      "windowsAnchor": "windows-app/src/main/kotlin/com/yokhan/vpn/windows/WindowsKillSwitch.kt",
+      "windowsPattern": "WindowsProtectionState",
+      "androidAnchor": "app/src/main/java/com/yokhan/vpn/app/ui/SettingsFragment.kt",
+      "androidPattern": "alwaysOnVpnLockdown"
+    },
+    {
+      "id": "parallel_diagnostics",
+      "description": "Parallelized / low-latency diagnostics & bug report submission",
+      "windowsAnchor": "windows-app/src/main/kotlin/com/yokhan/vpn/windows/WindowsRouteTelemetry.kt",
+      "windowsPattern": "buildWindowsQualityTelemetryPayload",
+      "androidAnchor": "app/src/main/java/com/yokhan/vpn/app/diagnostics/YokhanDiagnosticsCollector.kt",
+      "androidPattern": "coroutineScope"
+    }
+  ],
+  "divergences": []
+}

@@ -198,12 +198,10 @@ fun Project.setupApp() {
 
         splits.abi {
             reset()
+            // GATES ships one arm64-v8a APK.
             isEnable = true
             isUniversalApk = false
-            include("armeabi-v7a")
             include("arm64-v8a")
-            include("x86")
-            include("x86_64")
         }
 
         flavorDimensions += "vendor"

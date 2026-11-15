@@ -45,6 +45,7 @@ object Key {
     const val ENABLE_LOCAL_INBOUND = "enableLocalInbound"
     const val ENABLE_USB_BRIDGE = "enableUsbBridge"
     const val STEALTH_MODE = "stealthMode"
+    const val WHOLE_TRAFFIC_MODE = "wholeTrafficMode"
     const val ENABLE_RU_BYPASS = "enableRuBypass"
     const val SERVER_EXCLUDE_PACKAGES = "serverExcludePackages"
 

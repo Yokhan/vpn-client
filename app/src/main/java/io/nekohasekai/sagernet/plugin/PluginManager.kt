@@ -82,6 +82,7 @@ object PluginManager {
             "naive-plugin" -> soIfExist("libnaive.so")
             "hysteria-plugin" -> soIfExist("libhysteria.so")
             "hysteria2-plugin" -> soIfExist("libhysteria2.so")
+            "xray-plugin" -> soIfExist("libxray.so")
             else -> null
         }
     }

@@ -193,7 +193,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var globalCustomConfig by configurationStore.string(Key.GLOBAL_CUSTOM_CONFIG) { "" }
 
     var remoteDns by configurationStore.string(Key.REMOTE_DNS) { "https://dns.google/dns-query" }
-    var directDns by configurationStore.string(Key.DIRECT_DNS) { "https://223.5.5.5/dns-query" }
+    var directDns by configurationStore.string(Key.DIRECT_DNS) { "local" }
     var enableDnsRouting by configurationStore.boolean(Key.ENABLE_DNS_ROUTING) { true }
     var enableFakeDns by configurationStore.boolean(Key.ENABLE_FAKEDNS) { true }
 
@@ -238,6 +238,9 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var enableUsbBridge by configurationStore.boolean(Key.ENABLE_USB_BRIDGE)
     var automaticRecoveryReports by configurationStore.boolean("automaticRecoveryReports") { true }
     var stealthMode by configurationStore.boolean(Key.STEALTH_MODE) { true }
+    // Auto-bypass for Russian apps, user direct routes, and LAN bypass are enabled
+    // by default so RU services keep working smoothly outside the tunnel.
+    var wholeTrafficMode by configurationStore.boolean(Key.WHOLE_TRAFFIC_MODE) { false }
     var enableRuBypass by configurationStore.boolean(Key.ENABLE_RU_BYPASS) { true }
     var serverExcludePackages by configurationStore.string(Key.SERVER_EXCLUDE_PACKAGES)
     var connectionTestURL by configurationStore.string(Key.CONNECTION_TEST_URL) { CONNECTION_TEST_URL }

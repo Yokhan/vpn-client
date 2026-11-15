@@ -20,4 +20,13 @@ Project-specific boundary:
 - Do not present a network/tunnel product as an unrelated game.
 - Rocket/launch imagery is allowed as brand metaphor.
 - Public copy must not promise bypassing restrictions, anonymity, or guaranteed legal safety.
-- Distribution, provider installation, signatures, and user consent must remain explicit.
+- Product design and public copy must keep distribution, provider installation, signatures, and user consent explicit.
+
+## Cross-Platform Parity Gate (Windows + Android)
+
+GATES ships **Windows and Android together in parity at the same release version** (`docs/parity-manifest.json`, `docs/PLATFORM_PARITY.md`).
+
+- Default rule: every feature, routing/DNS/kill-switch policy change, access/recovery flow, UI improvement, security fix, and version bump MUST target BOTH Windows (`windows-app/`, `windows-service/`) and Android (`app/`) plus `shared/`, and ship at a single synchronized version.
+- Single-platform work is allowed **only** upon explicit user instruction waiving parity for that specific task.
+- When any temporary exception creates drift between Windows and Android, it MUST be logged under `"divergences"` in `docs/parity-manifest.json` with `waivedByUser: true`, source platform, lagging platform, contract summary, and reconcile target.
+- Before starting or shipping any subsequent release/feature work, agents MUST inspect `docs/parity-manifest.json` and run `tools/Test-PlatformParity.ps1`: any logged divergence MUST be automatically ported to the lagging platform, test-verified, and cleared before merging/releasing.

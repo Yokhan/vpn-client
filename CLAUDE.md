@@ -1,37 +1,25 @@
-# YokhanVPN
+# GATES Client (`Yokhan/vpn-client`)
 
-Fork of NekoBox for Android with anti-detection hardening for Russian users.
+Author & maintainer: **Yokhan / Igor Nazarov** (`iohanrace@gmail.com`).
 
-## What this is
+Cross-platform VPN client for **Windows** and **Android** sharing Kotlin Multiplatform UI/domain (`shared/`), Xray-core + sing-box cores, GATES Wise Tree access recovery, and a unified parity release pipeline.
 
-Modified NekoBox (sing-box Android client) with:
+## Ownership & Architecture
 
-1. SOCKS5 inbound OFF by default (prevents localhost proxy scanning)
-2. exclude_package from sing-box JSON config (not just UI)
-3. Auto-update subscriptions via WorkManager
-4. Built-in Russian apps bypass list
+- `windows-app/`, `windows-service/`, `shared/domain/`, `shared/ui/`, GATES Wise Tree access, XHTTP transport/sidecar, signed v2 manifest verifier, RU compatibility routing, Whole Traffic policy, and parallelized diagnostics are authored and maintained by **Yokhan (Igor Nazarov)**.
+- Android service shell/VPN compatibility layer continues partial GPL-3.0 upstream notices (`AUTHORS`, `LICENSE`, `docs/third-party-notices.md`) while legacy `io.nekohasekai.sagernet` / `moe.matsuri.nb4a` internals are incrementally rewritten and replaced.
 
-## Stack
+## Mandatory Cross-Platform Parity Rule
 
-- Kotlin 74% + Java 16% + Go 9% (sing-box core via libcore)
-- Android (min SDK TBD)
-- Gradle + NDK + Go toolchain
-- GPL-3.0 (inherited from NekoBox)
+See `docs/PLATFORM_PARITY.md` and `docs/parity-manifest.json`.
 
-## Build
-
-```bash
-# Prerequisites: Android Studio, NDK, Go 1.21+
-./gradlew assembleRelease
-```
-
-## Upstream
-
-- Fork of: https://github.com/MatsuriDayo/NekoBoxForAndroid
-- Upstream branch: `upstream/main`
-- Sync: `git fetch upstream && git merge upstream/main`
+- Always build, test, and ship **Windows and Android together in strict version and feature parity** unless the user explicitly instructs otherwise for a specific exception.
+- Any explicit temporary divergence must be recorded in `docs/parity-manifest.json` and automatically pulled, verified, merged, and cleared on the next pass.
+- Validate parity locally with:
+  ```powershell
+  powershell -NoProfile -ExecutionPolicy Bypass -File tools/Test-PlatformParity.ps1
+  ```
 
 ## Related
 
-- Server/bot project: ../YokhanIndependentVPN/
-- Bot generates sing-box configs that this client consumes
+- Control plane & bot backend: `../YokhanIndependentVPN/`

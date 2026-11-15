@@ -18,12 +18,12 @@ Main changes relative to upstream:
 
 ## Current State
 
-- package: `com.buffitgates.vpnservice`
-- current version: `1.6.22`
-- main Android app module: `app/`
+- unified release line: `1.9.0` (Windows + Android parity; see [docs/PLATFORM_PARITY.md](docs/PLATFORM_PARITY.md))
+- Android package: `com.yokhan.gates` (versioning in `nb4a.properties`)
+- Windows application & service: `windows-app/`, `windows-service/` (versioning in `windows-app/build.gradle.kts`)
+- shared KMP domain & UI: `shared/domain/`, `shared/ui/`
 - native core wrapper: `libcore/`
-- metadata and versioning: `nb4a.properties`
-- Android product layout XML: removed from `app/src/main/res/layout`; remaining form debt is preference XML and typed Compose migration.
+- Android product layout XML: removed from `app/src/main/res/layout`; Compose & shared UI kit across both platforms.
 
 ## Local Build
 

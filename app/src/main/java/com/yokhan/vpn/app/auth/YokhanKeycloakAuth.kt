@@ -29,6 +29,7 @@ import io.nekohasekai.sagernet.group.RawUpdater
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.applyDefaultValues
 import io.nekohasekai.sagernet.ktx.app
+import moe.matsuri.nb4a.proxy.config.ConfigBean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +39,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import net.openid.appauth.AppAuthConfiguration
 import net.openid.appauth.AuthState
 import net.openid.appauth.AuthorizationException
 import net.openid.appauth.AuthorizationRequest
@@ -45,11 +47,18 @@ import net.openid.appauth.AuthorizationResponse
 import net.openid.appauth.AuthorizationService
 import net.openid.appauth.AuthorizationServiceConfiguration
 import net.openid.appauth.ResponseTypeValues
+import net.openid.appauth.connectivity.ConnectionBuilder
+import okhttp3.ConnectionPool
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONObject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.TimeUnit
 
 object YokhanKeycloakAuth {
     private val sessionGate by lazy { ProfileMutationGate(File(app.filesDir, "auth-session.lock")) }
@@ -65,6 +74,38 @@ object YokhanKeycloakAuth {
     private const val ACTION_AUTH_RETURN = "com.yokhan.gates.app.auth.RETURN"
     private const val AUTH_COMPLETE_REQUEST_CODE = 24061
     private const val AUTH_CANCEL_REQUEST_CODE = 24062
+    private const val AUTH_HTTP_TIMEOUT_MS = 5_000
+
+    private val authConnectionBuilder = ConnectionBuilder { uri ->
+        require(uri.scheme == "https") { "Only HTTPS auth endpoints are supported" }
+        (URL(uri.toString()).openConnection() as HttpURLConnection).apply {
+            connectTimeout = AUTH_HTTP_TIMEOUT_MS
+            readTimeout = AUTH_HTTP_TIMEOUT_MS
+            instanceFollowRedirects = false
+        }
+    }
+
+    internal fun createAuthorizationService(context: Context): AuthorizationService {
+        val config = AppAuthConfiguration.Builder()
+            .setConnectionBuilder(authConnectionBuilder)
+            .build()
+        return AuthorizationService(context, config)
+    }
+
+    internal val sharedHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(6, 2, TimeUnit.MINUTES))
+            .connectTimeout(6, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private fun authHttpClient(): OkHttpClient = sharedHttpClient
+
+    private data class XhttpProfileRef(
+        val name: String,
+        val label: String,
+    )
 
     suspend fun restoreSession(context: Context) = withContext(Dispatchers.IO) {
         sessionGate.withLock {
@@ -107,7 +148,7 @@ object YokhanKeycloakAuth {
     suspend fun freshAccessToken(context: Context): String? {
         if (!isConfigured()) return null
         val appContext = context.applicationContext
-        val authService = AuthorizationService(appContext)
+        val authService = createAuthorizationService(appContext)
         return try {
             storedAccessToken(appContext, authService)
         } finally {
@@ -127,56 +168,68 @@ object YokhanKeycloakAuth {
         activity: MainActivity,
         authService: AuthorizationService,
     ) {
-        if (mutableBusy.value) return
+        if (mutableBusy.value) {
+            debugLog { "login_ignored_busy" }
+            return
+        }
         if (!isConfigured()) {
             activity.showDashboardMessage(R.string.yokhan_auth_not_configured)
             return
         }
 
         mutableBusy.value = true
+        Log.i(LOG_TAG, "login_discovery_started")
 
         AuthorizationServiceConfiguration.fetchFromIssuer(
             Uri.parse(BuildConfig.YOKHAN_KEYCLOAK_ISSUER),
-        ) { serviceConfiguration, exception ->
-            if (exception != null || serviceConfiguration == null) {
-                mutableBusy.value = false
-                Logs.w(exception ?: IllegalStateException("Missing auth service config"))
+            { serviceConfiguration, exception ->
+                if (exception != null || serviceConfiguration == null) {
+                    mutableBusy.value = false
+                    Log.w(LOG_TAG, "discovery_failed type=${exception?.javaClass?.simpleName} msg=${exception?.message}")
+                    Logs.w(exception ?: IllegalStateException("Missing auth service config"))
+                    val messageRes = if (isAuthNetworkTimeoutOrUnreachable(exception)) {
+                        R.string.yokhan_auth_network_unreachable
+                    } else {
+                        R.string.yokhan_auth_open_failed
+                    }
+                    activity.runOnUiThread {
+                        activity.showDashboardMessage(messageRes)
+                    }
+                    return@fetchFromIssuer
+                }
+
+                val request = AuthorizationRequest.Builder(
+                    serviceConfiguration,
+                    BuildConfig.YOKHAN_KEYCLOAK_CLIENT_ID,
+                    ResponseTypeValues.CODE,
+                    Uri.parse(BuildConfig.YOKHAN_KEYCLOAK_REDIRECT_URI),
+                )
+                    .setScopes("openid", "profile", "email")
+                    .build()
+
+                activity.getSharedPreferences("gates_auth_request", Context.MODE_PRIVATE).edit()
+                    .putString("request", request.jsonSerializeString()).commit()
+
                 activity.runOnUiThread {
-                    activity.showDashboardMessage(R.string.yokhan_auth_open_failed)
+                    if (activity.isFinishing || activity.isDestroyed) {
+                        mutableBusy.value = false
+                        return@runOnUiThread
+                    }
+                    runCatching {
+                        authService.performAuthorizationRequest(
+                            request,
+                            createAuthPendingIntent(activity, ACTION_AUTH_COMPLETE, AUTH_COMPLETE_REQUEST_CODE),
+                            createAuthPendingIntent(activity, ACTION_AUTH_CANCELLED, AUTH_CANCEL_REQUEST_CODE),
+                        )
+                    }.onFailure { error ->
+                        mutableBusy.value = false
+                        Log.w(LOG_TAG, "browser_open_failed type=${error.javaClass.simpleName}")
+                        activity.showDashboardMessage(R.string.yokhan_auth_open_failed)
+                    }
                 }
-                return@fetchFromIssuer
-            }
-
-            val request = AuthorizationRequest.Builder(
-                serviceConfiguration,
-                BuildConfig.YOKHAN_KEYCLOAK_CLIENT_ID,
-                ResponseTypeValues.CODE,
-                Uri.parse(BuildConfig.YOKHAN_KEYCLOAK_REDIRECT_URI),
-            )
-                .setScopes("openid", "profile", "email")
-                .build()
-
-            activity.getSharedPreferences("gates_auth_request", Context.MODE_PRIVATE).edit()
-                .putString("request", request.jsonSerializeString()).commit()
-
-            activity.runOnUiThread {
-                if (activity.isFinishing || activity.isDestroyed) {
-                    mutableBusy.value = false
-                    return@runOnUiThread
-                }
-                runCatching {
-                    authService.performAuthorizationRequest(
-                        request,
-                        createAuthPendingIntent(activity, ACTION_AUTH_COMPLETE, AUTH_COMPLETE_REQUEST_CODE),
-                        createAuthPendingIntent(activity, ACTION_AUTH_CANCELLED, AUTH_CANCEL_REQUEST_CODE),
-                    )
-                }.onFailure { error ->
-                    mutableBusy.value = false
-                    Log.w(LOG_TAG, "browser_open_failed type=${error.javaClass.simpleName}")
-                    activity.showDashboardMessage(R.string.yokhan_auth_open_failed)
-                }
-            }
-        }
+            },
+            authConnectionBuilder,
+        )
     }
 
     fun handleAuthorizationIntent(
@@ -264,7 +317,7 @@ object YokhanKeycloakAuth {
             authState.update(token, tokenError)
             val appContext = activity.applicationContext
             authScope.launch {
-                val syncService = AuthorizationService(appContext)
+                val syncService = createAuthorizationService(appContext)
                 try {
                     sessionGate.withLock { YokhanAuthStore.save(appContext, authState) }
                     mutableSessionAvailable.value = true
@@ -319,13 +372,30 @@ object YokhanKeycloakAuth {
             ?: throw MissingStoredAuthSessionException()
         debugLog { "fresh_token_ok" }
 
-        val payload = runCatching { fetchAuthenticatedManifestPayload(context, accessToken) }
-            .onFailure { error -> Log.w(LOG_TAG, "manifest_fallback_to_links", error) }
-            .getOrNull()
-            ?: fetchAppLinks(accessToken)
-        debugLog { "config_payload_loaded length=${payload.length}" }
-        val proxies = RawUpdater.parseRaw(payload)
-            ?: error(context.getString(R.string.no_proxies_found))
+        val xhttpProfiles = if (BuildConfig.YOKHAN_XHTTP_SIDECAR_ENABLED) {
+            fetchAppProfiles(accessToken).mapNotNull { profile ->
+                fetchXhttpProfile(accessToken, profile.name)
+            }
+        } else {
+            emptyList()
+        }
+        val proxies = if (xhttpProfiles.isNotEmpty()) {
+            xhttpProfiles.toMutableList()
+        } else if (BuildConfig.YOKHAN_XHTTP_SIDECAR_ENABLED) {
+            // XHTTP-capable builds fail closed: never fall back to a legacy
+            // VLESS/Reality or sing-box manifest route.
+            val single = fetchXhttpProfile(accessToken)
+                ?: error(context.getString(R.string.no_proxies_found))
+            mutableListOf(single)
+        } else {
+            val payload = runCatching { fetchAuthenticatedManifestPayload(context, accessToken) }
+                .onFailure { error -> Log.w(LOG_TAG, "manifest_fallback_to_links", error) }
+                .getOrNull()
+                ?: fetchAppLinks(accessToken)
+            debugLog { "config_payload_loaded length=${payload.length}" }
+            (RawUpdater.parseRaw(payload)
+                ?: error(context.getString(R.string.no_proxies_found))).toMutableList()
+        }
         debugLog { "config_payload_parsed count=${proxies.size}" }
 
         require(proxies.isNotEmpty()) { context.getString(R.string.no_proxies_found) }
@@ -361,15 +431,29 @@ object YokhanKeycloakAuth {
                 plan.removedIds.forEach { SagerDatabase.proxyDao.deleteById(it) }
                 imported
             }
-            val currentExists = SagerDatabase.proxyDao.getById(DataStore.currentProfile) != null
-            initialImportedProfile(DataStore.selectedProxy, if (currentExists) DataStore.currentProfile else 0L,
-                DataStore.serviceState.canStop, importedIds)?.let { first ->
-                DataStore.selectedProxy = first
-                DataStore.currentProfile = first
+            val xhttpId = if (BuildConfig.YOKHAN_XHTTP_SIDECAR_ENABLED) {
+                importedIds.firstOrNull()
+            } else {
+                null
+            }
+            if (xhttpId != null) {
+                // XHTTP is the only transport that works from the blocked entry, so a fresh
+                // login selects the primary XHTTP device instead of a dead VLESS route.
+                DataStore.selectedProxy = xhttpId
+                DataStore.currentProfile = xhttpId
                 DataStore.selectedGroup = group.id
+            } else {
+                val currentExists = SagerDatabase.proxyDao.getById(DataStore.currentProfile) != null
+                initialImportedProfile(DataStore.selectedProxy, if (currentExists) DataStore.currentProfile else 0L,
+                    DataStore.serviceState.canStop, importedIds)?.let { first ->
+                    DataStore.selectedProxy = first
+                    DataStore.currentProfile = first
+                    DataStore.selectedGroup = group.id
+                }
             }
             GroupManager.postReload(group.id)
         }
+        runCatching { YokhanBootstrapAccess.revokeBestEffort(context.applicationContext) }
         proxies.size
     }
 
@@ -397,7 +481,7 @@ object YokhanKeycloakAuth {
             .header("Accept", "text/plain")
             .build()
 
-        OkHttpClient().newCall(request).execute().use { response ->
+        authHttpClient().newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 Log.w(LOG_TAG, "links_fetch_failed http=${response.code}")
@@ -407,6 +491,85 @@ object YokhanKeycloakAuth {
                 String(Base64.decode(body, Base64.DEFAULT), Charsets.UTF_8)
             } catch (_: IllegalArgumentException) {
                 body
+            }
+        }
+    }
+
+    /**
+     * XHTTP cannot be represented as a VLESS link bean. When this build ships the Xray
+     * sidecar, the server's raw profile becomes a normal "sing-box config" profile in the
+     * GATES group; the runtime bridge starts Xray for it.
+     */
+    private fun fetchAppProfiles(accessToken: String): List<XhttpProfileRef> {
+        val url = BuildConfig.YOKHAN_APP_API_BASE_URL.trimEnd('/') + "/api/app/profiles"
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer $accessToken")
+            .header("Accept", "application/json")
+            .build()
+        return authHttpClient().newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                Log.w(LOG_TAG, "profiles_fetch_failed http=${response.code}")
+                return@use emptyList()
+            }
+            val devices = JSONObject(body).optJSONArray("devices") ?: return@use emptyList()
+            buildList {
+                for (index in 0 until devices.length()) {
+                    val device = devices.optJSONObject(index) ?: continue
+                    val name = device.optString("name").trim()
+                    if (name.isBlank()) continue
+                    val label = device.optString("label").trim().ifBlank { name }
+                    add(XhttpProfileRef(name, label))
+                }
+            }.sortedBy { if (it.name == "main") 0 else 1 }
+        }
+    }
+
+    private fun fetchXhttpProfile(accessToken: String, deviceName: String? = null): ConfigBean? {
+        if (!BuildConfig.YOKHAN_XHTTP_SIDECAR_ENABLED) {
+            if (BuildConfig.DEBUG) Log.w(LOG_TAG, "xhttp_skip disabled")
+            return null
+        }
+        val abi = Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
+        if (abi !in setOf("arm64-v8a", "x86_64")) {
+            if (BuildConfig.DEBUG) Log.w(LOG_TAG, "xhttp_skip abi=$abi")
+            return null
+        }
+        val url = (BuildConfig.YOKHAN_APP_API_BASE_URL.trimEnd('/') + "/api/app/xhttp")
+            .toHttpUrl()
+            .newBuilder()
+            .addQueryParameter("platform", "android")
+            .apply {
+                if (!deviceName.isNullOrBlank()) addQueryParameter("device", deviceName)
+            }
+            .build()
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer $accessToken")
+            .header("Accept", "application/json")
+            .build()
+        return authHttpClient().newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                if (response.code != 404) {
+                    Log.w(LOG_TAG, "xhttp_fetch_failed http=${response.code}")
+                }
+                return@use null
+            }
+            if (!body.contains("\"xhttp\"")) {
+                Log.w(LOG_TAG, "xhttp_body_rejected length=${body.length}")
+                return@use null
+            }
+            if (BuildConfig.DEBUG) Log.w(LOG_TAG, "xhttp_profile_ready device=${deviceName ?: "main"}")
+            ConfigBean().apply {
+                name = if (deviceName.isNullOrBlank() || deviceName == "main") {
+                    "Edge-xhttp"
+                } else {
+                    "Edge-xhttp-$deviceName"
+                }
+                type = 0
+                config = body
             }
         }
     }
@@ -422,7 +585,7 @@ object YokhanKeycloakAuth {
             .header("Accept", "application/json")
             .build()
 
-        OkHttpClient().newCall(request).execute().use { response ->
+        authHttpClient().newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 Log.w(LOG_TAG, "manifest_fetch_failed http=${response.code}")
@@ -441,7 +604,7 @@ object YokhanKeycloakAuth {
         if (BuildConfig.DEBUG) Log.i(LOG_TAG, message())
     }
 
-    private suspend fun ensureAppGroup(context: Context): ProxyGroup {
+    internal suspend fun ensureAppGroup(context: Context): ProxyGroup {
         val name = context.getString(R.string.yokhan_auth_group_name)
         DataStore.ensureGroupsLoaded()
         return SagerDatabase.groupDao.allGroups().firstOrNull {

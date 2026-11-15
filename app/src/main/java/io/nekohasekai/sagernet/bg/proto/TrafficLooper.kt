@@ -93,6 +93,8 @@ class TrafficLooper
 
         // for display
         val itemBypass = TrafficUpdater.TrafficLooperData(tag = TAG_BYPASS)
+        var lastBroadcastSpeed: SpeedDisplayData? = null
+        val lastBroadcastTraffic = HashMap<Long, Pair<Long, Long>>()
 
         while (sc.isActive) {
             proxy = data.proxy
@@ -160,27 +162,46 @@ class TrafficLooper
                 mainRx
             )
 
-            // broadcast (MainActivity)
+            // broadcast (MainActivity) only on actual changes to minimize AIDL IPC overhead
+            val speedChanged = lastBroadcastSpeed?.let { prev ->
+                prev.txRateProxy != speed.txRateProxy ||
+                    prev.rxRateProxy != speed.rxRateProxy ||
+                    prev.txRateDirect != speed.txRateDirect ||
+                    prev.rxRateDirect != speed.rxRateDirect ||
+                    prev.txTotal != speed.txTotal ||
+                    prev.rxTotal != speed.rxTotal
+            } ?: true
             if (data.state == BaseService.State.Connected
                 && data.binder.callbackIdMap.containsValue(SagerConnection.CONNECTION_ID_MAIN_ACTIVITY_FOREGROUND)
             ) {
                 data.binder.broadcast { b ->
                     if (data.binder.callbackIdMap[b] == SagerConnection.CONNECTION_ID_MAIN_ACTIVITY_FOREGROUND) {
-                        b.cbSpeedUpdate(speed)
+                        if (speedChanged) {
+                            b.cbSpeedUpdate(speed)
+                        }
                         if (profileTrafficStatistics) {
                             idMap.forEach { (id, item) ->
-                                b.cbTrafficUpdate(
-                                    TrafficData(id = id, rx = item.rx, tx = item.tx) // display
-                                )
+                                val prev = lastBroadcastTraffic[id]
+                                if (prev == null || prev.first != item.rx || prev.second != item.tx) {
+                                    lastBroadcastTraffic[id] = item.rx to item.tx
+                                    b.cbTrafficUpdate(
+                                        TrafficData(id = id, rx = item.rx, tx = item.tx) // display
+                                    )
+                                }
                             }
                         }
                     }
                 }
+                if (speedChanged) {
+                    lastBroadcastSpeed = speed
+                }
             }
 
             // ServiceNotification
-            data.notification?.apply {
-                if (listenPostSpeed) postNotificationSpeedUpdate(speed)
+            if (speedChanged) {
+                data.notification?.apply {
+                    if (listenPostSpeed) postNotificationSpeedUpdate(speed)
+                }
             }
 
             delay(delayMs)

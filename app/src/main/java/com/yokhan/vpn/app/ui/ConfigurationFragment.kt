@@ -1,4 +1,4 @@
-﻿package com.yokhan.gates.app.ui
+package com.yokhan.gates.app.ui
 
 import android.os.Bundle
 import android.os.SystemClock
@@ -6,6 +6,7 @@ import android.provider.OpenableColumns
 import android.text.format.Formatter
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,8 +14,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -25,19 +28,32 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.preference.PreferenceDataStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.yokhan.gates.app.auth.YokhanBootstrapAccess
+import com.yokhan.gates.app.auth.YokhanKeycloakAuth
+import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.GroupOrder
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.Key
@@ -70,6 +86,7 @@ import io.nekohasekai.sagernet.ktx.snackbar
 import io.nekohasekai.sagernet.ktx.startFilesForResult
 import io.nekohasekai.sagernet.ktx.tryToShow
 import io.nekohasekai.sagernet.plugin.PluginManager
+import com.yokhan.gates.shared.ui.route.YokhanActionRow
 import com.yokhan.gates.shared.ui.route.YokhanBody
 import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
 import com.yokhan.gates.shared.ui.route.YokhanCaption
@@ -81,6 +98,9 @@ import com.yokhan.gates.shared.ui.route.YokhanRouteCard
 import com.yokhan.gates.shared.ui.route.YokhanRouteLazyFrame
 import com.yokhan.gates.shared.ui.route.YokhanRouteStatusDot
 import com.yokhan.gates.shared.ui.route.YokhanSectionLabel
+import com.yokhan.gates.app.ui.compose.YokhanActionSheetDialog
+import com.yokhan.gates.app.ui.compose.YokhanActionSheetItem
+import com.yokhan.gates.app.ui.compose.YokhanActionSheetState
 import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
 import com.yokhan.gates.shared.ui.route.yokhanOutlinedSurface
 import com.yokhan.gates.app.ui.profile.ConfigSettingActivity
@@ -92,6 +112,8 @@ import com.yokhan.gates.shared.ui.design.YokhanRadius
 import com.yokhan.gates.shared.ui.design.YokhanRed
 import com.yokhan.gates.shared.ui.design.YokhanSpacing
 import com.yokhan.gates.shared.ui.design.YokhanTypography
+import com.yokhan.gates.shared.ui.design.yokhanPalette
+import com.yokhan.gates.shared.ui.design.yokhanTypography
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
@@ -122,6 +144,7 @@ class ConfigurationFragment @JvmOverloads constructor(
     }
 
     private val uiState = mutableStateOf(ConfigurationUiState())
+    private val actionSheetState = mutableStateOf<YokhanActionSheetState?>(null)
     private val profileAccess = Mutex()
     private val reloadAccess = Mutex()
 
@@ -226,6 +249,9 @@ class ConfigurationFragment @JvmOverloads constructor(
     @Composable
     override fun Content(spaceActive: Boolean) {
         val state = uiState.value
+        val signedIn by YokhanKeycloakAuth.sessionAvailable.collectAsState()
+        val authBusy by YokhanKeycloakAuth.busy.collectAsState()
+        var toolsExpanded by remember { mutableStateOf(false) }
         val title = if (select && titleRes != 0) {
             stringResource(titleRes)
         } else {
@@ -236,7 +262,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
         YokhanRouteLazyFrame(
             title = title,
-            systemLabel = stringResource(R.string.dashboard_system_label),
+            systemLabel = stringResource(R.string.system_route_label, "02"),
             spaceActive = spaceActive,
             onMenuClick = {
                 if (select) {
@@ -246,30 +272,54 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
             },
         ) { colors, typography ->
-            item(key = "groups") {
-                ConfigurationGroupsCard(
-                    state = state,
-                    colors = colors,
-                    typography = typography,
-                    onQueryChange = { uiState.value = uiState.value.copy(query = it) },
-                    onGroupSelected = ::selectGroup,
-                )
-            }
-
             if (!select) {
-                item(key = "actions") {
-                    ConfigurationActionsCard(
-                        group = currentGroup,
+                item(key = "quick-access") {
+                    ConfigurationQuickAccessCard(
+                        signedIn = signedIn,
+                        authBusy = authBusy,
                         colors = colors,
                         typography = typography,
                     )
                 }
-                item(key = "order") {
-                    ConfigurationOrderCard(
-                        group = currentGroup,
+            }
+
+            val showManageCard = state.groups.size > 1 ||
+                state.profiles.isNotEmpty() ||
+                state.query.isNotEmpty()
+            if (showManageCard) {
+                item(key = "groups") {
+                    ConfigurationGroupsCard(
+                        state = state,
+                        showToolsToggle = !select,
+                        toolsExpanded = toolsExpanded,
+                        onToggleTools = { toolsExpanded = !toolsExpanded },
                         colors = colors,
                         typography = typography,
+                        onQueryChange = { uiState.value = uiState.value.copy(query = it) },
+                        onGroupSelected = ::selectGroup,
                     )
+                }
+            }
+
+            if (!select && showManageCard) {
+                item(key = "tools-panel") {
+                    AnimatedVisibility(visible = toolsExpanded) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            ConfigurationActionsCard(
+                                group = currentGroup,
+                                colors = colors,
+                                typography = typography,
+                            )
+                            ConfigurationOrderCard(
+                                group = currentGroup,
+                                colors = colors,
+                                typography = typography,
+                            )
+                        }
+                    }
                 }
             }
 
@@ -285,6 +335,14 @@ class ConfigurationFragment @JvmOverloads constructor(
                             colors = colors,
                             typography = typography,
                         )
+                        if (!select) {
+                            YokhanCaption(
+                                text = stringResource(R.string.config_empty_hint),
+                                colors = colors,
+                                typography = typography,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                        }
                     }
                 }
             } else {
@@ -302,11 +360,255 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
             }
         }
+        YokhanActionSheetDialog(
+            state = actionSheetState.value,
+            colors = yokhanPalette(spaceActive),
+            typography = yokhanTypography(),
+            onDismiss = { actionSheetState.value = null },
+        )
+    }
+
+    @Composable
+    private fun ConfigurationQuickAccessCard(
+        signedIn: Boolean,
+        authBusy: Boolean,
+        colors: YokhanPalette,
+        typography: YokhanTypography,
+    ) {
+        YokhanRouteCard(
+            title = stringResource(R.string.configuration_hub_import_title),
+            colors = colors,
+            typography = typography,
+        ) {
+            YokhanBody(
+                text = stringResource(R.string.config_sync_subtitle),
+                colors = colors,
+                typography = typography,
+                maxLines = 2,
+            )
+            if (YokhanKeycloakAuth.isConfigured()) {
+                YokhanRouteButton(
+                    text = stringResource(
+                        when {
+                            authBusy -> R.string.yokhan_auth_connecting
+                            signedIn -> R.string.yokhan_auth_refresh_action
+                            else -> R.string.yokhan_auth_login_action
+                        },
+                    ),
+                    primary = true,
+                    enabled = !authBusy,
+                    colors = colors,
+                    typography = typography,
+                    onClick = { (activity as? MainActivity)?.startYokhanLogin() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = YokhanSpacing.CardTitleGap),
+                )
+                YokhanDivider(colors, Modifier.padding(vertical = 10.dp))
+            }
+            if (!signedIn && BuildConfig.YOKHAN_APP_API_BASE_URL.isNotBlank()) {
+                WiseTreeBootstrapSection(
+                    authBusy = authBusy,
+                    colors = colors,
+                    typography = typography,
+                )
+                YokhanDivider(colors, Modifier.padding(vertical = 10.dp))
+            }
+        YokhanActionRow(
+                title = stringResource(R.string.config_add_other_title),
+                subtitle = stringResource(R.string.config_add_other_subtitle),
+                colors = colors,
+                typography = typography,
+                onClick = ::showAddProfileMethodsDialog,
+                modifier = if (YokhanKeycloakAuth.isConfigured() || BuildConfig.YOKHAN_APP_API_BASE_URL.isNotBlank()) Modifier else Modifier.padding(top = YokhanSpacing.CardTitleGap),
+            )
+        }
+    }
+
+    @Composable
+    private fun WiseTreeBootstrapSection(
+        authBusy: Boolean,
+        colors: YokhanPalette,
+        typography: YokhanTypography,
+    ) {
+        val scope = rememberCoroutineScope()
+        var expanded by rememberSaveable { mutableStateOf(false) }
+        var code by rememberSaveable { mutableStateOf("") }
+        var secretVisible by rememberSaveable { mutableStateOf(false) }
+        var bootstrapBusy by remember { mutableStateOf(false) }
+        var statusMessage by rememberSaveable { mutableStateOf("") }
+        var bootstrapTick by remember { mutableIntStateOf(0) }
+        val remainingMinutes = remember(bootstrapTick) {
+            activity?.let { YokhanBootstrapAccess.activeRemainingMinutes(it) }
+        }
+        if (remainingMinutes != null) {
+            YokhanCaption(
+                text = stringResource(R.string.wise_tree_active_badge, remainingMinutes),
+                colors = colors,
+                typography = typography,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
+        YokhanRouteButton(
+            text = stringResource(R.string.wise_tree_trigger),
+            primary = false,
+            enabled = !authBusy && !bootstrapBusy,
+            colors = colors,
+            typography = typography,
+            onClick = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        AnimatedVisibility(visible = expanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                YokhanBody(
+                    text = stringResource(R.string.wise_tree_title),
+                    colors = colors,
+                    typography = typography,
+                )
+                YokhanBody(
+                    text = stringResource(R.string.wise_tree_hint),
+                    colors = colors,
+                    typography = typography,
+                )
+                YokhanCaption(
+                    text = stringResource(R.string.wise_tree_scope_note),
+                    colors = colors,
+                    typography = typography,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    YokhanCaption(
+                        text = stringResource(R.string.wise_tree_code_hint),
+                        colors = colors,
+                        typography = typography,
+                    )
+                    YokhanRouteButton(
+                        text = if (secretVisible) "Скрыть" else "Показать",
+                        primary = false,
+                        enabled = !bootstrapBusy,
+                        colors = colors,
+                        typography = typography,
+                        onClick = { secretVisible = !secretVisible },
+                    )
+                }
+                BasicTextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    enabled = !bootstrapBusy,
+                    singleLine = true,
+                    visualTransformation = if (secretVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    cursorBrush = SolidColor(colors.accent),
+                    textStyle = TextStyle(
+                        color = colors.primary,
+                        fontFamily = typography.mono,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                    ),
+                    decorationBox = { innerTextField ->
+                        Box(Modifier.fillMaxWidth()) {
+                            if (code.isEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.wise_tree_code_hint),
+                                    color = colors.tertiary,
+                                    fontFamily = typography.mono,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp,
+                                )
+                            }
+                            innerTextField()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .yokhanOutlinedSurface(colors)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                )
+                if (statusMessage.isNotBlank()) {
+                    YokhanCaption(
+                        text = statusMessage,
+                        colors = colors,
+                        typography = typography,
+                    )
+                }
+                YokhanRouteButton(
+                    text = if (bootstrapBusy) stringResource(R.string.wise_tree_checking) else stringResource(R.string.wise_tree_submit),
+                    primary = true,
+                    enabled = !authBusy && !bootstrapBusy && code.isNotBlank(),
+                    colors = colors,
+                    typography = typography,
+                    onClick = {
+                        val hostActivity = activity ?: return@YokhanRouteButton
+                        val trimmed = code.trim()
+                        if (trimmed.isBlank()) {
+                            statusMessage = hostActivity.getString(R.string.wise_tree_empty_code)
+                            return@YokhanRouteButton
+                        }
+                        bootstrapBusy = true
+                        statusMessage = hostActivity.getString(R.string.wise_tree_checking)
+                        scope.launch {
+                            val result = YokhanBootstrapAccess.claim(hostActivity.applicationContext, trimmed)
+                            bootstrapBusy = false
+                            bootstrapTick += 1
+                            result.onSuccess {
+                                code = ""
+                                expanded = false
+                                statusMessage = ""
+                                (hostActivity as? MainActivity)?.onYokhanBootstrapComplete()
+                            }.onFailure { error ->
+                                statusMessage = error.message ?: hostActivity.getString(R.string.yokhan_auth_failed)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+
+    private fun showAddProfileMethodsDialog() {
+        actionSheetState.value = YokhanActionSheetState(
+            title = getString(R.string.config_add_other_title),
+            items = listOf(
+                YokhanActionSheetItem(
+                    title = getString(R.string.add_profile_methods_scan_qr_code),
+                    onClick = { (activity as? MainActivity)?.openActivityRoute(YokhanShellActivityRoute.Scanner) },
+                ),
+                YokhanActionSheetItem(
+                    title = getString(R.string.action_import),
+                    onClick = ::importFromClipboard,
+                ),
+                YokhanActionSheetItem(
+                    title = getString(R.string.action_import_file),
+                    onClick = { startFilesForResult(importFile, "*/*") },
+                ),
+                YokhanActionSheetItem(
+                    title = getString(R.string.add_profile_methods_manual_settings),
+                    onClick = {
+                        ProfileAddController.showManualProfileChooser(this) { protocol ->
+                            (activity as? MainActivity)?.openActivityRoute(
+                                YokhanShellActivityRoute.AddManualProfile(protocol),
+                            )
+                        }
+                    },
+                ),
+            ),
+        )
     }
 
     @Composable
     private fun ConfigurationGroupsCard(
         state: ConfigurationUiState,
+        showToolsToggle: Boolean,
+        toolsExpanded: Boolean,
+        onToggleTools: () -> Unit,
         colors: YokhanPalette,
         typography: YokhanTypography,
         onQueryChange: (String) -> Unit,
@@ -317,24 +619,30 @@ class ConfigurationFragment @JvmOverloads constructor(
             colors = colors,
             typography = typography,
         ) {
-            SearchField(
-                value = state.query,
-                placeholder = stringResource(android.R.string.search_go),
-                colors = colors,
-                typography = typography,
-                onValueChange = onQueryChange,
-            )
+            if (state.profiles.size >= 4 || state.query.isNotEmpty()) {
+                SearchField(
+                    value = state.query,
+                    placeholder = stringResource(R.string.config_search_hint),
+                    colors = colors,
+                    typography = typography,
+                    onValueChange = onQueryChange,
+                )
+            }
             if (state.groups.size > 1) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
-                        .padding(top = 12.dp),
+                        .padding(top = if (state.profiles.size >= 4 || state.query.isNotEmpty()) 12.dp else 0.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     state.groups.forEach { group ->
                         GroupChip(
-                            text = group.displayName(),
+                            text = if (group.ungrouped) {
+                                stringResource(R.string.group_ungrouped_title)
+                            } else {
+                                group.displayName()
+                            },
                             selected = group.id == state.selectedGroupId,
                             colors = colors,
                             typography = typography,
@@ -344,24 +652,49 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
             }
             val group = state.currentGroup()
-            if (group != null) {
-                YokhanMonoValue(
-                    text = group.displayName(),
-                    colors = colors,
-                    typography = typography,
-                    modifier = Modifier.padding(top = 12.dp),
-                    sizeSp = 14,
-                )
-                YokhanCaption(
-                    text = if (group.type == GroupType.SUBSCRIPTION) {
-                        stringResource(R.string.configuration_hub_group_type_subscription)
-                    } else {
-                        stringResource(R.string.configuration_hub_group_type_local)
-                    },
-                    colors = colors,
-                    typography = typography,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+            if (group != null || showToolsToggle) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (group != null) {
+                        Column(Modifier.fillMaxWidth()) {
+                            YokhanMonoValue(
+                                text = if (group.ungrouped) {
+                                    stringResource(R.string.group_ungrouped_title)
+                                } else {
+                                    group.displayName()
+                                },
+                                colors = colors,
+                                typography = typography,
+                                sizeSp = 14,
+                            )
+                            YokhanCaption(
+                                text = if (group.type == GroupType.SUBSCRIPTION) {
+                                    stringResource(R.string.configuration_hub_group_type_subscription)
+                                } else {
+                                    stringResource(R.string.configuration_hub_group_type_local)
+                                },
+                                colors = colors,
+                                typography = typography,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    }
+                    if (showToolsToggle) {
+                        GroupChip(
+                            text = stringResource(
+                                if (toolsExpanded) R.string.config_tools_hide else R.string.config_tools_show,
+                            ),
+                            selected = toolsExpanded,
+                            colors = colors,
+                            typography = typography,
+                            onClick = onToggleTools,
+                        )
+                    }
+                }
             }
         }
     }
@@ -373,74 +706,60 @@ class ConfigurationFragment @JvmOverloads constructor(
         typography: YokhanTypography,
     ) {
         YokhanRouteCard(
-            title = stringResource(R.string.add_profile),
+            title = stringResource(R.string.connection_test),
             colors = colors,
             typography = typography,
         ) {
-            YokhanButtonGrid(
-                actions = listOf(
-                        YokhanRouteAction(
-                            title = stringResource(R.string.add_profile_methods_scan_qr_code),
-                            onClick = {
-                                (activity as? MainActivity)?.openActivityRoute(
-                                    YokhanShellActivityRoute.Scanner,
-                                )
-                            },
-                        ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.action_import),
-                        onClick = ::importFromClipboard,
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.action_import_file),
-                        onClick = { startFilesForResult(importFile, "*/*") },
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.add_profile_methods_manual_settings),
-                        primary = true,
-                        onClick = {
-                            ProfileAddController.showManualProfileChooser(
-                                this@ConfigurationFragment,
-                            ) { protocol ->
-                                (activity as? MainActivity)?.openActivityRoute(
-                                    YokhanShellActivityRoute.AddManualProfile(protocol),
-                                )
-                            }
-                        },
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.update_current_subscription),
-                        enabled = group?.type == GroupType.SUBSCRIPTION,
-                        onClick = ::updateCurrentSubscription,
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.remove_duplicate),
-                        onClick = ::removeDuplicateProfiles,
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.clear_traffic_statistics),
-                        onClick = ::clearTrafficStatistics,
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.connection_test_clear_results),
-                        onClick = ::clearConnectionTestResults,
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.connection_test_delete_unavailable),
-                        onClick = ::deleteUnavailableProfiles,
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.connection_test_tcp_ping),
-                        onClick = { runConnectionTest(urlMode = false) },
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.connection_test_url_test),
-                        primary = true,
-                        onClick = { runConnectionTest(urlMode = true) },
-                    ),
-                ),
+            YokhanActionRow(
+                title = stringResource(R.string.connection_test_url_test),
                 colors = colors,
                 typography = typography,
+                onClick = { runConnectionTest(urlMode = true) },
+                accent = true,
+            )
+            YokhanDivider(colors, Modifier.padding(vertical = 4.dp))
+            YokhanActionRow(
+                title = stringResource(R.string.connection_test_tcp_ping),
+                colors = colors,
+                typography = typography,
+                onClick = { runConnectionTest(urlMode = false) },
+            )
+            if (group?.type == GroupType.SUBSCRIPTION) {
+                YokhanDivider(colors, Modifier.padding(vertical = 4.dp))
+                YokhanActionRow(
+                    title = stringResource(R.string.update_current_subscription),
+                    colors = colors,
+                    typography = typography,
+                    onClick = ::updateCurrentSubscription,
+                )
+            }
+            YokhanDivider(colors, Modifier.padding(vertical = 4.dp))
+            YokhanActionRow(
+                title = stringResource(R.string.remove_duplicate),
+                colors = colors,
+                typography = typography,
+                onClick = ::removeDuplicateProfiles,
+            )
+            YokhanDivider(colors, Modifier.padding(vertical = 4.dp))
+            YokhanActionRow(
+                title = stringResource(R.string.connection_test_delete_unavailable),
+                colors = colors,
+                typography = typography,
+                onClick = ::deleteUnavailableProfiles,
+            )
+            YokhanDivider(colors, Modifier.padding(vertical = 4.dp))
+            YokhanActionRow(
+                title = stringResource(R.string.connection_test_clear_results),
+                colors = colors,
+                typography = typography,
+                onClick = ::clearConnectionTestResults,
+            )
+            YokhanDivider(colors, Modifier.padding(vertical = 4.dp))
+            YokhanActionRow(
+                title = stringResource(R.string.clear_traffic_statistics),
+                colors = colors,
+                typography = typography,
+                onClick = ::clearTrafficStatistics,
             )
         }
     }
@@ -549,11 +868,11 @@ class ConfigurationFragment @JvmOverloads constructor(
                 .yokhanOutlinedSurface(colors)
                 .clickable { onProfileSelected(profile) },
         ) {
-            Row {
+            Row(modifier = Modifier.height(IntrinsicSize.Min)) {
                 Box(
                     modifier = Modifier
                         .width(3.dp)
-                        .height(86.dp)
+                        .fillMaxHeight()
                         .background(if (selected) colors.accent else Color.Transparent),
                 )
                 Column(
@@ -627,43 +946,65 @@ class ConfigurationFragment @JvmOverloads constructor(
                         )
                     }
                     if (!select) {
-                        YokhanDivider(colors, Modifier.padding(vertical = YokhanSpacing.CompactDividerGap))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            YokhanRouteButton(
-                                text = stringResource(R.string.edit),
-                                primary = false,
-                                enabled = canEdit,
-                                colors = colors,
-                                typography = typography,
-                                onClick = { editProfile(profile, group) },
-                                modifier = Modifier.weight(1f),
-                            )
-                            YokhanRouteButton(
-                                text = stringResource(R.string.share),
-                                primary = false,
-                                enabled = canShare,
-                                colors = colors,
-                                typography = typography,
-                                onClick = { showShareDialog(profile) },
-                                modifier = Modifier.weight(1f),
-                            )
-                            YokhanRouteButton(
-                                text = stringResource(R.string.delete),
-                                primary = false,
-                                enabled = canEdit,
-                                colors = colors,
-                                typography = typography,
-                                onClick = { confirmDeleteProfile(profile) },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
+                        YokhanDivider(colors, Modifier.padding(vertical = 8.dp))
+                        YokhanActionRow(
+                            title = stringResource(R.string.profile_actions_title),
+                            colors = colors,
+                            typography = typography,
+                            onClick = {
+                                showProfileActionsDialog(
+                                    profile = profile,
+                                    group = group,
+                                    selected = selected,
+                                    canEdit = canEdit,
+                                    canShare = canShare,
+                                )
+                            },
+                        )
                     }
                 }
             }
         }
+    }
+
+    private fun showProfileActionsDialog(
+        profile: ProxyEntity,
+        group: ProxyGroup?,
+        selected: Boolean,
+        canEdit: Boolean,
+        canShare: Boolean,
+    ) {
+        val entries = mutableListOf<YokhanActionSheetItem>()
+        if (!selected) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.profile_select_action),
+                accent = true,
+                onClick = { onProfileSelected(profile) },
+            )
+        }
+        if (canEdit) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.edit),
+                onClick = { editProfile(profile, group) },
+            )
+        }
+        if (canShare) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.share),
+                onClick = { showShareDialog(profile) },
+            )
+        }
+        if (canEdit) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.delete),
+                onClick = { confirmDeleteProfile(profile) },
+            )
+        }
+        if (entries.isEmpty()) return
+        actionSheetState.value = YokhanActionSheetState(
+            title = profile.displayName(),
+            items = entries,
+        )
     }
 
     @Composable
@@ -686,24 +1027,42 @@ class ConfigurationFragment @JvmOverloads constructor(
             ),
             modifier = Modifier.fillMaxWidth(),
             decorationBox = { inner ->
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = YokhanSpacing.ControlMinHeight)
                         .yokhanOutlinedSurface(colors, radius = YokhanRadius.Pill)
                         .padding(horizontal = 16.dp, vertical = 13.dp),
-                    contentAlignment = Alignment.CenterStart,
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (value.isBlank()) {
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (value.isBlank()) {
+                            Text(
+                                text = placeholder,
+                                color = colors.secondary,
+                                fontFamily = typography.mono,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        inner()
+                    }
+                    if (value.isNotEmpty()) {
                         Text(
-                            text = placeholder,
+                            text = "×",
                             color = colors.secondary,
                             fontFamily = typography.mono,
-                            fontSize = 12.sp,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clickable { onValueChange("") }
+                                .padding(horizontal = 4.dp),
                         )
                     }
-                    inner()
                 }
             },
         )
@@ -929,8 +1288,15 @@ class ConfigurationFragment @JvmOverloads constructor(
 
     private suspend fun import(proxies: List<AbstractBean>) {
         val targetId = DataStore.ensureSelectedGroupForImport()
+        var firstCreatedId = 0L
         for (proxy in proxies) {
-            ProfileManager.createProfile(targetId, proxy)
+            val created = ProfileManager.createProfile(targetId, proxy)
+            if (firstCreatedId == 0L) {
+                firstCreatedId = created.id
+            }
+        }
+        if (DataStore.selectedProxy == 0L && firstCreatedId != 0L) {
+            DataStore.selectedProxy = firstCreatedId
         }
         onMainDispatcher {
             DataStore.editingGroup = targetId

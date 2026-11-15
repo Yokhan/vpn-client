@@ -1,4 +1,4 @@
-﻿package com.yokhan.gates.app.ui.dashboard
+package com.yokhan.gates.app.ui.dashboard
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -14,6 +14,8 @@ import com.yokhan.gates.shared.domain.RateDisplay
 import com.yokhan.gates.shared.domain.VpnProtocol
 import com.yokhan.gates.shared.ui.dashboard.DashboardUiActions
 import com.yokhan.gates.shared.ui.dashboard.DashboardUiLabels
+import com.yokhan.gates.shared.ui.dashboard.DashboardUiTuning
+import com.yokhan.gates.shared.ui.dashboard.DashboardUiVisibility
 import com.yokhan.gates.shared.ui.dashboard.YokhanDashboardScreen
 import io.nekohasekai.sagernet.R
 
@@ -30,11 +32,14 @@ fun DashboardComposeScreen(
 ) {
     val authConfigured = YokhanKeycloakAuth.isConfigured()
     val signedIn by YokhanKeycloakAuth.sessionAvailable.collectAsState()
+    val authBusy by YokhanKeycloakAuth.busy.collectAsState()
     YokhanDashboardScreen(
         state = state,
         profiles = profiles,
-        labels = dashboardLabels(authConfigured = authConfigured, signedIn = signedIn),
+        labels = dashboardLabels(authConfigured = authConfigured, signedIn = signedIn, authBusy = authBusy),
         actions = actions,
+        tuning = DashboardUiTuning(contentBottomPadding = 112),
+        visibility = DashboardUiVisibility(addProfileEnabled = !authBusy),
         modifier = modifier,
         scrollToTopSignal = scrollToTopSignal,
         drawBackgroundEffects = false,
@@ -42,7 +47,7 @@ fun DashboardComposeScreen(
 }
 
 @Composable
-private fun dashboardLabels(authConfigured: Boolean, signedIn: Boolean): DashboardUiLabels {
+private fun dashboardLabels(authConfigured: Boolean, signedIn: Boolean, authBusy: Boolean): DashboardUiLabels {
     return DashboardUiLabels(
         title = stringResource(R.string.dashboard_title),
         system = stringResource(R.string.dashboard_system_label),
@@ -60,7 +65,8 @@ private fun dashboardLabels(authConfigured: Boolean, signedIn: Boolean): Dashboa
         checkingConnection = stringResource(R.string.connection_test_testing).uppercase(),
         configurations = stringResource(R.string.dashboard_configurations),
         add = stringResource(
-            if (signedIn) R.string.yokhan_auth_refresh_action
+            if (authBusy) R.string.yokhan_auth_connecting_short
+            else if (signedIn) R.string.yokhan_auth_refresh_short
             else if (authConfigured) R.string.dashboard_auth_add else R.string.dashboard_add,
         ),
         firstRunTitle = stringResource(
@@ -78,7 +84,9 @@ private fun dashboardLabels(authConfigured: Boolean, signedIn: Boolean): Dashboa
             },
         ),
         firstRunAction = stringResource(
-            if (authConfigured) {
+            if (authBusy) {
+                R.string.yokhan_auth_connecting
+            } else if (authConfigured) {
                 R.string.yokhan_auth_login_action
             } else {
                 R.string.dashboard_first_run_action

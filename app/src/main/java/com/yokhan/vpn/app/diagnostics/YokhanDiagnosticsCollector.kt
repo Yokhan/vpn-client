@@ -10,6 +10,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
 import android.telephony.TelephonyManager
+import com.yokhan.gates.app.auth.YokhanKeycloakAuth
 import com.yokhan.gates.app.manifest.YokhanRouteEndpoint
 import com.yokhan.gates.app.manifest.YokhanRouteManifestParser
 import com.yokhan.gates.app.manifest.YokhanRouteManifestStore
@@ -21,26 +22,63 @@ import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.ProxyGroup
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.ktx.readableMessage
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
 import java.net.DatagramPacket
 import java.net.DatagramSocket
-import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Proxy
-import java.net.URL
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.TimeUnit
 import kotlin.math.min
 import kotlin.random.Random
 import kotlin.system.measureTimeMillis
 
+internal suspend fun <T, R> mapBoundedParallel(
+    items: List<T>,
+    concurrency: Int,
+    dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    block: suspend (T) -> R,
+): List<R> {
+    if (items.isEmpty()) return emptyList()
+    val limit = concurrency.coerceAtLeast(1)
+    if (limit == 1 || items.size == 1) {
+        return items.map { block(it) }
+    }
+    val semaphore = Semaphore(limit)
+    return coroutineScope {
+        items.map { item ->
+            async(dispatcher) {
+                semaphore.withPermit {
+                    block(item)
+                }
+            }
+        }.awaitAll()
+    }
+}
+
 object YokhanDiagnosticsCollector {
 
-    suspend fun collect(context: Context): YokhanDiagnosticsReport = withContext(Dispatchers.IO) {
+    suspend fun collect(context: Context): YokhanDiagnosticsReport = collect(context, fastOnly = false)
+
+    suspend fun collectFast(context: Context): YokhanDiagnosticsReport = collect(context, fastOnly = true)
+
+    suspend fun collect(
+        context: Context,
+        fastOnly: Boolean,
+    ): YokhanDiagnosticsReport = withContext(Dispatchers.IO) {
         val appContext = context.applicationContext
         DataStore.ensureGroupsLoaded()
         val currentGroup = DataStore.currentGroup()
@@ -57,39 +95,63 @@ object YokhanDiagnosticsCollector {
         val alwaysOnVpnPackage = alwaysOnVpnPackage(appContext)
         val productionPackageName = productionVpnPackageName()
 
-        YokhanDiagnosticsReport(
-            capturedAtMillis = System.currentTimeMillis(),
-            app = AppDiagnostics(
-                packageName = BuildConfig.APPLICATION_ID,
-                versionName = BuildConfig.VERSION_NAME,
-                versionCode = BuildConfig.VERSION_CODE,
-                sdk = Build.VERSION.SDK_INT,
-            ),
-            runtime = RuntimeDiagnostics(
-                serviceState = DataStore.serviceState.name,
-                serviceMode = DataStore.serviceMode,
-                selectedProxyId = DataStore.selectedProxy,
-                selectedGroupId = currentGroup.id,
-                mixedPort = DataStore.mixedPort,
-                stealthMode = DataStore.stealthMode,
-                ruBypassEnabled = DataStore.enableRuBypass,
-                network = network,
-                bootElapsedRealtimeMs = SystemClock.elapsedRealtime(),
-                alwaysOnVpnPackage = alwaysOnVpnPackage,
-                alwaysOnVpnLockdown = alwaysOnVpnLockdown(appContext),
-                alwaysOnVpnMatchesCurrentPackage = alwaysOnVpnPackage == BuildConfig.APPLICATION_ID,
-                alwaysOnVpnMatchesProductionPackage = alwaysOnVpnPackage == productionPackageName,
-                batteryOptimizationIgnored = batteryOptimizationIgnored(appContext, BuildConfig.APPLICATION_ID),
-                productionBatteryOptimizationIgnored = batteryOptimizationIgnored(appContext, productionPackageName),
-            ),
-            routes = routeDiagnostics(currentGroup, activeProfile, profiles, subscriptionLink),
-            manifest = manifestDiagnostics(appContext, manifestUrl),
-            probes = runProbes(appContext, subscriptionLink, network),
-            stability = runStabilityProbes(appContext, network),
-            sustained = runSustainedProbes(appContext, network),
-            udpConnectivity = runUdpConnectivityProbes(network),
-            incidentReports = AndroidIncidentReports.summary(appContext),
-        )
+        coroutineScope {
+            val routesDeferred = async(Dispatchers.Default) {
+                routeDiagnostics(currentGroup, activeProfile, profiles, subscriptionLink)
+            }
+            val manifestDeferred = async(Dispatchers.IO) {
+                manifestDiagnostics(appContext, manifestUrl)
+            }
+            val probesDeferred = async(Dispatchers.IO) {
+                runProbes(appContext, subscriptionLink, network)
+            }
+            val stabilityDeferred = async(Dispatchers.IO) {
+                if (fastOnly) emptyList() else runStabilityProbes(appContext, network)
+            }
+            val sustainedDeferred = async(Dispatchers.IO) {
+                if (fastOnly) emptyList() else runSustainedProbes(appContext, network)
+            }
+            val udpDeferred = async(Dispatchers.IO) {
+                runUdpConnectivityProbes(network)
+            }
+            val incidentDeferred = async(Dispatchers.IO) {
+                AndroidIncidentReports.summary(appContext)
+            }
+
+            YokhanDiagnosticsReport(
+                capturedAtMillis = System.currentTimeMillis(),
+                app = AppDiagnostics(
+                    packageName = BuildConfig.APPLICATION_ID,
+                    versionName = BuildConfig.VERSION_NAME,
+                    versionCode = BuildConfig.VERSION_CODE,
+                    sdk = Build.VERSION.SDK_INT,
+                ),
+                runtime = RuntimeDiagnostics(
+                    serviceState = DataStore.serviceState.name,
+                    serviceMode = DataStore.serviceMode,
+                    selectedProxyId = DataStore.selectedProxy,
+                    selectedGroupId = currentGroup.id,
+                    mixedPort = DataStore.mixedPort,
+                    stealthMode = DataStore.stealthMode,
+                    ruBypassEnabled = DataStore.enableRuBypass,
+                    network = network,
+                    bootElapsedRealtimeMs = SystemClock.elapsedRealtime(),
+                    alwaysOnVpnPackage = alwaysOnVpnPackage,
+                    alwaysOnVpnLockdown = alwaysOnVpnLockdown(appContext),
+                    alwaysOnVpnMatchesCurrentPackage = alwaysOnVpnPackage == BuildConfig.APPLICATION_ID,
+                    alwaysOnVpnMatchesProductionPackage = alwaysOnVpnPackage == productionPackageName,
+                    batteryOptimizationIgnored = batteryOptimizationIgnored(appContext, BuildConfig.APPLICATION_ID),
+                    productionBatteryOptimizationIgnored = batteryOptimizationIgnored(appContext, productionPackageName),
+                ),
+                routes = routesDeferred.await(),
+                manifest = manifestDeferred.await(),
+                probes = probesDeferred.await(),
+                stability = stabilityDeferred.await(),
+                sustained = sustainedDeferred.await(),
+                udpConnectivity = udpDeferred.await(),
+                incidentReports = incidentDeferred.await(),
+            )
+        }
     }
 
     private fun routeDiagnostics(
@@ -196,7 +258,27 @@ object YokhanDiagnosticsCollector {
         )
     }
 
-    private fun runProbes(
+    private fun buildProbeClient(
+        proxy: Proxy? = null,
+        activeNetwork: Network? = null,
+        connectTimeoutMs: Int = PROBE_CONNECT_TIMEOUT_MS,
+        readTimeoutMs: Int = PROBE_READ_TIMEOUT_MS,
+    ): OkHttpClient {
+        return YokhanKeycloakAuth.sharedHttpClient.newBuilder()
+            .connectTimeout(connectTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+            .readTimeout(readTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+            .followRedirects(true)
+            .apply {
+                if (proxy != null) {
+                    proxy(proxy)
+                } else if (activeNetwork != null) {
+                    socketFactory(activeNetwork.socketFactory)
+                }
+            }
+            .build()
+    }
+
+    private suspend fun runProbes(
         context: Context,
         subscriptionLink: String,
         network: NetworkDiagnostics,
@@ -233,22 +315,23 @@ object YokhanDiagnosticsCollector {
         )
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val activeNetwork = currentActiveNetwork(manager)
-        return probes.map { target ->
-            val mixedResult = executeProbe(target, transport = "mixed_proxy") {
-                URL(target.url).openConnection(proxy) as HttpURLConnection
-            }
+        val proxyClient = buildProbeClient(proxy = proxy)
+        val fallbackClient = buildProbeClient(activeNetwork = activeNetwork)
+        return mapBoundedParallel(probes, PROBE_CONCURRENCY) { target ->
+            val mixedResult = executeProbe(target, transport = "mixed_proxy", client = proxyClient)
             if (!mixedResult.localProxyUnavailable()) {
                 mixedResult
             } else {
-                executeProbe(target, transport = "active_network_after_mixed_proxy_refused") {
-                    val url = URL(target.url)
-                    (activeNetwork?.openConnection(url) ?: url.openConnection()) as HttpURLConnection
-                }
+                executeProbe(
+                    target,
+                    transport = "active_network_after_mixed_proxy_refused",
+                    client = fallbackClient,
+                )
             }
         }
     }
 
-    private fun runStabilityProbes(
+    private suspend fun runStabilityProbes(
         context: Context,
         network: NetworkDiagnostics,
     ): List<StabilityDiagnostics> {
@@ -275,18 +358,24 @@ object YokhanDiagnosticsCollector {
 
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val activeNetwork = currentActiveNetwork(manager)
-        return STABILITY_PROBES.map { target ->
-            val samples = (1..STABILITY_ATTEMPTS).map {
-                executeProbe(
-                    target = target,
-                    transport = "active_network_stability",
-                    connectTimeoutMs = STABILITY_CONNECT_TIMEOUT_MS,
-                    readTimeoutMs = STABILITY_READ_TIMEOUT_MS,
-                ) {
-                    val url = URL(target.url)
-                    (activeNetwork?.openConnection(url) ?: url.openConnection()) as HttpURLConnection
-                }
-            }
+        val client = buildProbeClient(
+            activeNetwork = activeNetwork,
+            connectTimeoutMs = STABILITY_CONNECT_TIMEOUT_MS,
+            readTimeoutMs = STABILITY_READ_TIMEOUT_MS,
+        )
+        val attemptTasks = STABILITY_PROBES.flatMapIndexed { targetIdx, target ->
+            (1..STABILITY_ATTEMPTS).map { targetIdx to target }
+        }
+        val allSamples = mapBoundedParallel(attemptTasks, PROBE_CONCURRENCY) { (targetIdx, target) ->
+            targetIdx to executeProbe(
+                target = target,
+                transport = "active_network_stability",
+                client = client,
+            )
+        }.groupBy({ it.first }, { it.second })
+
+        return STABILITY_PROBES.mapIndexed { idx, target ->
+            val samples = allSamples[idx].orEmpty()
             val successfulLatencies = samples.filter { it.ok }.map { it.elapsedMs }
             val statusCodes = samples
                 .filter { it.statusCode > 0 }
@@ -320,7 +409,7 @@ object YokhanDiagnosticsCollector {
         }
     }
 
-    private fun runSustainedProbes(
+    private suspend fun runSustainedProbes(
         context: Context,
         network: NetworkDiagnostics,
     ): List<SustainedDiagnostics> {
@@ -349,13 +438,20 @@ object YokhanDiagnosticsCollector {
 
         val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val activeNetwork = currentActiveNetwork(manager)
-        return DOWNLOAD_PROBES.map { target ->
-            val samples = (1..DOWNLOAD_ATTEMPTS).map {
-                executeDownloadSample(target) {
-                    val url = URL(target.url)
-                    (activeNetwork?.openConnection(url) ?: url.openConnection()) as HttpURLConnection
-                }
-            }
+        val client = buildProbeClient(
+            activeNetwork = activeNetwork,
+            connectTimeoutMs = DOWNLOAD_CONNECT_TIMEOUT_MS,
+            readTimeoutMs = DOWNLOAD_READ_TIMEOUT_MS,
+        )
+        val attemptTasks = DOWNLOAD_PROBES.flatMapIndexed { idx, target ->
+            (1..DOWNLOAD_ATTEMPTS).map { idx to target }
+        }
+        val allSamples = mapBoundedParallel(attemptTasks, DOWNLOAD_CONCURRENCY) { (idx, target) ->
+            idx to executeDownloadSample(target, client)
+        }.groupBy({ it.first }, { it.second })
+
+        return DOWNLOAD_PROBES.mapIndexed { idx, target ->
+            val samples = allSamples[idx].orEmpty()
             val successful = samples.filter { it.ok }
             val measured = samples.filter { it.bytesRead > 0 }
             val statusCodes = samples
@@ -388,7 +484,7 @@ object YokhanDiagnosticsCollector {
         }
     }
 
-    private fun runUdpConnectivityProbes(network: NetworkDiagnostics): List<UdpConnectivityDiagnostics> {
+    private suspend fun runUdpConnectivityProbes(network: NetworkDiagnostics): List<UdpConnectivityDiagnostics> {
         if (!tunnelAvailable(network)) {
             return UDP_PROBES.map {
                 UdpConnectivityDiagnostics(
@@ -405,7 +501,7 @@ object YokhanDiagnosticsCollector {
             }
         }
 
-        return UDP_PROBES.map { target ->
+        return mapBoundedParallel(UDP_PROBES, PROBE_CONCURRENCY) { target ->
             var error = ""
             val elapsed = measureTimeMillis {
                 try {
@@ -437,9 +533,7 @@ object YokhanDiagnosticsCollector {
     private fun executeProbe(
         target: ProbeTarget,
         transport: String,
-        connectTimeoutMs: Int = PROBE_CONNECT_TIMEOUT_MS,
-        readTimeoutMs: Int = PROBE_READ_TIMEOUT_MS,
-        openConnection: () -> HttpURLConnection,
+        client: OkHttpClient,
     ): ProbeDiagnostics {
         var statusCode = 0
         var finalUrl = ""
@@ -447,28 +541,18 @@ object YokhanDiagnosticsCollector {
         var error = ""
         val elapsed = measureTimeMillis {
             try {
-                val connection = openConnection().apply {
-                    connectTimeout = connectTimeoutMs
-                    readTimeout = readTimeoutMs
-                    requestMethod = "GET"
-                    instanceFollowRedirects = true
-                    useCaches = false
-                    setCommonRequestHeaders()
-                }
-                try {
-                    statusCode = connection.responseCode
-                    finalUrl = redactUrl(connection.url.toString())
-                    val stream = if (statusCode >= 400) {
-                        connection.errorStream
-                    } else {
-                        connection.inputStream
-                    }
-                    preview = stream?.readPreview(PREVIEW_LIMIT_CHARS).orEmpty()
+                val request = Request.Builder()
+                    .url(target.url)
+                    .get()
+                    .applyCommonRequestHeaders()
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    statusCode = response.code
+                    finalUrl = redactUrl(response.request.url.toString())
+                    preview = response.body?.byteStream()?.readPreview(PREVIEW_LIMIT_CHARS).orEmpty()
                     if (statusCode !in 200..399) {
                         error = "HTTP $statusCode"
                     }
-                } finally {
-                    connection.disconnect()
                 }
             } catch (e: Exception) {
                 error = e.readableMessage
@@ -491,7 +575,7 @@ object YokhanDiagnosticsCollector {
 
     private fun executeDownloadSample(
         target: DownloadTarget,
-        openConnection: () -> HttpURLConnection,
+        client: OkHttpClient,
     ): DownloadSample {
         var statusCode = 0
         var error = ""
@@ -499,26 +583,18 @@ object YokhanDiagnosticsCollector {
         var firstByteMs = 0L
         val started = System.nanoTime()
         try {
-            val connection = openConnection().apply {
-                connectTimeout = DOWNLOAD_CONNECT_TIMEOUT_MS
-                readTimeout = DOWNLOAD_READ_TIMEOUT_MS
-                requestMethod = "GET"
-                instanceFollowRedirects = true
-                useCaches = false
-                setRequestProperty("Range", "bytes=0-${target.maxBytes - 1}")
-                setCommonRequestHeaders()
-            }
-            try {
-                statusCode = connection.responseCode
-                val stream = if (statusCode >= 400) {
-                    connection.errorStream
-                } else {
-                    connection.inputStream
-                }
+            val request = Request.Builder()
+                .url(target.url)
+                .get()
+                .header("Range", "bytes=0-${target.maxBytes - 1}")
+                .applyCommonRequestHeaders()
+                .build()
+            client.newCall(request).execute().use { response ->
+                statusCode = response.code
                 if (statusCode !in 200..399) {
                     error = "HTTP $statusCode"
                 }
-                if (stream != null) {
+                response.body?.byteStream()?.let { stream ->
                     bytesRead = stream.readBounded(
                         limitBytes = target.maxBytes,
                         startedNanos = started,
@@ -529,8 +605,6 @@ object YokhanDiagnosticsCollector {
                 if (error.isBlank() && bytesRead == 0L) {
                     error = "empty body"
                 }
-            } finally {
-                connection.disconnect()
             }
         } catch (e: Exception) {
             error = e.readableMessage
@@ -547,10 +621,11 @@ object YokhanDiagnosticsCollector {
         )
     }
 
-    private fun HttpURLConnection.setCommonRequestHeaders() {
-        setRequestProperty("User-Agent", diagnosticUserAgent())
-        setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-        setRequestProperty("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.7,en;q=0.6")
+    private fun Request.Builder.applyCommonRequestHeaders(): Request.Builder = apply {
+        header("User-Agent", diagnosticUserAgent())
+        header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+        header("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.7,en;q=0.6")
+        header("Cache-Control", "no-cache")
     }
 
     private fun tunnelAvailable(network: NetworkDiagnostics): Boolean {
@@ -802,6 +877,8 @@ object YokhanDiagnosticsCollector {
 
     private const val PROBE_CONNECT_TIMEOUT_MS = 6_000
     private const val PROBE_READ_TIMEOUT_MS = 6_000
+    private const val PROBE_CONCURRENCY = 6
+    private const val DOWNLOAD_CONCURRENCY = 3
     private const val STABILITY_ATTEMPTS = 3
     private const val STABILITY_CONNECT_TIMEOUT_MS = 4_000
     private const val STABILITY_READ_TIMEOUT_MS = 4_000

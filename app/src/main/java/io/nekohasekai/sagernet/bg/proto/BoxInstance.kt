@@ -1,6 +1,7 @@
 package io.nekohasekai.sagernet.bg.proto
 
 import android.os.SystemClock
+import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.AbstractInstance
 import io.nekohasekai.sagernet.bg.GuardedProcessPool
@@ -18,6 +19,7 @@ import io.nekohasekai.sagernet.fmt.trojan_go.TrojanGoBean
 import io.nekohasekai.sagernet.fmt.trojan_go.buildTrojanGoConfig
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.plugin.PluginManager
+import io.nekohasekai.sagernet.ktx.Logs
 import kotlinx.coroutines.*
 import libcore.BoxInstance
 import libcore.Libcore
@@ -36,6 +38,13 @@ abstract class BoxInstance(
     val externalInstances = hashMapOf<Int, AbstractInstance>()
     open lateinit var processes: GuardedProcessPool
     private var cacheFiles = ArrayList<File>()
+    private var xraySidecar: XraySidecarSupervisor? = null
+
+    companion object {
+        private const val XHTTP_SIDECAR_PORT = 28080
+        private const val XHTTP_MAPPING_PORT = 28081
+    }
+
     fun isInitialized(): Boolean {
         return ::config.isInitialized && ::box.isInitialized
     }
@@ -46,6 +55,41 @@ abstract class BoxInstance(
 
     protected open fun buildConfig() {
         config = buildConfig(profile)
+        if (profile.type == ProxyEntity.TYPE_CONFIG) {
+            startXhttpSidecarIfNeeded()
+        }
+    }
+
+    /**
+     * XHTTP cannot run inside sing-box. When the imported raw profile selects the `xhttp` route,
+     * the route is rewritten to a loopback SOCKS egress and an Xray child owns the transport.
+     * Failing to start the child fails the connection instead of silently falling back.
+     */
+    private fun startXhttpSidecarIfNeeded() {
+        val plan = XhttpSidecarBridge.build(
+            config.config,
+            XHTTP_SIDECAR_PORT,
+            XHTTP_MAPPING_PORT,
+        ) ?: return
+        val supervisor = XraySidecarPlatform.createSupervisor(
+            logger = { line ->
+                Logs.d("[xhttp] $line")
+                if (BuildConfig.DEBUG) android.util.Log.w("GatesXray", line)
+            },
+        ) ?: throw IllegalStateException(
+            "XHTTP route requires the Xray sidecar, which is unavailable in this build",
+        )
+        val configDir = File(SagerNet.application.cacheDir, "xray-sidecar")
+        when (val result = supervisor.start(plan.spec, configDir)) {
+            is XrayStartResult.Ready -> {
+                xraySidecar = supervisor
+                config.config = plan.configJson
+            }
+
+            is XrayStartResult.Rejected -> throw IllegalStateException(
+                "XHTTP sidecar failed to start: ${result.failure.detail}",
+            )
+        }
     }
 
     protected open suspend fun loadConfig() {
@@ -211,6 +255,9 @@ abstract class BoxInstance(
         }
 
         cacheFiles.removeAll { it.delete(); true }
+
+        xraySidecar?.stop(XrayStopReason.Shutdown)
+        xraySidecar = null
 
         if (::processes.isInitialized) processes.close()
 

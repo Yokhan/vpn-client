@@ -24,11 +24,15 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlin.coroutines.coroutineContext
 
 @Composable
-fun YokhanStarfield(modifier: Modifier = Modifier, active: Boolean = true) {
+fun YokhanStarfield(
+    modifier: Modifier = Modifier,
+    active: Boolean = true,
+    animate: Boolean = active,
+) {
     var elapsedSeconds by remember { mutableStateOf(0.0) }
     val stars = remember { staticStars to movingStars }
-    LaunchedEffect(active) {
-        if (!active) return@LaunchedEffect
+    LaunchedEffect(active, animate) {
+        if (!active || !animate) return@LaunchedEffect
         val durationScale = coroutineContext[MotionDurationScale]
         snapshotFlow { durationScale?.scaleFactor ?: 1f }.collectLatest { scale ->
             if (scale <= 0f) return@collectLatest
@@ -42,10 +46,12 @@ fun YokhanStarfield(modifier: Modifier = Modifier, active: Boolean = true) {
     }
     Box(modifier.graphicsLayer { alpha = if (active) 1f else 0f }) {
         if (active) Canvas(Modifier.fillMaxSize()) {
+            val oneDp = 1.dp.toPx()
+            val corner = CornerRadius(oneDp, oneDp)
             stars.first.forEach { star ->
                 drawCircle(
-                    color = Color.White.copy(alpha = star.alpha),
-                    radius = star.radius.dp.toPx(),
+                    color = star.color,
+                    radius = star.radius * oneDp,
                     center = Offset(size.width * star.x, size.height * star.y),
                 )
             }
@@ -56,15 +62,15 @@ fun YokhanStarfield(modifier: Modifier = Modifier, active: Boolean = true) {
                 val y = size.height * progress * 1.2f
                 if (star.streak) {
                     drawRoundRect(
-                        color = Color.White.copy(alpha = star.alpha),
+                        color = star.color,
                         topLeft = Offset(size.width * star.x, y),
-                        size = Size(star.width.dp.toPx(), star.height.dp.toPx()),
-                        cornerRadius = CornerRadius(1.dp.toPx()),
+                        size = Size(star.width * oneDp, star.height * oneDp),
+                        cornerRadius = corner,
                     )
                 } else {
                     drawCircle(
-                        color = Color.White.copy(alpha = star.alpha),
-                        radius = (star.width / 2f).dp.toPx(),
+                        color = star.color,
+                        radius = (star.width / 2f) * oneDp,
                         center = Offset(size.width * star.x, y),
                     )
                 }
@@ -82,6 +88,7 @@ private data class StaticStar(
     val y: Float,
     val radius: Float,
     val alpha: Float,
+    val color: Color = Color.White.copy(alpha = alpha),
 )
 
 @Immutable
@@ -93,6 +100,7 @@ private data class MovingStar(
     val durationSeconds: Float,
     val initialOffsetSeconds: Float,
     val streak: Boolean,
+    val color: Color = Color.White.copy(alpha = alpha),
 )
 
 private val staticStars = listOf(

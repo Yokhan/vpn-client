@@ -58,6 +58,10 @@ val gatesAndroidSigningEnabled = gatesAndroidKeystoreFile.isNotBlank() &&
     gatesAndroidKeystorePassword.isNotBlank() &&
     gatesAndroidKeyAlias.isNotBlank() &&
     gatesAndroidKeyPassword.isNotBlank()
+// XHTTP sidecar capability. Default false: the child engine has no device loop proof yet and the
+// Android binary is not pinned. Only a build that ships a hash-verified libxray.so may enable it.
+val yokhanXhttpSidecarEnabled = booleanProjectPropertyOrEnv("YOKHAN_XHTTP_SIDECAR_ENABLED")
+val yokhanXrayVersion = projectPropertyOrEnv("YOKHAN_XRAY_VERSION").ifBlank { "unpinned" }
 
 android {
     compileOptions {
@@ -68,6 +72,7 @@ android {
         arg("room.schemaLocation", "$projectDir/schemas")
     }
     defaultConfig {
+        // Production ships arm64-v8a only via the ABI split in buildSrc/Helpers.kt.
         manifestPlaceholders["appAuthRedirectScheme"] = yokhanKeycloakRedirectScheme
         buildConfigField("boolean", "ENABLE_COMPOSE_DASHBOARD", composeDashboardEnabled.toString())
         buildConfigField("String", "YOKHAN_PROVIDER_PACKAGE", "\"com.yokhan.gates.provider\"")
@@ -80,6 +85,8 @@ android {
         buildConfigField("String", "YOKHAN_KEYCLOAK_REDIRECT_URI", quotedBuildConfigString(yokhanKeycloakRedirectUri))
         buildConfigField("String", "YOKHAN_APP_API_BASE_URL", quotedBuildConfigString(yokhanAppApiBaseUrl))
         buildConfigField("String", "YOKHAN_UPDATE_SIGNER_SHA256", quotedBuildConfigString(yokhanUpdateSignerSha256))
+        buildConfigField("boolean", "YOKHAN_XHTTP_SIDECAR_ENABLED", yokhanXhttpSidecarEnabled.toString())
+        buildConfigField("String", "YOKHAN_XRAY_VERSION", quotedBuildConfigString(yokhanXrayVersion))
     }
     bundle {
         language {

@@ -304,16 +304,15 @@ class BaseService {
 
             runOnMainDispatcher {
                 data.connectingJob?.cancelAndJoin() // ensure stop connecting first
-                // we use a coroutineScope here to allow clean-up in parallel
-                coroutineScope {
+                withContext(Dispatchers.IO) {
                     killProcesses()
-                    val data = data
-                    if (data.closeReceiverRegistered) {
-                        unregisterReceiver(data.receiver)
-                        data.closeReceiverRegistered = false
-                    }
-                    data.proxy = null
                 }
+                val data = data
+                if (data.closeReceiverRegistered) {
+                    unregisterReceiver(data.receiver)
+                    data.closeReceiverRegistered = false
+                }
+                data.proxy = null
 
                 // change the state
                 data.changeState(State.Stopped, msg)
@@ -332,11 +331,16 @@ class BaseService {
         var upstreamInterfaceName: String?
 
         suspend fun preInit() {
-            DefaultNetworkListener.start(this) {
-                SagerNet.connectivity.getLinkProperties(it)?.also { link ->
-                    SagerNet.underlyingNetwork = it
+            DefaultNetworkListener.start(this) { network ->
+                if (network == null) {
+                    SagerNet.underlyingNetwork = null
+                    upstreamInterfaceName = null
                     DataStore.vpnService?.updateUnderlyingNetwork()
-                    //
+                    return@start
+                }
+                SagerNet.connectivity.getLinkProperties(network)?.also { link ->
+                    SagerNet.underlyingNetwork = network
+                    DataStore.vpnService?.updateUnderlyingNetwork()
                     val oldName = upstreamInterfaceName
                     if (oldName != link.interfaceName) {
                         upstreamInterfaceName = link.interfaceName

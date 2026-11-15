@@ -1,10 +1,11 @@
-﻿package com.yokhan.gates.app.ui
+package com.yokhan.gates.app.ui
 
 import android.net.Uri
 import android.os.Bundle
 import android.text.format.Formatter
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,7 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -40,18 +44,27 @@ import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.showAllowingStateLoss
 import io.nekohasekai.sagernet.ktx.snackbar
 import io.nekohasekai.sagernet.ktx.startFilesForResult
+import com.yokhan.gates.shared.ui.route.YokhanActionRow
 import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
 import com.yokhan.gates.shared.ui.route.YokhanCaption
+import com.yokhan.gates.app.ui.compose.YokhanActionSheetDialog
+import com.yokhan.gates.app.ui.compose.YokhanActionSheetItem
+import com.yokhan.gates.app.ui.compose.YokhanActionSheetState
 import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
+import com.yokhan.gates.shared.ui.design.yokhanPalette
+import com.yokhan.gates.shared.ui.design.yokhanTypography
 import com.yokhan.gates.shared.ui.route.YokhanDivider
 import com.yokhan.gates.shared.ui.route.YokhanMonoValue
 import com.yokhan.gates.shared.ui.route.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanRouteButton
 import com.yokhan.gates.shared.ui.route.YokhanRouteCard
 import com.yokhan.gates.shared.ui.route.YokhanRouteLazyFrame
 import com.yokhan.gates.shared.ui.route.YokhanRouteProgressBar
 import com.yokhan.gates.shared.ui.route.YokhanRouteStatusDot
+import com.yokhan.gates.shared.ui.route.YokhanStatusPill
 import com.yokhan.gates.shared.ui.route.yokhanOutlinedSurface
 import com.yokhan.gates.app.ui.shell.YokhanShellActivityRoute
+import com.yokhan.gates.app.ui.shell.YokhanShellRoute
 import com.yokhan.gates.shared.ui.design.YokhanSpacing
 import io.nekohasekai.sagernet.widget.QRCodeDialog
 import moe.matsuri.nb4a.utils.Util
@@ -63,6 +76,7 @@ import java.util.Locale
 class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
 
     private val uiState = mutableStateOf(GroupUiState())
+    private val actionSheetState = mutableStateOf<YokhanActionSheetState?>(null)
     private lateinit var selectedGroup: ProxyGroup
 
     private val exportProfiles =
@@ -92,36 +106,39 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
         val state = uiState.value
         YokhanRouteLazyFrame(
             title = stringResource(R.string.menu_group),
-            systemLabel = stringResource(R.string.dashboard_system_label),
+            systemLabel = stringResource(R.string.system_route_label, "03"),
             spaceActive = spaceActive,
             onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
         ) { colors, typography ->
             item(key = "group-actions") {
+                val hasSubscriptions = state.rows.any { it.group.type == GroupType.SUBSCRIPTION }
                 YokhanRouteCard(
                     title = stringResource(R.string.group_hub_actions_title),
                     colors = colors,
                     typography = typography,
                 ) {
-                    YokhanButtonGrid(
-                        actions = listOf(
-                            YokhanRouteAction(
-                                title = stringResource(R.string.group_create),
-                                primary = true,
-                                onClick = {
-                                    (activity as? MainActivity)?.openActivityRoute(
-                                        YokhanShellActivityRoute.GroupCreate,
-                                    )
-                                },
-                            ),
-                            YokhanRouteAction(
-                                title = stringResource(R.string.update_all_subscription),
-                                enabled = state.rows.any { it.group.type == GroupType.SUBSCRIPTION },
-                                onClick = ::confirmUpdateAllSubscriptions,
-                            ),
-                        ),
+                    YokhanRouteButton(
+                        text = stringResource(R.string.group_create),
+                        primary = true,
+                        enabled = true,
                         colors = colors,
                         typography = typography,
+                        onClick = {
+                            (activity as? MainActivity)?.openActivityRoute(
+                                YokhanShellActivityRoute.GroupCreate,
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
                     )
+                    if (hasSubscriptions) {
+                        YokhanDivider(colors, Modifier.padding(vertical = 8.dp))
+                        YokhanActionRow(
+                            title = stringResource(R.string.update_all_subscription),
+                            colors = colors,
+                            typography = typography,
+                            onClick = ::confirmUpdateAllSubscriptions,
+                        )
+                    }
                 }
             }
 
@@ -154,6 +171,12 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
                 }
             }
         }
+        YokhanActionSheetDialog(
+            state = actionSheetState.value,
+            colors = yokhanPalette(spaceActive),
+            typography = yokhanTypography(),
+            onDismiss = { actionSheetState.value = null },
+        )
     }
 
     @Composable
@@ -168,11 +191,22 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
         val updating = row.updating
         val canModify = !group.ungrouped && !updating
         val isSubscription = group.type == GroupType.SUBSCRIPTION
+        val displayTitle = if (group.ungrouped) {
+            stringResource(R.string.group_ungrouped_title)
+        } else {
+            group.displayName()
+        }
+        val openGroupProfiles = {
+            DataStore.selectedGroup = group.id
+            (activity as? MainActivity)?.displayRoute(YokhanShellRoute.Configuration)
+            Unit
+        }
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .yokhanOutlinedSurface(colors),
+                .yokhanOutlinedSurface(colors)
+                .clickable(onClick = openGroupProfiles),
         ) {
             if (updating) {
                 GroupProgress(row, colors)
@@ -184,7 +218,7 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            text = group.displayName(),
+                            text = displayTitle,
                             color = colors.primary,
                             fontFamily = typography.text,
                             fontSize = 18.sp,
@@ -243,11 +277,44 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
                     )
                 }
 
-                YokhanButtonGrid(
-                    actions = groupActions(group, index, total, canModify, isSubscription),
+                YokhanRouteButton(
+                    text = stringResource(
+                        if (row.profileCount == 0L) R.string.group_empty_add else R.string.group_open_profiles,
+                    ),
+                    primary = true,
+                    enabled = true,
                     colors = colors,
                     typography = typography,
-                    modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
+                    onClick = openGroupProfiles,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = YokhanSpacing.ActionTopGap),
+                )
+                if (isSubscription && canModify) {
+                    YokhanDivider(colors, Modifier.padding(vertical = 8.dp))
+                    YokhanActionRow(
+                        title = stringResource(R.string.group_update),
+                        colors = colors,
+                        typography = typography,
+                        onClick = { GroupUpdater.startUpdate(group, true) },
+                        accent = true,
+                    )
+                }
+                YokhanDivider(colors, Modifier.padding(vertical = 8.dp))
+                YokhanActionRow(
+                    title = stringResource(R.string.group_actions_title),
+                    subtitle = stringResource(R.string.group_actions_subtitle),
+                    colors = colors,
+                    typography = typography,
+                    onClick = {
+                        showGroupActionsDialog(
+                            group = group,
+                            index = index,
+                            total = total,
+                            canModify = canModify,
+                            isSubscription = isSubscription,
+                        )
+                    },
                 )
             }
         }
@@ -261,82 +328,76 @@ class GroupFragment : YokhanComposeRouteFragment(), GroupManager.Listener {
         )
     }
 
-    @Composable
-    private fun groupActions(
+    private fun showGroupActionsDialog(
         group: ProxyGroup,
         index: Int,
         total: Int,
         canModify: Boolean,
         isSubscription: Boolean,
-    ): List<YokhanRouteAction> = buildList {
-        add(
-            YokhanRouteAction(
-                title = stringResource(R.string.group_edit),
-                enabled = canModify,
-                onClick = { editGroup(group) },
-            ),
-        )
-        if (isSubscription) {
-            add(
-                YokhanRouteAction(
-                    title = stringResource(R.string.group_update),
-                    primary = true,
-                    enabled = canModify,
-                    onClick = { GroupUpdater.startUpdate(group, true) },
-                ),
-            )
-            add(
-                YokhanRouteAction(
-                    title = stringResource(R.string.action_export_clipboard),
-                    onClick = { exportSubscriptionToClipboard(group) },
-                ),
-            )
-            add(
-                YokhanRouteAction(
-                    title = "QR",
-                    onClick = { showSubscriptionQr(group) },
-                ),
+    ) {
+        val entries = mutableListOf<YokhanActionSheetItem>()
+        if (isSubscription && canModify) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.group_update),
+                accent = true,
+                onClick = { GroupUpdater.startUpdate(group, true) },
             )
         }
-        add(
-            YokhanRouteAction(
-                title = stringResource(R.string.action_export_file),
-                onClick = { exportProfilesToFile(group) },
-            ),
+        if (canModify) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.group_edit),
+                onClick = { editGroup(group) },
+            )
+        }
+        if (isSubscription) {
+            entries += YokhanActionSheetItem(
+                title = "QR",
+                onClick = { showSubscriptionQr(group) },
+            )
+        }
+        entries += YokhanActionSheetItem(
+            title = getString(R.string.action_export_file),
+            onClick = { exportProfilesToFile(group) },
         )
-        add(
-            YokhanRouteAction(
-                title = stringResource(R.string.action_export_clipboard),
-                onClick = { exportProfilesToClipboard(group) },
-            ),
+        entries += YokhanActionSheetItem(
+            title = getString(R.string.action_export_clipboard),
+            onClick = {
+                if (isSubscription) exportSubscriptionToClipboard(group) else exportProfilesToClipboard(group)
+            },
         )
-        add(
-            YokhanRouteAction(
-                title = stringResource(R.string.group_move_up),
-                enabled = canModify && index > 0,
+        if (canModify && index > 0) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.group_move_up),
                 onClick = { moveGroup(index, index - 1) },
-            ),
-        )
-        add(
-            YokhanRouteAction(
-                title = stringResource(R.string.group_move_down),
-                enabled = canModify && index < total - 1,
+            )
+        }
+        if (canModify && index < total - 1) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.group_move_down),
                 onClick = { moveGroup(index, index + 1) },
-            ),
-        )
-        add(
-            YokhanRouteAction(
-                title = stringResource(R.string.clear_profiles),
-                enabled = !group.ungrouped,
+            )
+        }
+        if (!group.ungrouped) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.clear_profiles),
                 onClick = { confirmClearGroup(group) },
-            ),
-        )
-        add(
-            YokhanRouteAction(
-                title = stringResource(R.string.delete),
-                enabled = canModify,
+            )
+        }
+        if (canModify) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.delete),
                 onClick = { confirmDeleteGroup(group) },
-            ),
+            )
+        }
+        if (entries.isEmpty()) return
+        val sheetTitle = if (group.ungrouped) {
+            getString(R.string.group_ungrouped_title)
+        } else {
+            group.displayName()
+        }
+        actionSheetState.value = YokhanActionSheetState(
+            title = sheetTitle,
+            items = entries,
         )
     }
 

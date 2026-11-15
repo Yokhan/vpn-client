@@ -39,7 +39,7 @@ class LogcatFragment : YokhanComposeRouteFragment() {
         val text = logText.value
         YokhanRouteFrame(
             title = stringResource(R.string.menu_log),
-            systemLabel = stringResource(R.string.dashboard_system_label),
+            systemLabel = stringResource(R.string.system_route_label, "07"),
             spaceActive = spaceActive,
             onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
         ) { colors, typography ->

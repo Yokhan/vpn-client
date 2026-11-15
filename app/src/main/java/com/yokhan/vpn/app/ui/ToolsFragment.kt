@@ -210,7 +210,7 @@ class ToolsFragment : YokhanComposeRouteFragment() {
         val selection = backupSelection.value
         YokhanRouteFrame(
             title = stringResource(R.string.menu_tools),
-            systemLabel = stringResource(R.string.dashboard_system_label),
+            systemLabel = stringResource(R.string.system_route_label, "06"),
             spaceActive = spaceActive,
             onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
         ) { colors, typography ->

@@ -1,7 +1,11 @@
 package io.nekohasekai.sagernet.fmt
 
+import android.provider.Settings
 import android.widget.Toast
+import com.yokhan.gates.app.routing.RuCompatibilityClassifier
+import com.yokhan.gates.app.routing.VpnAppRoutePlanner
 import com.yokhan.gates.app.usb.UsbBridgeBinding
+import com.yokhan.gates.app.routing.WholeTrafficPolicy
 import io.nekohasekai.sagernet.*
 import io.nekohasekai.sagernet.bg.VpnService
 import io.nekohasekai.sagernet.database.DataStore
@@ -55,6 +59,27 @@ internal fun buildRouteOptions(): RouteOptions = RouteOptions().apply {
     auto_detect_interface = true
     rules = mutableListOf()
     rule_set = mutableListOf()
+}
+
+/**
+ * Whether the generated config may expose a local mixed proxy listener.
+ *
+ * Whole-traffic mode owns the VPN data path, so both the loopback listener and
+ * the USB/LAN listeners stay closed regardless of the legacy
+ * enableLocalInbound/enableUsbBridge/allowAccess switches. Proxy-only service
+ * mode has no tunnel to protect: the local listener is its product surface, so
+ * it keeps the previous behavior.
+ */
+internal fun shouldCreateMixedInbound(
+    policy: WholeTrafficPolicy,
+    isVpnServiceMode: Boolean,
+    isUsbBridgeEnabled: Boolean,
+    enableLocalInbound: Boolean,
+    stealthMode: Boolean,
+): Boolean {
+    if (!isVpnServiceMode) return true
+    if (!policy.allowInboundListeners) return false
+    return isUsbBridgeEnabled || (enableLocalInbound && !stealthMode)
 }
 
 class ConfigBuildResult(
@@ -142,12 +167,13 @@ fun buildConfig(
     val domainListDNSDirectForce = mutableListOf<String>()
     val bypassDNSBeans = hashSetOf<AbstractBean>()
     val isVPN = DataStore.serviceMode == Key.MODE_VPN
-    val isUsbBridgeEnabled = !forTest && DataStore.enableUsbBridge
+    val policy = WholeTrafficPolicy(DataStore.wholeTrafficMode)
+    val isUsbBridgeEnabled = !forTest && policy.allowExternalListeners && DataStore.enableUsbBridge
     val usbBridgeAddress = if (isUsbBridgeEnabled) UsbBridgeBinding.detectUsbIpv4() else null
     val bindAddresses = UsbBridgeBinding.resolveBindAddresses(
         isUsbBridgeEnabled = isUsbBridgeEnabled,
         usbIpv4 = usbBridgeAddress,
-        isLanAccessAllowed = !forTest && DataStore.allowAccess,
+        isLanAccessAllowed = !forTest && policy.allowLanAccess && DataStore.allowAccess,
         isStealthMode = DataStore.stealthMode,
     )
     val bind = bindAddresses.first()
@@ -229,6 +255,9 @@ fun buildConfig(
                 when (ipv6Mode) {
                     IPv6Mode.DISABLE -> {
                         inet4_address = listOf(VpnService.PRIVATE_VLAN4_CLIENT + "/28")
+                        // Still own an IPv6 address so IPv6 is captured and can be
+                        // rejected in the core instead of leaking outside the tun.
+                        inet6_address = listOf(VpnService.PRIVATE_VLAN6_CLIENT + "/126")
                     }
 
                     IPv6Mode.ONLY -> {
@@ -241,7 +270,15 @@ fun buildConfig(
                     }
                 }
             })
-            if (!isVPN || isUsbBridgeEnabled || (DataStore.enableLocalInbound && !DataStore.stealthMode)) {
+            if (
+                shouldCreateMixedInbound(
+                    policy = policy,
+                    isVpnServiceMode = isVPN,
+                    isUsbBridgeEnabled = isUsbBridgeEnabled,
+                    enableLocalInbound = DataStore.enableLocalInbound,
+                    stealthMode = DataStore.stealthMode,
+                )
+            ) {
                 inbounds.add(Inbound_MixedOptions().apply {
                     type = "mixed"
                     tag = TAG_MIXED
@@ -505,8 +542,60 @@ fun buildConfig(
             tagMap[key] = buildChain(key, p)
         }
 
+        // If OS "Block connections without VPN" (Lockdown) is enabled, addDisallowedApplication()
+        // would kill direct apps' internet. Route those UIDs directly in-core instead.
+        if (isVPN && !forTest && policy.applyPerAppSplit) {
+            val alwaysOnLockdown = runCatching {
+                Settings.Secure.getInt(SagerNet.application.contentResolver, "always_on_vpn_lockdown", 0) == 1
+            }.getOrDefault(false)
+            if (alwaysOnLockdown) {
+                PackageCache.awaitLoadSync()
+                val ownPackage = SagerNet.application.packageName
+                val allApps = PackageCache.installedPackages.keys.filter { it != ownPackage }
+                val installers = if (DataStore.enableRuBypass) {
+                    RuCompatibilityClassifier.resolveInstallers(SagerNet.application.packageManager, allApps)
+                } else {
+                    emptyMap()
+                }
+                val autoBypass = RuCompatibilityClassifier(SagerNet.application).directPackages(
+                    installedPackages = allApps,
+                    includeRuBypass = DataStore.enableRuBypass,
+                    includeStealth = DataStore.stealthMode,
+                    serverRules = DataStore.serverExcludePackages,
+                    installerPackages = installers,
+                )
+                val lockdownPlan = VpnAppRoutePlanner.build(
+                    ownPackageName = ownPackage,
+                    wholeTrafficMode = DataStore.wholeTrafficMode,
+                    proxyApps = DataStore.proxyApps,
+                    configuredBypass = DataStore.bypass,
+                    needBypassRootUid = false,
+                    manualPackages = DataStore.individual.split('\n').filter { it.isNotBlank() }.toSet(),
+                    allApps = allApps,
+                    autoBypassPackages = autoBypass,
+                    alwaysOnLockdown = true,
+                )
+                val bypassUids = lockdownPlan.inTunnelDirectPackages
+                    .mapNotNull { PackageCache[it]?.takeIf { uid -> uid >= 1000 } }
+                    .distinct()
+                if (bypassUids.isNotEmpty()) {
+                    route.rules.add(Rule_DefaultOptions().apply {
+                        user_id = bypassUids
+                        outbound = TAG_BYPASS
+                    })
+                    userDNSRuleList += DNSRule_DefaultOptions().apply {
+                        user_id = bypassUids
+                        server = "dns-direct"
+                    }
+                }
+            }
+        }
+
         // apply user rules
         for (rule in extraRules) {
+            // Whole-traffic mode: user rules may add tunneled/blocked routes, but
+            // not direct bypass routes.
+            if (!policy.applyUserDirectRules && rule.outbound == -1L) continue
             if (rule.packages.isNotEmpty()) {
                 PackageCache.awaitLoadSync()
             }
@@ -720,10 +809,18 @@ fun buildConfig(
                 port = listOf(53)
                 action = "hijack-dns"
             })
-            if (DataStore.bypassLanInCore) {
+            if (policy.applyLanBypass && DataStore.bypassLanInCore) {
                 route.rules.add(Rule_DefaultOptions().apply {
                     outbound = TAG_BYPASS
                     ip_is_private = true
+                })
+            }
+            // IPv6 is captured by the tun even when disabled; reject it here so
+            // it cannot leak through the underlying network.
+            if (WholeTrafficPolicy.shouldBlockIpv6(ipv6Mode)) {
+                route.rules.add(0, Rule_DefaultOptions().apply {
+                    ip_cidr = listOf("::/0")
+                    action = "reject"
                 })
             }
             // block mcast

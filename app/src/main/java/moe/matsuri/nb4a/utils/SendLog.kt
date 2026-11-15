@@ -44,17 +44,19 @@ object SendLog {
         logFile.appendText("\n")
         logFile.appendBytes(getNekoLog(0))
 
-        context.startActivity(
-            Intent.createChooser(
-                Intent(Intent.ACTION_SEND).setType("text/x-log")
-                    .setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    .putExtra(
-                        Intent.EXTRA_STREAM, FileProvider.getUriForFile(
-                            context, BuildConfig.APPLICATION_ID + ".cache", logFile
-                        )
-                    ), context.getString(R.string.abc_shareactionprovider_share_with)
-            )
+        val chooserIntent = Intent.createChooser(
+            Intent(Intent.ACTION_SEND).setType("text/x-log")
+                .setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                .putExtra(
+                    Intent.EXTRA_STREAM, FileProvider.getUriForFile(
+                        context, BuildConfig.APPLICATION_ID + ".cache", logFile
+                    )
+                ), context.getString(R.string.abc_shareactionprovider_share_with)
         )
+        if (context !is android.app.Activity) {
+            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(chooserIntent)
     }
 
     // Get log bytes from neko.log

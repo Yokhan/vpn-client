@@ -1,4 +1,4 @@
-﻿package com.yokhan.gates.app.ui
+package com.yokhan.gates.app.ui
 
 import android.os.Bundle
 import androidx.activity.compose.setContent
@@ -20,16 +20,19 @@ import com.yokhan.gates.app.routing.RuCompatibilityReason
 import com.yokhan.gates.app.routing.RuCompatibilityRoute
 import com.yokhan.gates.shared.ui.route.YokhanBody
 import com.yokhan.gates.shared.ui.route.YokhanCaption
+import com.yokhan.gates.shared.ui.route.YokhanDivider
 import com.yokhan.gates.shared.ui.route.YokhanMonoValue
 import com.yokhan.gates.shared.ui.route.YokhanRouteCard
 import com.yokhan.gates.shared.ui.route.YokhanRouteLazyFrame
 import com.yokhan.gates.shared.ui.route.YokhanStatusPill
+import com.yokhan.gates.shared.ui.route.YokhanToggleRow
 import com.yokhan.gates.shared.ui.route.yokhanOutlinedSurface
 import com.yokhan.gates.shared.ui.design.YokhanPalette
 import com.yokhan.gates.shared.ui.design.YokhanSpacing
 import com.yokhan.gates.shared.ui.design.YokhanTypography
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.utils.PackageCache
@@ -39,7 +42,11 @@ import kotlinx.coroutines.withContext
 
 class RuCompatibilityActivity : ThemedActivity() {
 
-    private val compatibilityState = mutableStateOf(RuCompatibilityUiState())
+    private val compatibilityState = mutableStateOf(
+        RuCompatibilityUiState(
+            ruBypassEnabled = DataStore.enableRuBypass && !DataStore.wholeTrafficMode,
+        ),
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,9 +59,9 @@ class RuCompatibilityActivity : ThemedActivity() {
         val state = compatibilityState.value
         YokhanRouteLazyFrame(
             title = getString(R.string.ru_compatibility_title),
-            systemLabel = getString(R.string.dashboard_system_label),
+            systemLabel = getString(R.string.system_route_label, "RU"),
             spaceActive = DataStore.serviceState.isSpaceActive(),
-            onMenuClick = ::finish,
+            onBack = ::finish,
         ) { colors, typography ->
             item(key = "summary") {
                 YokhanRouteCard(
@@ -62,14 +69,29 @@ class RuCompatibilityActivity : ThemedActivity() {
                     colors = colors,
                     typography = typography,
                 ) {
+                    YokhanToggleRow(
+                        title = getString(R.string.settings_ru_bypass_toggle_title),
+                        summary = getString(R.string.settings_ru_bypass_toggle_summary),
+                        checked = state.ruBypassEnabled,
+                        colors = colors,
+                        typography = typography,
+                        onCheckedChange = ::toggleRuBypass,
+                    )
+                    YokhanDivider(colors, Modifier.padding(vertical = 10.dp))
                     YokhanMonoValue(
-                        text = getString(
-                            R.string.ru_compatibility_overview_value,
-                            state.directCount,
-                            state.totalCount,
-                            state.exactRuleCount,
-                            state.prefixRuleCount,
-                        ),
+                        text = if (state.loading) {
+                            getString(R.string.ru_compatibility_loading)
+                        } else if (!state.ruBypassEnabled) {
+                            getString(R.string.settings_ru_bypass_disabled_hint)
+                        } else {
+                            getString(
+                                R.string.ru_compatibility_overview_value,
+                                state.directCount,
+                                state.totalCount,
+                                state.exactRuleCount,
+                                state.prefixRuleCount,
+                            )
+                        },
                         colors = colors,
                         typography = typography,
                         sizeSp = 12,
@@ -80,7 +102,7 @@ class RuCompatibilityActivity : ThemedActivity() {
                         colors = colors,
                         typography = typography,
                         modifier = Modifier.padding(top = 8.dp),
-                        maxLines = 5,
+                        maxLines = 8,
                     )
                 }
             }
@@ -149,21 +171,46 @@ class RuCompatibilityActivity : ThemedActivity() {
         }
     }
 
+    private fun toggleRuBypass(enabled: Boolean) {
+        DataStore.enableRuBypass = enabled
+        if (enabled && DataStore.wholeTrafficMode) {
+            DataStore.wholeTrafficMode = false
+        }
+        if (DataStore.serviceState.started) {
+            SagerNet.reloadServiceAsync()
+        }
+        loadCompatibility()
+    }
+
     private fun loadCompatibility() {
+        val activeBypass = DataStore.enableRuBypass && !DataStore.wholeTrafficMode
         lifecycleScope.launch {
-            compatibilityState.value = RuCompatibilityUiState(loading = true)
+            compatibilityState.value = RuCompatibilityUiState(
+                loading = compatibilityState.value.rows.isEmpty(),
+                ruBypassEnabled = activeBypass,
+                totalCount = compatibilityState.value.totalCount,
+                directCount = if (activeBypass) compatibilityState.value.directCount else 0,
+                exactRuleCount = compatibilityState.value.exactRuleCount,
+                prefixRuleCount = compatibilityState.value.prefixRuleCount,
+                rows = compatibilityState.value.rows,
+            )
             val nextState = withContext(Dispatchers.IO) {
-                PackageCache.reload()
+                PackageCache.awaitLoadSync()
                 val packages = PackageCache.installedPackages.keys
                     .filterNot { it == BuildConfig.APPLICATION_ID }
                 val classifier = RuCompatibilityClassifier(this@RuCompatibilityActivity)
-                val decisions = classifier.explainInstalledPackages(packages)
+                val installers = RuCompatibilityClassifier.resolveInstallers(packageManager, packages)
+                val decisions = classifier.explainInstalledPackages(
+                    installedPackages = packages,
+                    installerPackages = installers,
+                )
                 val ruleCount = classifier.countRules()
-                val rows = decisions.map { it.toRow() }
+                val rows = decisions.map { it.toRow(activeBypass) }
                 RuCompatibilityUiState(
                     loading = false,
+                    ruBypassEnabled = activeBypass,
                     totalCount = rows.size,
-                    directCount = rows.count { it.route == RuCompatibilityRoute.Direct },
+                    directCount = if (activeBypass) rows.count { it.route == RuCompatibilityRoute.Direct } else 0,
                     exactRuleCount = ruleCount.exactDirect,
                     prefixRuleCount = ruleCount.prefixDirect,
                     rows = rows,
@@ -173,21 +220,35 @@ class RuCompatibilityActivity : ThemedActivity() {
         }
     }
 
-    private fun RuCompatibilityDecision.toRow(): RuCompatibilityRow {
+    private fun RuCompatibilityDecision.toRow(ruBypassEnabled: Boolean): RuCompatibilityRow {
+        val effectiveRoute = if (ruBypassEnabled) route else RuCompatibilityRoute.Tunnel
         return RuCompatibilityRow(
             packageName = packageName,
             label = PackageCache.loadLabel(packageName),
-            route = route,
-            reason = when (reason) {
-                RuCompatibilityReason.ExactRule -> getString(
-                    R.string.ru_compatibility_reason_exact,
-                    matchedRule.orEmpty(),
-                )
-                RuCompatibilityReason.PrefixRule -> getString(
-                    R.string.ru_compatibility_reason_prefix,
-                    matchedRule.orEmpty(),
-                )
-                RuCompatibilityReason.DefaultRoute -> getString(R.string.ru_compatibility_reason_default)
+            route = effectiveRoute,
+            reason = if (!ruBypassEnabled) {
+                getString(R.string.ru_compatibility_disabled_reason)
+            } else {
+                when (reason) {
+                    RuCompatibilityReason.ExactRule -> getString(
+                        R.string.ru_compatibility_reason_exact,
+                        matchedRule.orEmpty(),
+                    )
+                    RuCompatibilityReason.PrefixRule -> getString(
+                        R.string.ru_compatibility_reason_prefix,
+                        matchedRule.orEmpty(),
+                    )
+                    RuCompatibilityReason.DomainSegmentRule -> getString(
+                        R.string.ru_compatibility_reason_domain,
+                        matchedRule.orEmpty(),
+                    )
+                    RuCompatibilityReason.BrandSignatureRule -> getString(
+                        R.string.ru_compatibility_reason_brand,
+                        matchedRule.orEmpty(),
+                    )
+                    RuCompatibilityReason.RuStoreInstaller -> getString(R.string.ru_compatibility_reason_rustore)
+                    RuCompatibilityReason.DefaultRoute -> getString(R.string.ru_compatibility_reason_default)
+                }
             },
         )
     }
@@ -200,6 +261,7 @@ class RuCompatibilityActivity : ThemedActivity() {
 
     private data class RuCompatibilityUiState(
         val loading: Boolean = false,
+        val ruBypassEnabled: Boolean = true,
         val totalCount: Int = 0,
         val directCount: Int = 0,
         val exactRuleCount: Int = 0,

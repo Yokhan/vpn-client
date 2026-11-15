@@ -66,3 +66,13 @@ ru.apteka.social
 ru.stolichki.mobile
 ru.ofd.check
 ru.fns.lkfl
+org.nspk.mirpay
+com.dublgis.dgis
+ru.dublgis.dgis
+com.vk.calls
+com.ozon.app
+com.wildberries.app
+com.sber.app
+com.tbank.mb
+com.pochta.app
+com.cdek.app

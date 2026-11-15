@@ -89,11 +89,13 @@ class MainActivity : ThemedActivity(),
     private val selectedRoute = mutableStateOf(YokhanShellRoute.Home)
     private val shellServiceState = mutableStateOf(BaseService.State.Idle)
     private val drawerCommand = mutableStateOf(YokhanShellDrawerCommand())
+    private val shellBanner = mutableStateOf<com.yokhan.gates.app.ui.shell.YokhanShellBanner?>(null)
+    private var bannerSequence = 0L
     private var navigationMenuOpen = false
     private var fragmentHostReady = false
     private var pendingInitialFragment = true
     private val dashboardController by lazy { DashboardController(this) }
-    private val yokhanAuthService by lazy { AuthorizationService(this) }
+    private val yokhanAuthService by lazy { YokhanKeycloakAuth.createAuthorizationService(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,11 +106,14 @@ class MainActivity : ThemedActivity(),
                 serviceState = shellServiceState.value,
                 drawerCommand = drawerCommand.value,
                 onRouteSelected = { route -> displayRoute(route) },
+                onActivityRouteSelected = ::openActivityRoute,
                 onDrawerOpenChanged = { navigationMenuOpen = it },
                 onFragmentHostReady = { host ->
                     fragmentHostView = host
                     onFragmentHostReady(host, savedInstanceState)
                 },
+                banner = shellBanner.value,
+                onDismissBanner = { shellBanner.value = null },
                 content = { dashboardController.Content() },
             )
         }
@@ -125,6 +130,15 @@ class MainActivity : ThemedActivity(),
                 moveTaskToBack(true)
             } else {
                 displayRoute(YokhanShellRoute.Home)
+            }
+        }
+
+        supportFragmentManager.addOnBackStackChangedListener {
+            if (supportFragmentManager.backStackEntryCount == 0 &&
+                supportFragmentManager.findFragmentById(R.id.fragment_holder) == null &&
+                selectedRoute.value != YokhanShellRoute.Home
+            ) {
+                selectedRoute.value = YokhanShellRoute.Home
             }
         }
 
@@ -437,6 +451,16 @@ class MainActivity : ThemedActivity(),
     }
 
     fun displayRoute(route: YokhanShellRoute): Boolean {
+        if (selectedRoute.value == route && route != YokhanShellRoute.Home) {
+            if (supportFragmentManager.backStackEntryCount > 0) {
+                supportFragmentManager.popBackStackImmediate(
+                    null,
+                    FragmentManager.POP_BACK_STACK_INCLUSIVE,
+                )
+            }
+            closeNavigationMenu()
+            return true
+        }
         when (route) {
             YokhanShellRoute.Home -> {
                 if (supportFragmentManager.backStackEntryCount > 0) {
@@ -450,11 +474,11 @@ class MainActivity : ThemedActivity(),
             }
 
             YokhanShellRoute.Configuration -> {
-                displayFragment(ConfigurationHubFragment())
+                displayFragment(ConfigurationFragment())
             }
 
-            YokhanShellRoute.Group -> displayFragment(GroupHubFragment())
-            YokhanShellRoute.Route -> displayFragment(RouteHubFragment())
+            YokhanShellRoute.Group -> displayFragment(GroupFragment())
+            YokhanShellRoute.Route -> displayFragment(RouteFragment())
             YokhanShellRoute.Settings -> displayFragment(SettingsFragment())
             YokhanShellRoute.Traffic -> displayFragment(WebviewFragment())
             YokhanShellRoute.Tools -> displayFragment(ToolsFragment())
@@ -469,7 +493,7 @@ class MainActivity : ThemedActivity(),
 
             YokhanShellRoute.About -> displayFragment(AboutFragment())
             YokhanShellRoute.Promotion -> {
-                launchCustomTab("https://neko-box.pages.dev/е–µ")
+                launchCustomTab(BuildConfig.YOKHAN_APP_DOWNLOAD_URL)
                 return false
             }
 
@@ -486,19 +510,39 @@ class MainActivity : ThemedActivity(),
         shellServiceState.value = state
 
         dashboardController.updateConnectionState(state)
-        if (state == BaseService.State.Connected) {
-            YokhanRouteManifestManager.recordTunnelConnected(this)
-        }
-        if (msg != null) {
-            YokhanRouteManifestManager.recordConnectionFailure(this)
+        if (state == BaseService.State.Connected || msg != null) {
+            val appContext = applicationContext
+            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                if (state == BaseService.State.Connected) {
+                    YokhanRouteManifestManager.recordTunnelConnected(appContext)
+                }
+                if (msg != null) {
+                    YokhanRouteManifestManager.recordConnectionFailure(appContext)
+                }
+            }
         }
         (supportFragmentManager.findFragmentById(R.id.fragment_holder) as? YokhanServiceStateConsumer)
             ?.onShellServiceStateChanged(state)
-        if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
+        if (msg != null) {
+            val formatted = getString(R.string.vpn_error, msg)
+            if (selectedRoute.value == YokhanShellRoute.Home) {
+                showDashboardMessage(formatted)
+            } else {
+                snackbar(formatted).show()
+            }
+        }
     }
 
     override fun snackbarInternal(text: CharSequence): Snackbar {
-        val root = if (::fragmentHostView.isInitialized) fragmentHostView else window.decorView
+        val root = if (
+            selectedRoute.value != YokhanShellRoute.Home &&
+            ::fragmentHostView.isInitialized &&
+            fragmentHostView.isShown
+        ) {
+            fragmentHostView
+        } else {
+            findViewById(android.R.id.content) ?: window.decorView
+        }
         return Snackbar.make(root, text, Snackbar.LENGTH_LONG)
     }
 
@@ -522,7 +566,13 @@ class MainActivity : ThemedActivity(),
     }
 
     private val connect = registerForActivityResult(VpnRequestActivity.StartService()) {
-        if (it) snackbar(R.string.vpn_permission_denied).show()
+        if (it) {
+            if (selectedRoute.value == YokhanShellRoute.Home) {
+                showDashboardMessage(R.string.vpn_permission_denied)
+            } else {
+                snackbar(R.string.vpn_permission_denied).show()
+            }
+        }
     }
 
     // may NOT called when app is in background
@@ -594,23 +644,7 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (super.onKeyDown(keyCode, event)) return true
-                openNavigationMenu()
-                return true
-            }
-
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (navigationMenuOpen) {
-                    closeNavigationMenu()
-                    return true
-                }
-            }
-        }
-
         if (super.onKeyDown(keyCode, event)) return true
-        if (navigationMenuOpen) return true
 
         val fragment =
             supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment
@@ -626,13 +660,14 @@ class MainActivity : ThemedActivity(),
     }
 
     fun openNavigationMenu() {
-        val current = drawerCommand.value
-        drawerCommand.value = YokhanShellDrawerCommand(current.sequence + 1, open = true)
+        closeNavigationMenu()
     }
 
     private fun closeNavigationMenu() {
         val current = drawerCommand.value
-        drawerCommand.value = YokhanShellDrawerCommand(current.sequence + 1, open = false)
+        if (current.open) {
+            drawerCommand.value = YokhanShellDrawerCommand(current.sequence + 1, open = false)
+        }
     }
 
     override fun openDashboardMenu() {
@@ -668,6 +703,15 @@ class MainActivity : ThemedActivity(),
         showDashboardMessage(getString(R.string.yokhan_auth_import_success, profileCount))
     }
 
+    fun onYokhanBootstrapComplete() {
+        dashboardController.refreshDashboard()
+        displayRoute(YokhanShellRoute.Home)
+        if (!DataStore.serviceState.canStop) {
+            connect.launch(null)
+        }
+        showDashboardMessage(getString(R.string.wise_tree_success))
+    }
+
     override fun runDashboardConnectionTest() {
         dashboardController.runConnectionTest()
     }
@@ -680,11 +724,30 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun showDashboardMessage(message: CharSequence) {
-        snackbar(message).show()
+        val text = message.toString()
+        val isError = text.contains("не удалось", ignoreCase = true) ||
+            text.contains("нет ответа", ignoreCase = true) ||
+            text.contains("не прошёл", ignoreCase = true) ||
+            text.contains("ошибка", ignoreCase = true) ||
+            text.contains("запрещ", ignoreCase = true) ||
+            text.contains("откл", ignoreCase = true) && text.contains("разреш", ignoreCase = true)
+        val publish = {
+            bannerSequence += 1L
+            shellBanner.value = com.yokhan.gates.app.ui.shell.YokhanShellBanner(
+                id = bannerSequence,
+                text = text,
+                isError = isError,
+            )
+        }
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            publish()
+        } else {
+            runOnUiThread { publish() }
+        }
     }
 
     override fun showDashboardMessage(messageRes: Int) {
-        snackbar(messageRes).show()
+        showDashboardMessage(getString(messageRes))
     }
 
 }

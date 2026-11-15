@@ -1,10 +1,11 @@
-﻿package com.yokhan.gates.app.ui
+package com.yokhan.gates.app.ui
 
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.provider.Settings
 import android.text.TextUtils
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.ColumnScope
@@ -30,11 +31,16 @@ import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
 import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
-import com.yokhan.gates.shared.ui.route.YokhanCheckboxRow
 import com.yokhan.gates.shared.ui.route.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanToggleRow
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
+import com.yokhan.gates.app.ui.compose.YokhanFilterChipItem
 import com.yokhan.gates.app.ui.compose.YokhanSelectableApp
 import com.yokhan.gates.app.ui.compose.YokhanSelectableAppsScreen
 import com.yokhan.gates.app.ui.compose.YokhanSegmentedActions
+import java.util.concurrent.ConcurrentHashMap
 import io.nekohasekai.sagernet.utils.PackageCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -46,30 +52,43 @@ import kotlin.coroutines.coroutineContext
 
 class AppManagerActivity : ThemedActivity() {
 
+    private enum class AppFilterTab(val label: String) {
+        All("Все"),
+        Selected("Выбранные"),
+        Ru("РФ"),
+        User("Свои"),
+        System("Системные"),
+    }
+
     private class ProxiedApp(
         private val pm: PackageManager,
         private val appInfo: ApplicationInfo,
         val packageName: String,
+        val isRuDirect: Boolean,
+        iconBitmap: ImageBitmap?,
     ) {
         val name: String = appInfo.loadLabel(pm).toString()
-        val icon: Drawable get() = appInfo.loadIcon(pm)
         val uid: Int get() = appInfo.uid
         val sys: Boolean get() = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
 
-        fun toUi() = YokhanSelectableApp(
+        val uiModel: YokhanSelectableApp = YokhanSelectableApp(
             packageName = packageName,
             label = name,
             uid = uid,
             system = sys,
-            icon = icon,
+            icon = null,
+            iconBitmap = iconBitmap,
         )
     }
 
     private var loader: Job? = null
+    private var filterJob: Job? = null
     private var apps = emptyList<ProxiedApp>()
-    private val filteredApps = mutableStateOf<List<ProxiedApp>>(emptyList())
+    private var cachedBundledPackages = emptySet<String>()
+    private val filteredUiApps = mutableStateOf<List<YokhanSelectableApp>>(emptyList())
     private val selectedUids = mutableStateOf<Set<Int>>(emptySet())
     private val searchText = mutableStateOf("")
+    private val filterTab = mutableStateOf(AppFilterTab.All)
     private val showSystemApps = mutableStateOf(true)
     private val bypassRuApps = mutableStateOf(DataStore.enableRuBypass)
     private val openPlan = planAppManagerOpen(DataStore.proxyApps, DataStore.bypass)
@@ -90,6 +109,20 @@ class AppManagerActivity : ThemedActivity() {
 
     @Composable
     private fun Content() {
+        val currentTab = filterTab.value
+        val chipItems = AppFilterTab.entries.map { tab ->
+            YokhanFilterChipItem(
+                key = tab.name,
+                label = tab.label,
+                selected = currentTab == tab,
+                onClick = {
+                    if (filterTab.value != tab) {
+                        filterTab.value = tab
+                        applyFilter()
+                    }
+                },
+            )
+        }
         YokhanSelectableAppsScreen(
             title = getString(R.string.proxied_apps),
             spaceActive = DataStore.serviceState.isSpaceActive(),
@@ -104,11 +137,17 @@ class AppManagerActivity : ThemedActivity() {
                 applyFilter()
             },
             loading = loading.value,
-            apps = filteredApps.value.map { it.toUi() },
+            apps = filteredUiApps.value,
             allAppsEmpty = allAppsEmpty.value,
             isSelected = { it.uid in selectedUids.value },
             onToggleApp = { toggleApp(it.uid) },
+            filterChips = chipItems,
             actions = listOf(
+                YokhanRouteAction(
+                    title = getString(R.string.auto_select_proxy_apps),
+                    fullWidth = true,
+                    onClick = ::selectProxyApp,
+                ),
                 YokhanRouteAction(
                     title = getString(R.string.invert_selections),
                     enabled = apps.isNotEmpty(),
@@ -163,8 +202,9 @@ class AppManagerActivity : ThemedActivity() {
             colors = colors,
             typography = typography,
         )
-        YokhanCheckboxRow(
-            title = stringResource(R.string.bypass_ru_apps),
+        YokhanToggleRow(
+            title = stringResource(R.string.settings_ru_bypass_toggle_title),
+            summary = stringResource(R.string.settings_ru_bypass_toggle_summary),
             checked = bypassRuApps.value,
             colors = colors,
             typography = typography,
@@ -172,10 +212,22 @@ class AppManagerActivity : ThemedActivity() {
                 if (bypassRuApps.value != it) pendingReconnect.value = true
                 bypassRuApps.value = it
                 DataStore.enableRuBypass = it
+                if (it && DataStore.wholeTrafficMode) {
+                    DataStore.wholeTrafficMode = false
+                }
                 applyRuBypass(it)
             },
-            modifier = Modifier.padding(top = 10.dp),
+            modifier = Modifier.padding(top = 12.dp),
         )
+        if (alwaysOnLockdownEnabled()) {
+            YokhanBody(
+                text = stringResource(R.string.settings_lockdown_bypass_warning),
+                colors = colors,
+                typography = typography,
+                modifier = Modifier.padding(top = 10.dp),
+                maxLines = 4,
+            )
+        }
         if (pendingReconnect.value) {
             YokhanBody(
                 text = "Изменения применятся после переподключения",
@@ -183,34 +235,64 @@ class AppManagerActivity : ThemedActivity() {
                 typography = typography,
                 modifier = Modifier.padding(top = 10.dp).testTag("app-manager.pending-reconnect"),
             )
+            if (DataStore.serviceState.canStop) {
+                YokhanButtonGrid(
+                    actions = listOf(
+                        YokhanRouteAction(
+                            title = stringResource(R.string.app_manager_apply_reconnect),
+                            primary = true,
+                            onClick = {
+                                SagerNet.reloadService()
+                                pendingReconnect.value = false
+                                showSnackbar(R.string.app_manager_reconnecting)
+                            },
+                        ),
+                    ),
+                    colors = colors,
+                    typography = typography,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
-        YokhanButtonGrid(
-            actions = listOf(
-                YokhanRouteAction(
-                    title = stringResource(R.string.auto_select_proxy_apps),
-                    onClick = ::selectProxyApp,
-                ),
-            ),
-            colors = colors,
-            typography = typography,
-            modifier = Modifier.padding(top = 10.dp),
-        )
     }
 
     private fun loadApps() {
         loader?.cancel()
         loader = lifecycleScope.launch {
             loading.value = true
-            val loaded = withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 PackageCache.reload()
-                cachedApps.mapNotNull { (packageName, packageInfo) ->
+                val snapshot = cachedApps
+                val packageNames = snapshot.keys.toList()
+                val installers = RuCompatibilityClassifier.resolveInstallers(packageManager, packageNames)
+                val ruDirectSet = RuCompatibilityClassifier(this@AppManagerActivity).directPackages(
+                    installedPackages = packageNames,
+                    includeRuBypass = true,
+                    includeStealth = false,
+                    serverRules = null,
+                    installerPackages = installers,
+                )
+                val bundledSet = RuCompatibilityClassifier(this@AppManagerActivity).directPackages(
+                    installedPackages = packageNames,
+                    installerPackages = installers,
+                )
+                val loaded = snapshot.mapNotNull { (packageName, packageInfo) ->
                     coroutineContext.ensureActive()
-                    packageInfo.applicationInfo?.let {
-                        ProxiedApp(packageManager, it, packageName)
+                    packageInfo.applicationInfo?.let { info ->
+                        val bitmap = loadCachedIconBitmap(packageManager, packageName, info)
+                        ProxiedApp(
+                            pm = packageManager,
+                            appInfo = info,
+                            packageName = packageName,
+                            isRuDirect = packageName in ruDirectSet,
+                            iconBitmap = bitmap,
+                        )
                     }
                 }
+                loaded to bundledSet
             }
-            apps = sortApps(loaded)
+            cachedBundledPackages = result.second
+            apps = sortApps(result.first)
             allAppsEmpty.value = apps.isEmpty()
             loading.value = false
             applyFilter()
@@ -218,20 +300,34 @@ class AppManagerActivity : ThemedActivity() {
     }
 
     private fun applyFilter() {
+        filterJob?.cancel()
+        val snapshot = apps
         val query = searchText.value.trim()
-        var filtered = if (query.isBlank()) {
-            apps
-        } else {
-            apps.filter {
-                it.name.contains(query, ignoreCase = true) ||
-                    it.packageName.contains(query, ignoreCase = true) ||
-                    it.uid.toString().contains(query)
+        val tab = filterTab.value
+        val selected = selectedUids.value
+        filterJob = lifecycleScope.launch {
+            val result = withContext(Dispatchers.Default) {
+                snapshot.asSequence()
+                    .filter { app ->
+                        when (tab) {
+                            AppFilterTab.All -> true
+                            AppFilterTab.Selected -> app.uid in selected
+                            AppFilterTab.Ru -> app.isRuDirect
+                            AppFilterTab.User -> !app.sys
+                            AppFilterTab.System -> app.sys
+                        }
+                    }
+                    .filter { app ->
+                        query.isBlank() ||
+                            app.name.contains(query, ignoreCase = true) ||
+                            app.packageName.contains(query, ignoreCase = true) ||
+                            app.uid.toString().contains(query)
+                    }
+                    .map { it.uiModel }
+                    .toList()
             }
+            filteredUiApps.value = result
         }
-        if (!showSystemApps.value) {
-            filtered = filtered.filter { !it.sys }
-        }
-        filteredApps.value = filtered
     }
 
     private fun initProxiedUids(str: String = DataStore.individual) {
@@ -254,19 +350,39 @@ class AppManagerActivity : ThemedActivity() {
     }
 
     private fun bundledBypassPackages(): Set<String> {
+        if (cachedBundledPackages.isNotEmpty()) return cachedBundledPackages
         val installedPackages = apps
             .map { it.packageName }
             .ifEmpty { cachedApps.keys.toList() }
-        return RuCompatibilityClassifier(this).directPackages(installedPackages)
+        val installers = RuCompatibilityClassifier.resolveInstallers(packageManager, installedPackages)
+        return RuCompatibilityClassifier(this).directPackages(
+            installedPackages = installedPackages,
+            installerPackages = installers,
+        ).also {
+            cachedBundledPackages = it
+        }
     }
 
     private fun applyBundledBypassSelections() {
-        selectedUids.value = selectedUids.value + packagesToUids(bundledBypassPackages())
+        val bundledUids = packagesToUids(bundledBypassPackages())
+        if (proxyMode.value == AppManagerProxyMode.Proxy || !bypassRuApps.value) {
+            selectedUids.value = selectedUids.value - bundledUids
+            return
+        }
+        selectedUids.value = selectedUids.value + bundledUids
+    }
+
+    private fun alwaysOnLockdownEnabled(): Boolean {
+        return runCatching {
+            Settings.Secure.getInt(contentResolver, "always_on_vpn_lockdown", 0) == 1
+        }.getOrDefault(false)
     }
 
     private fun toggleApp(uid: Int) {
+        if (proxyMode.value == AppManagerProxyMode.Off) {
+            setProxyMode(AppManagerProxyMode.Bypass)
+        }
         selectedUids.value = selectedUids.value.toggle(uid)
-        applyBundledBypassSelections()
         persistSelections()
         applyFilter()
     }
@@ -291,7 +407,11 @@ class AppManagerActivity : ThemedActivity() {
     }
 
     private fun persistSelections() {
-        val bundledPackages = bundledBypassPackages()
+        val bundledPackages = if (proxyMode.value == AppManagerProxyMode.Proxy) {
+            emptySet()
+        } else {
+            bundledBypassPackages()
+        }
         val next = apps
             .filter { it.uid in selectedUids.value && it.packageName !in bundledPackages }
             .joinToString("\n") { it.packageName }
@@ -320,6 +440,9 @@ class AppManagerActivity : ThemedActivity() {
                 DataStore.bypass = true
             }
         }
+        applyBundledBypassSelections()
+        persistSelections()
+        applyFilter()
     }
 
     private fun exportClipboard() {
@@ -353,11 +476,14 @@ class AppManagerActivity : ThemedActivity() {
     private fun applyRuBypass(enable: Boolean) {
         if (apps.isEmpty()) return
         try {
+            val packageNames = apps.map { it.packageName }
+            val installers = RuCompatibilityClassifier.resolveInstallers(packageManager, packageNames)
             val ruPackages = RuCompatibilityClassifier(this).directPackages(
-                installedPackages = apps.map { it.packageName },
+                installedPackages = packageNames,
                 includeRuBypass = true,
                 includeStealth = false,
                 serverRules = null,
+                installerPackages = installers,
             )
             val ruUids = packagesToUids(ruPackages)
             selectedUids.value = if (enable) {
@@ -444,6 +570,7 @@ class AppManagerActivity : ThemedActivity() {
 
     override fun onDestroy() {
         loader?.cancel()
+        filterJob?.cancel()
         super.onDestroy()
     }
 
@@ -454,6 +581,22 @@ class AppManagerActivity : ThemedActivity() {
     }
 
     private companion object {
+        private val iconCache = ConcurrentHashMap<String, ImageBitmap>()
+        private const val ICON_SIZE_PX = 96
+
+        private fun loadCachedIconBitmap(
+            pm: PackageManager,
+            packageName: String,
+            info: ApplicationInfo,
+        ): ImageBitmap? {
+            iconCache[packageName]?.let { return it }
+            val rendered = runCatching {
+                info.loadIcon(pm).toBitmap(width = ICON_SIZE_PX, height = ICON_SIZE_PX).asImageBitmap()
+            }.getOrNull() ?: return null
+            iconCache[packageName] = rendered
+            return rendered
+        }
+
         private val cachedApps
             get() = PackageCache.installedPackages.toMutableMap().apply {
                 remove(BuildConfig.APPLICATION_ID)

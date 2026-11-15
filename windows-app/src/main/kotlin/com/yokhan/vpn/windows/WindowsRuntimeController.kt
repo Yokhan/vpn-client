@@ -673,7 +673,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.7.17"
+private const val WINDOWS_APP_VERSION = "1.9.0"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -2524,9 +2524,11 @@ class WindowsRuntimeController(
         }
         var failed = 0
         val qualitySamples = mutableListOf<WindowsCurlQualitySample>()
+        val probeResults = config.testUrls
+            .map { url -> url to CompletableFuture.supplyAsync { curl(config, url, timeoutSeconds = 25) } }
+            .map { (url, future) -> url to future.join() }
         val output = buildString {
-            for (url in config.testUrls) {
-                val result = curl(config, url, timeoutSeconds = 25)
+            for ((url, result) in probeResults) {
                 parseWindowsCurlQualitySample(url, result)?.let(qualitySamples::add)
                 if (result.exitCode == 0) {
                     appendLine("OK   $url :: ${result.output}")
@@ -3426,7 +3428,9 @@ class WindowsRuntimeController(
         localFile.writeText(gson.toJson(payload), StandardCharsets.UTF_8)
 
         val bearer = runCatching { freshAccessToken(config) }.getOrNull()
-        sendRouteTelemetry(config, telemetryPayload, bearer)
+        val telemetryFuture = CompletableFuture.runAsync {
+            sendRouteTelemetry(config, telemetryPayload, bearer)
+        }
         val failures = mutableListOf<String>()
         for (url in windowsCandidateBugReportUrls(config.reportUrls)) {
             val requestBuilder = HttpRequest.newBuilder(URI.create(url))
@@ -3446,6 +3450,7 @@ class WindowsRuntimeController(
                 continue
             }
             if (response.statusCode() in 200..299) {
+                telemetryFuture.join()
                 return RuntimeCommandResult(
                     0,
                     "Bug report sent. Local copy: ${localFile.absolutePath}\nServer response: ${response.body()}",
@@ -3453,6 +3458,7 @@ class WindowsRuntimeController(
             }
             failures += "$url :: HTTP ${response.statusCode()} ${response.body()}"
         }
+        telemetryFuture.join()
 
         return RuntimeCommandResult(
             1,

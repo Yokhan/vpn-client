@@ -27,6 +27,15 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  parity:
+    name: Platform Parity Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Verify Windows/Android Parity
+        shell: pwsh
+        run: ./tools/Test-PlatformParity.ps1 -Strict
   build:
     name: Build APK
     runs-on: ubuntu-latest

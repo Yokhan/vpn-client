@@ -6,6 +6,8 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import io.nekohasekai.sagernet.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -35,35 +37,42 @@ object YokhanBugReporter {
         }
 
         val localFile = saveLocalCopy(appContext, fullPayload)
-        sendRouteTelemetry(appContext, YokhanRouteTelemetryPayload.fromDiagnostics(diagnostics))
-        val failures = mutableListOf<String>()
-        for (url in reportUrls()) {
-            val result = try {
-                postJson(appContext, url, remotePayload.toString())
-            } catch (error: Exception) {
-                failures += "$url: ${error.message ?: error.javaClass.simpleName}"
-                continue
+        val telemetryPayload = YokhanRouteTelemetryPayload.fromDiagnostics(diagnostics)
+        coroutineScope {
+            val telemetryJob = launch {
+                sendRouteTelemetry(appContext, telemetryPayload)
             }
-            if (result.statusCode in 200..299) {
-                val reportId = runCatching {
-                    JSONObject(result.body).optString("report_id")
-                }.getOrDefault("")
-                return@withContext BugReportResult(
-                    uploaded = true,
-                    reportId = reportId,
-                    localFile = localFile,
-                    details = result.body,
-                )
+            val failures = mutableListOf<String>()
+            for (url in reportUrls()) {
+                val result = try {
+                    postJson(appContext, url, remotePayload.toString())
+                } catch (error: Exception) {
+                    failures += "$url: ${error.message ?: error.javaClass.simpleName}"
+                    continue
+                }
+                if (result.statusCode in 200..299) {
+                    telemetryJob.join()
+                    val reportId = runCatching {
+                        JSONObject(result.body).optString("report_id")
+                    }.getOrDefault("")
+                    return@coroutineScope BugReportResult(
+                        uploaded = true,
+                        reportId = reportId,
+                        localFile = localFile,
+                        details = result.body,
+                    )
+                }
+                failures += "$url: HTTP ${result.statusCode} ${result.body.take(300)}"
             }
-            failures += "$url: HTTP ${result.statusCode} ${result.body.take(300)}"
-        }
+            telemetryJob.join()
 
-        BugReportResult(
-            uploaded = false,
-            reportId = "",
-            localFile = localFile,
-            details = failures.joinToString("\n"),
-        )
+            BugReportResult(
+                uploaded = false,
+                reportId = "",
+                localFile = localFile,
+                details = failures.joinToString("\n"),
+            )
+        }
     }
 
     private fun buildPayload(message: String, diagnostics: JSONObject): JSONObject {
@@ -442,8 +451,9 @@ object YokhanBugReporter {
         val base = BuildConfig.YOKHAN_APP_API_BASE_URL.trimEnd('/')
         return listOf(
             "$base/api/app/bug-report",
+            "https://cloak.yokhan.xyz/gates/api/app/bug-report",
             "https://app.yokhan.xyz/gates/api/app/bug-report",
-        ).distinct()
+        ).filter { it.startsWith("https://", ignoreCase = true) }.distinct()
     }
 
     data class BugReportResult(
@@ -461,6 +471,6 @@ object YokhanBugReporter {
     private const val MAX_MESSAGE_LENGTH = 2000
     private const val MAX_DIAGNOSTICS_RAW_CHARS = 12000
     private const val MAX_REMOTE_PAYLOAD_BYTES = 56 * 1024
-    private const val CONNECT_TIMEOUT_MS = 8000
-    private const val READ_TIMEOUT_MS = 12000
+    private const val CONNECT_TIMEOUT_MS = 5000
+    private const val READ_TIMEOUT_MS = 10000
 }

@@ -4,6 +4,7 @@ import android.os.SystemClock
 import android.view.MenuItem
 import androidx.appcompat.widget.PopupMenu
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.yokhan.gates.app.ui.dashboard.DashboardComposeActions
@@ -74,6 +75,7 @@ class DashboardController(
                     onSelectProfile = ::selectProfileById,
                     onEditProfile = ::editProfileById,
                     onOpenProfileMenu = ::showProfileMenuById,
+                    onCurrentConfigClick = { activity.displayRoute(YokhanShellRoute.Configuration) },
                 ),
             )
         }
@@ -143,6 +145,7 @@ class DashboardController(
     }
 
     fun updateSpeeds(txRate: Long, rxRate: Long) {
+        if (latestTxRate == txRate && latestRxRate == rxRate) return
         latestTxRate = txRate
         latestRxRate = rxRate
         renderDashboard(buildDashboardState())
@@ -299,11 +302,14 @@ class DashboardController(
     private fun renderDashboard(
         dashboardState: DashboardState = buildDashboardState(),
     ) {
-        composeModel.value = DashboardComposeModel(
+        val next = DashboardComposeModel(
             state = dashboardState,
             profiles = latestProfileItems,
             scrollToTopSignal = scrollToTopSignal,
         )
+        if (composeModel.value != next) {
+            composeModel.value = next
+        }
     }
 
     private fun buildDashboardState(
@@ -335,6 +341,7 @@ class DashboardController(
         val profiles: List<ProxyEntity>,
     )
 
+    @Immutable
     private data class DashboardComposeModel(
         val state: DashboardState,
         val profiles: List<DashboardProfileUiItem>,

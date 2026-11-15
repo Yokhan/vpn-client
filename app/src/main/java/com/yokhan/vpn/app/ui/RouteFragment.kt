@@ -2,6 +2,7 @@ package com.yokhan.gates.app.ui
 
 import android.os.Bundle
 import android.view.View
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -31,23 +36,30 @@ import io.nekohasekai.sagernet.ktx.launchCustomTab
 import io.nekohasekai.sagernet.ktx.needReload
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
+import com.yokhan.gates.shared.ui.route.YokhanActionRow
 import com.yokhan.gates.shared.ui.route.YokhanBody
 import com.yokhan.gates.shared.ui.route.YokhanButtonGrid
 import com.yokhan.gates.shared.ui.route.YokhanCaption
+import com.yokhan.gates.app.ui.compose.YokhanActionSheetDialog
+import com.yokhan.gates.app.ui.compose.YokhanActionSheetItem
+import com.yokhan.gates.app.ui.compose.YokhanActionSheetState
 import com.yokhan.gates.app.ui.compose.YokhanComposeRouteFragment
+import com.yokhan.gates.shared.ui.design.yokhanPalette
+import com.yokhan.gates.shared.ui.design.yokhanTypography
 import com.yokhan.gates.shared.ui.route.YokhanDivider
 import com.yokhan.gates.shared.ui.route.YokhanMonoValue
 import com.yokhan.gates.shared.ui.route.YokhanRouteAction
+import com.yokhan.gates.shared.ui.route.YokhanRouteButton
 import com.yokhan.gates.shared.ui.route.YokhanRouteCard
 import com.yokhan.gates.shared.ui.route.YokhanRouteLazyFrame
-import com.yokhan.gates.shared.ui.route.YokhanStatusPill
-import com.yokhan.gates.shared.ui.route.YokhanToggleRow
+import com.yokhan.gates.shared.ui.route.YokhanToggle
 import com.yokhan.gates.shared.ui.route.yokhanOutlinedSurface
 import com.yokhan.gates.app.ui.shell.YokhanShellActivityRoute
 
 class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener {
 
     private val uiState = mutableStateOf(RouteUiState())
+    private val actionSheetState = mutableStateOf<YokhanActionSheetState?>(null)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -70,49 +82,100 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
         val state = uiState.value
         YokhanRouteLazyFrame(
             title = stringResource(R.string.menu_route),
-            systemLabel = stringResource(R.string.dashboard_system_label),
+            systemLabel = stringResource(R.string.system_route_label, "04"),
             spaceActive = spaceActive,
             onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
         ) { colors, typography ->
+            item(key = "app-split-routing") {
+                YokhanRouteCard(
+                    title = "ПРИЛОЖЕНИЯ И СОВМЕСТИМОСТЬ",
+                    colors = colors,
+                    typography = typography,
+                ) {
+                    YokhanActionRow(
+                        title = stringResource(R.string.settings_manage_apps),
+                        subtitle = state.appRoutingSummary,
+                        accent = true,
+                        colors = colors,
+                        typography = typography,
+                        onClick = {
+                            (activity as? MainActivity)?.openActivityRoute(
+                                YokhanShellActivityRoute.AppManager,
+                            )
+                        },
+                    )
+                    YokhanDivider(colors, Modifier.padding(vertical = 4.dp))
+                    YokhanActionRow(
+                        title = stringResource(R.string.settings_ru_bypass_card_title),
+                        subtitle = state.ruBypassSummary,
+                        colors = colors,
+                        typography = typography,
+                        onClick = {
+                            (activity as? MainActivity)?.openActivityRoute(
+                                YokhanShellActivityRoute.RuCompatibility,
+                            )
+                        },
+                    )
+                }
+            }
             item(key = "route-actions") {
+                var docsExpanded by remember { mutableStateOf(false) }
                 YokhanRouteCard(
                     title = stringResource(R.string.route_hub_actions_title),
                     colors = colors,
                     typography = typography,
                 ) {
-                    YokhanButtonGrid(
-                        actions = listOf(
-                            YokhanRouteAction(
-                                title = stringResource(R.string.route_add),
-                                primary = true,
-                                onClick = {
-                                    (activity as? MainActivity)?.openActivityRoute(
-                                        YokhanShellActivityRoute.RouteCreate,
-                                    )
-                                },
-                            ),
-                            YokhanRouteAction(
-                                title = stringResource(R.string.route_manage_assets),
-                                onClick = {
-                                    (activity as? MainActivity)?.openActivityRoute(
-                                        YokhanShellActivityRoute.RouteAssets,
-                                    )
-                                },
-                            ),
-                            YokhanRouteAction(
-                                title = stringResource(R.string.route_reset),
-                                enabled = state.rules.isNotEmpty(),
-                                onClick = ::confirmResetRoutes,
-                            ),
-                        ),
+                    YokhanRouteButton(
+                        text = stringResource(R.string.route_add),
+                        primary = true,
+                        enabled = true,
                         colors = colors,
                         typography = typography,
+                        onClick = {
+                            (activity as? MainActivity)?.openActivityRoute(
+                                YokhanShellActivityRoute.RouteCreate,
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
                     )
+                    YokhanDivider(colors, Modifier.padding(vertical = 8.dp))
+                    YokhanActionRow(
+                        title = stringResource(R.string.route_manage_assets),
+                        colors = colors,
+                        typography = typography,
+                        onClick = {
+                            (activity as? MainActivity)?.openActivityRoute(
+                                YokhanShellActivityRoute.RouteAssets,
+                            )
+                        },
+                    )
+                    YokhanDivider(colors, Modifier.padding(vertical = 4.dp))
+                    YokhanActionRow(
+                        title = stringResource(R.string.route_reset),
+                        enabled = state.rules.isNotEmpty(),
+                        colors = colors,
+                        typography = typography,
+                        onClick = ::confirmResetRoutes,
+                    )
+                    YokhanDivider(colors, Modifier.padding(vertical = 4.dp))
+                    YokhanActionRow(
+                        title = if (docsExpanded) {
+                            stringResource(R.string.route_docs_hint_hide)
+                        } else {
+                            stringResource(R.string.route_docs_hint_toggle)
+                        },
+                        trailingText = if (docsExpanded) "▴" else "▾",
+                        colors = colors,
+                        typography = typography,
+                        onClick = { docsExpanded = !docsExpanded },
+                    )
+                    AnimatedVisibility(visible = docsExpanded) {
+                        Column(Modifier.fillMaxWidth()) {
+                            YokhanDivider(colors, Modifier.padding(vertical = 10.dp))
+                            RouteDocsBody(colors, typography)
+                        }
+                    }
                 }
-            }
-
-            item(key = "route-docs") {
-                RouteDocsCard(colors, typography)
             }
 
             if (state.rules.isEmpty()) {
@@ -144,36 +207,37 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
                 }
             }
         }
+        YokhanActionSheetDialog(
+            state = actionSheetState.value,
+            colors = yokhanPalette(spaceActive),
+            typography = yokhanTypography(),
+            onDismiss = { actionSheetState.value = null },
+        )
     }
 
     @Composable
-    private fun RouteDocsCard(
+    private fun RouteDocsBody(
         colors: YokhanPalette,
         typography: YokhanTypography,
     ) {
-        YokhanRouteCard(
-            title = stringResource(R.string.route_hub_overview_title),
+        YokhanBody(
+            text = stringResource(R.string.route_warn),
             colors = colors,
             typography = typography,
-        ) {
-            YokhanBody(
-                text = stringResource(R.string.route_warn),
-                colors = colors,
-                typography = typography,
-                maxLines = 4,
-            )
-            YokhanButtonGrid(
-                actions = listOf(
-                    YokhanRouteAction(
-                        title = "GitHub",
-                        onClick = { requireContext().launchCustomTab(BuildConfig.YOKHAN_APP_DOWNLOAD_URL) },
-                    ),
+            maxLines = 4,
+        )
+        YokhanButtonGrid(
+            actions = listOf(
+                YokhanRouteAction(
+                    title = stringResource(R.string.github),
+                    fullWidth = true,
+                    onClick = { requireContext().launchCustomTab(BuildConfig.YOKHAN_APP_DOWNLOAD_URL) },
                 ),
-                colors = colors,
-                typography = typography,
-                modifier = Modifier.padding(top = 12.dp),
-            )
-        }
+            ),
+            colors = colors,
+            typography = typography,
+            modifier = Modifier.padding(top = 12.dp),
+        )
     }
 
     @Composable
@@ -184,22 +248,26 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
         colors: YokhanPalette,
         typography: YokhanTypography,
     ) {
+        val displayTitle = ruleDisplayTitle(rule)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .yokhanOutlinedSurface(colors)
-                .clickable { toggleRule(rule, !rule.enabled) }
+                .clickable { editRule(rule) }
                 .padding(16.dp),
         ) {
-            Row(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = rule.displayName(),
+                        text = displayTitle,
                         color = colors.primary,
                         fontFamily = typography.text,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     YokhanCaption(
@@ -209,11 +277,12 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
                         modifier = Modifier.padding(top = 6.dp),
                     )
                 }
-                YokhanStatusPill(
-                    text = stringResource(if (rule.enabled) R.string.enable else R.string.disable),
-                    active = rule.enabled,
+                YokhanToggle(
+                    checked = rule.enabled,
                     colors = colors,
-                    typography = typography,
+                    modifier = Modifier
+                        .clickable { toggleRule(rule, !rule.enabled) }
+                        .padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
                 )
             }
 
@@ -229,50 +298,82 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
                 )
             }
 
-            YokhanToggleRow(
-                title = stringResource(if (rule.enabled) R.string.quick_disable else R.string.quick_enable),
-                summary = stringResource(R.string.route_for, rule.displayName()),
-                checked = rule.enabled,
+            YokhanDivider(colors, Modifier.padding(vertical = 8.dp))
+            YokhanActionRow(
+                title = stringResource(R.string.route_actions_title),
                 colors = colors,
                 typography = typography,
-                onCheckedChange = { checked -> toggleRule(rule, checked) },
-                modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
-            )
-
-            YokhanButtonGrid(
-                actions = listOf(
-                    YokhanRouteAction(
-                        title = stringResource(R.string.edit),
-                        primary = true,
-                        onClick = { editRule(rule) },
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.delete),
-                        onClick = { confirmDeleteRule(rule) },
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.route_move_up),
-                        enabled = index > 0,
-                        onClick = { moveRule(index, index - 1) },
-                    ),
-                    YokhanRouteAction(
-                        title = stringResource(R.string.route_move_down),
-                        enabled = index < total - 1,
-                        onClick = { moveRule(index, index + 1) },
-                    ),
-                ),
-                colors = colors,
-                typography = typography,
-                modifier = Modifier.padding(top = YokhanSpacing.ActionTopGap),
+                onClick = { showRuleActionsDialog(rule, index, total, displayTitle) },
             )
         }
+    }
+
+    @Composable
+    private fun ruleDisplayTitle(rule: RuleEntity): String {
+        val raw = rule.displayName()
+        return when (raw.trim().lowercase()) {
+            "block quic" -> stringResource(R.string.route_name_block_quic)
+            "block ads" -> stringResource(R.string.route_name_block_ads)
+            "block telemetry" -> stringResource(R.string.route_name_block_telemetry)
+            "bypass lan" -> stringResource(R.string.route_name_bypass_lan)
+            else -> raw
+        }
+    }
+
+    private fun showRuleActionsDialog(
+        rule: RuleEntity,
+        index: Int,
+        total: Int,
+        displayTitle: String,
+    ) {
+        val entries = mutableListOf<YokhanActionSheetItem>()
+        entries += YokhanActionSheetItem(
+            title = getString(R.string.edit),
+            accent = true,
+            onClick = { editRule(rule) },
+        )
+        if (index > 0) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.route_move_up),
+                onClick = { moveRule(index, index - 1) },
+            )
+        }
+        if (index < total - 1) {
+            entries += YokhanActionSheetItem(
+                title = getString(R.string.route_move_down),
+                onClick = { moveRule(index, index + 1) },
+            )
+        }
+        entries += YokhanActionSheetItem(
+            title = getString(R.string.delete),
+            onClick = { confirmDeleteRule(rule) },
+        )
+        actionSheetState.value = YokhanActionSheetState(
+            title = displayTitle,
+            items = entries,
+        )
     }
 
     private fun reloadRules() {
         runOnDefaultDispatcher {
             val rules = ProfileManager.getRules()
+            val appRoutingSummary = when {
+                DataStore.wholeTrafficMode -> "Весь трафик через GATES"
+                !DataStore.proxyApps -> "По умолчанию (автоматический режим)"
+                DataStore.bypass -> "Исключать выбранные приложения"
+                else -> "Проксировать выбранные приложения"
+            }
+            val ruBypassSummary = if (DataStore.enableRuBypass && !DataStore.wholeTrafficMode) {
+                "Сервисы РФ идут напрямую"
+            } else {
+                "Выключено"
+            }
             onMainDispatcher {
-                uiState.value = RouteUiState(rules = rules)
+                uiState.value = RouteUiState(
+                    rules = rules,
+                    appRoutingSummary = appRoutingSummary,
+                    ruBypassSummary = ruBypassSummary,
+                )
             }
         }
     }
@@ -354,5 +455,7 @@ class RouteFragment : YokhanComposeRouteFragment(), ProfileManager.RuleListener 
 
     private data class RouteUiState(
         val rules: List<RuleEntity> = emptyList(),
+        val appRoutingSummary: String = "",
+        val ruBypassSummary: String = "",
     )
 }

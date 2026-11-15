@@ -69,7 +69,7 @@ class AboutFragment : YokhanComposeRouteFragment() {
         val state = aboutState.value
         YokhanRouteFrame(
             title = stringResource(R.string.menu_about),
-            systemLabel = stringResource(R.string.dashboard_system_label),
+            systemLabel = stringResource(R.string.system_route_label, "08"),
             spaceActive = spaceActive,
             onMenuClick = { (activity as? MainActivity)?.openNavigationMenu() },
         ) { colors, typography ->
