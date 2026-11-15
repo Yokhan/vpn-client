@@ -14,14 +14,25 @@ import java.io.File
  * Single Android-facing seam for the Xray sidecar. Nothing else in the app should read
  * `BuildConfig`, `Build.SUPPORTED_ABIS` or `nativeLibraryDir` to decide whether XHTTP is possible.
  *
- * The build flag defaults to `false`; it may only be turned on for a build that actually contains a
- * hash-verified `libxray.so`, after the device loop proof (E3 Stage 1a) has passed.
+ * The build enables XHTTP only when the shipped `jniLibs/<abi>/libxray.so` binaries match the
+ * pinned SHA-256 digests enforced here and verified by Gradle before packaging.
  */
 object XraySidecarPlatform {
 
+    internal val PINNED_SHA256_BY_ABI: Map<String, String> = mapOf(
+        "arm64-v8a" to "ce8f18c44eb40cbd4563433109e0ede36c38b89c2fe71d1e583b4332ebefb622",
+        "x86_64" to "894651c1de4e2b9cb51775c13ed168e8c8148be7220d2b5db15a42362c5b3263",
+    )
+
+    fun pinnedSha256ForAbi(
+        primaryAbi: String = Build.SUPPORTED_ABIS.firstOrNull().orEmpty(),
+    ): String? = PINNED_SHA256_BY_ABI[primaryAbi]
+
     fun nativeLibraryDir(): File = File(SagerNet.application.applicationInfo.nativeLibraryDir)
 
-    fun resolveExecutable(expectedSha256: String? = null): XrayExecutableResolution =
+    fun resolveExecutable(
+        expectedSha256: String? = pinnedSha256ForAbi(),
+    ): XrayExecutableResolution =
         XrayExecutableLocator.resolve(nativeLibraryDir(), expectedSha256)
 
     fun binaryState(): XraySidecarBinaryState = when (val resolution = resolveExecutable()) {
@@ -41,7 +52,7 @@ object XraySidecarPlatform {
      */
     fun createSupervisor(
         logger: (String) -> Unit,
-        expectedSha256: String? = null,
+        expectedSha256: String? = pinnedSha256ForAbi(),
     ): XraySidecarSupervisor? {
         if (!capability().available) return null
         val binary = when (val resolution = resolveExecutable(expectedSha256)) {

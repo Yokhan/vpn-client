@@ -29,6 +29,8 @@ $env:YOKHAN_KEYCLOAK_REDIRECT_URI='gates://auth/callback'
 $env:YOKHAN_APP_API_BASE_URL='https://app.yokhan.xyz/gates'
 $env:YOKHAN_APP_DOWNLOAD_URL='https://fitness.yokhan.xyz/download'
 $env:YOKHAN_UPDATE_CHANNEL='stable'
+if([string]::IsNullOrWhiteSpace($env:YOKHAN_XHTTP_SIDECAR_ENABLED)){$env:YOKHAN_XHTTP_SIDECAR_ENABLED='true'}
+if([string]::IsNullOrWhiteSpace($env:YOKHAN_XRAY_VERSION)){$env:YOKHAN_XRAY_VERSION='26.10.31'}
 if($env:YOKHAN_ROUTE_MANIFEST_ENABLED -notin @('true','1') -or
    $env:YOKHAN_ROUTE_MANIFEST_VERSION -ne '2' -or
    [string]::IsNullOrWhiteSpace($env:YOKHAN_ROUTE_MANIFEST_PUBLIC_KEYS)) {

@@ -79,4 +79,18 @@ class XrayExecutableLocatorTest {
         assertEquals(XraySidecarBinaryState.AssetOnly, unavailable.state)
         assertTrue(unavailable.detail.contains("jniLibs"))
     }
+
+    @Test
+    fun pinnedDigestsExistForAllSupportedAndroidAbis() {
+        val platformClass = io.nekohasekai.sagernet.bg.proto.XraySidecarPlatform
+        assertEquals(
+            "ce8f18c44eb40cbd4563433109e0ede36c38b89c2fe71d1e583b4332ebefb622",
+            platformClass.pinnedSha256ForAbi("arm64-v8a"),
+        )
+        assertEquals(
+            "894651c1de4e2b9cb51775c13ed168e8c8148be7220d2b5db15a42362c5b3263",
+            platformClass.pinnedSha256ForAbi("x86_64"),
+        )
+        assertEquals(null, platformClass.pinnedSha256ForAbi("armeabi-v7a"))
+    }
 }

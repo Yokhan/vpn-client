@@ -1,5 +1,7 @@
 @file:Suppress("UnstableApiUsage")
 
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -20,8 +22,10 @@ fun projectPropertyOrEnv(name: String): String {
         .trim()
 }
 
-fun booleanProjectPropertyOrEnv(name: String): Boolean {
-    return projectPropertyOrEnv(name).lowercase() in setOf("1", "true", "yes", "on")
+fun booleanProjectPropertyOrEnv(name: String, defaultValue: Boolean = false): Boolean {
+    val raw = projectPropertyOrEnv(name).lowercase()
+    if (raw.isEmpty()) return defaultValue
+    return raw in setOf("1", "true", "yes", "on")
 }
 
 fun intProjectPropertyOrEnv(name: String, defaultValue: Int): Int {
@@ -58,10 +62,42 @@ val gatesAndroidSigningEnabled = gatesAndroidKeystoreFile.isNotBlank() &&
     gatesAndroidKeystorePassword.isNotBlank() &&
     gatesAndroidKeyAlias.isNotBlank() &&
     gatesAndroidKeyPassword.isNotBlank()
-// XHTTP sidecar capability. Default false: the child engine has no device loop proof yet and the
-// Android binary is not pinned. Only a build that ships a hash-verified libxray.so may enable it.
-val yokhanXhttpSidecarEnabled = booleanProjectPropertyOrEnv("YOKHAN_XHTTP_SIDECAR_ENABLED")
-val yokhanXrayVersion = projectPropertyOrEnv("YOKHAN_XRAY_VERSION").ifBlank { "unpinned" }
+val pinnedAndroidXraySha256 = mapOf(
+    "arm64-v8a" to "ce8f18c44eb40cbd4563433109e0ede36c38b89c2fe71d1e583b4332ebefb622",
+    "x86_64" to "894651c1de4e2b9cb51775c13ed168e8c8148be7220d2b5db15a42362c5b3263",
+)
+// XHTTP sidecar capability. Enabled by default when the shipped libxray.so binaries match their
+// pinned SHA-256 digests; can still be disabled explicitly with YOKHAN_XHTTP_SIDECAR_ENABLED=false.
+val yokhanXhttpSidecarEnabled = booleanProjectPropertyOrEnv("YOKHAN_XHTTP_SIDECAR_ENABLED", defaultValue = true)
+val yokhanXrayVersion = projectPropertyOrEnv("YOKHAN_XRAY_VERSION").ifBlank { "26.10.31" }
+
+val verifyPinnedAndroidXray = tasks.register("verifyPinnedAndroidXray") {
+    doLast {
+        pinnedAndroidXraySha256.forEach { (abi, expected) ->
+            val binary = file("src/main/jniLibs/$abi/libxray.so")
+            check(binary.isFile) { "Pinned Android Xray binary is missing: ${binary.path}" }
+            val digest = MessageDigest.getInstance("SHA-256")
+            binary.inputStream().use { input ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    digest.update(buffer, 0, read)
+                }
+            }
+            val actual = digest.digest().joinToString("") { b -> "%02x".format(b.toInt() and 0xff) }
+            check(actual == expected) {
+                "libxray.so SHA-256 mismatch for $abi: expected $expected, got $actual"
+            }
+        }
+    }
+}
+
+if (yokhanXhttpSidecarEnabled) {
+    tasks.matching { it.name == "preBuild" }.configureEach {
+        dependsOn(verifyPinnedAndroidXray)
+    }
+}
 
 android {
     compileOptions {

@@ -1,8 +1,8 @@
 {
   "schema": "gates-platform-parity-v1",
-  "unifiedVersion": "1.9.1",
-  "androidVersion": "1.9.1",
-  "windowsVersion": "1.9.1",
+  "unifiedVersion": "1.9.2",
+  "androidVersion": "1.9.2",
+  "windowsVersion": "1.9.2",
   "parityMode": "strict",
   "author": "Yokhan (Igor Nazarov)",
   "contact": "iohanrace@gmail.com",
