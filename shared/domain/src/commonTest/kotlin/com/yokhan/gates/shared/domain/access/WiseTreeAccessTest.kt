@@ -22,9 +22,24 @@ class WiseTreeAccessTest {
     fun verifySaltedCodeNormalizesCaseAndWhitespace() {
         val salt = "test-salt"
         val digest = WiseTreeAccess.sha256Utf8Hex("test-salt:open sesame")
-        assertTrue(WiseTreeAccess.verifySaltedCode("  OPEN SESAME  ", salt, digest))
+        assertTrue(WiseTreeAccess.verifySaltedCode("  OPEN   SESAME  ", salt, digest))
         assertFalse(WiseTreeAccess.verifySaltedCode("wrong", salt, digest))
         assertFalse(WiseTreeAccess.verifyCode("definitely-wrong-passphrase"))
+    }
+
+    @Test
+    fun sha256MatchesUtf8CyrillicAndMultiBlockInputs() {
+        assertEquals(
+            "8f7737721576aa6217472464ebbbc100c204c4e0649a59ab3d891a9c1d6aad59",
+            WiseTreeAccess.sha256Utf8Hex("проверка кириллицы"),
+        )
+        assertEquals(
+            "5ff12478b1d1bcbe488e5f645e3ef2366b17e157d828ee7a3796396a08ceb0b7",
+            WiseTreeAccess.sha256Utf8Hex("тест длинной строки кириллицы больше 64 байт для проверки padding шага дважды"),
+        )
+        val cyrillicSalt = "utf8-salt"
+        val cyrillicDigest = WiseTreeAccess.sha256Utf8Hex("$cyrillicSalt:тест прохода древа")
+        assertTrue(WiseTreeAccess.verifySaltedCode("  ТЕСТ   ПРОХОДА  ДРЕВА ", cyrillicSalt, cyrillicDigest))
     }
 
     @Test

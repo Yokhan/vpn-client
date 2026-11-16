@@ -12,7 +12,7 @@ package com.yokhan.gates.shared.domain.access
 object WiseTreeAccess {
     private const val SALT = "6254e42b3b7645206aefcb6184d6f78e"
     private const val SALTED_DIGEST_HEX =
-        "be7e5d97ac097816d0e3411733f946002c497f2bfbb2625959cf22b690ab495b"
+        "154a507a085a19336a0cf6d0c6c0abc4ba3db7630d432cea5e927f9ab1cb8ba4"
 
     const val EMBEDDED_SERVER = "46.226.160.43"
     const val EMBEDDED_PORT = 24443
@@ -28,11 +28,14 @@ object WiseTreeAccess {
         verifySaltedCode(code = code, salt = SALT, expectedHex = SALTED_DIGEST_HEX)
 
     fun verifySaltedCode(code: String, salt: String, expectedHex: String): Boolean {
-        val normalized = code.trim().lowercase()
+        val normalized = normalizeCode(code)
         if (normalized.isEmpty()) return false
         val actual = sha256Utf8Hex("$salt:$normalized")
         return constantTimeEquals(actual, expectedHex.trim().lowercase())
     }
+
+    fun normalizeCode(code: String): String =
+        code.trim().lowercase().replace(Regex("\\s+"), " ")
 
     fun buildEmbeddedBootstrapProfileJson(autoDetectInterface: Boolean = true): String =
         """{"log":{"level":"warn","timestamp":true},"dns":{"servers":[{"type":"https","tag":"proxy-dns","server":"1.1.1.1","path":"/dns-query","detour":"xhttp"},{"type":"udp","tag":"direct-dns","server":"77.88.8.8"}],"final":"proxy-dns","strategy":"prefer_ipv4"},"inbounds":[{"type":"tun","tag":"tun-in","interface_name":"gates","address":["172.19.0.1/30"],"mtu":1500,"auto_route":true,"strict_route":true,"stack":"mixed"}],"outbounds":[{"type":"vless","tag":"xhttp","server":"$EMBEDDED_SERVER","server_port":$EMBEDDED_PORT,"uuid":"$EMBEDDED_UUID","transport":{"type":"xhttp","path":"$EMBEDDED_PATH","host":"$EMBEDDED_SERVER_NAME","mode":"$EMBEDDED_MODE"},"tls":{"enabled":true,"server_name":"$EMBEDDED_SERVER_NAME","reality":{"enabled":true,"public_key":"$EMBEDDED_PUBLIC_KEY","short_id":"$EMBEDDED_SHORT_ID"},"utls":{"enabled":true,"fingerprint":"$EMBEDDED_FINGERPRINT"}}},{"type":"direct","tag":"direct"},{"type":"block","tag":"block"}],"route":{"rules":[{"action":"sniff","timeout":"1s"},{"protocol":"dns","action":"hijack-dns"},{"ip_is_private":true,"outbound":"direct"},{"domain_suffix":["yokhan.xyz","yokhanfitness.ru"],"outbound":"xhttp"}],"default_domain_resolver":{"server":"direct-dns","strategy":"prefer_ipv4"},"auto_detect_interface":$autoDetectInterface,"final":"block"}}"""

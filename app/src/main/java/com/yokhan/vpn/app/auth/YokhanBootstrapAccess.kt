@@ -179,7 +179,7 @@ object YokhanBootstrapAccess {
         profileUpdater: suspend (payload: String, expiresAtMillis: Long) -> Int,
         profileCleaner: suspend () -> Unit,
     ): Result<BootstrapClaimResult> = withContext(Dispatchers.IO) {
-        val normalizedCode = code.trim()
+        val normalizedCode = WiseTreeAccess.normalizeCode(code)
         if (normalizedCode.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Введите пароль Древа."))
         }

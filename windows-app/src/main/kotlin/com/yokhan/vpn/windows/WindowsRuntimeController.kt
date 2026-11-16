@@ -674,7 +674,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.9.3"
+private const val WINDOWS_APP_VERSION = "1.9.4"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -1721,7 +1721,7 @@ class WindowsRuntimeController(
     private fun claimBootstrapAccess(code: String): RuntimeCommandResult {
         ensureDirs()
         val config = readConfig()
-        val normalizedCode = code.trim()
+        val normalizedCode = WiseTreeAccess.normalizeCode(code)
         if (normalizedCode.isBlank()) return RuntimeCommandResult(1, "Введите пароль Древа.")
         if (!verifyBootstrapCode(normalizedCode)) {
             return bootstrapClaimErrorResult(403)
