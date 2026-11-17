@@ -676,7 +676,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.9.7"
+private const val WINDOWS_APP_VERSION = "1.9.8"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -890,7 +890,13 @@ class WindowsRuntimeController(
                 defaults.blockQuic
             },
         ).let { resolved ->
-            if (resolved.wholeTrafficMode && resolved.enableRuBypass) resolved.copy(enableRuBypass = false) else resolved
+            val sanitizedUrl = if (resolved.profileSource != "bootstrap" && resolved.subscriptionUrl.contains("/api/bootstrap/")) {
+                defaults.subscriptionUrl
+            } else {
+                resolved.subscriptionUrl
+            }
+            val cleaned = if (sanitizedUrl != resolved.subscriptionUrl) resolved.copy(subscriptionUrl = sanitizedUrl) else resolved
+            if (cleaned.wholeTrafficMode && cleaned.enableRuBypass) cleaned.copy(enableRuBypass = false) else cleaned
         }
     }
 
@@ -956,9 +962,14 @@ class WindowsRuntimeController(
                 if (config.profileSource == "bootstrap" && source != "bootstrap") {
                     switchedFromBootstrap = true
                 }
+                val clearedSubscriptionUrl = if (source != "bootstrap" && config.subscriptionUrl.contains("/api/bootstrap/")) {
+                    WindowsAppConfig().subscriptionUrl
+                } else {
+                    config.subscriptionUrl
+                }
                 writeConfig(
                     selected.copy(
-                        subscriptionUrl = subscriptionUrl ?: config.subscriptionUrl,
+                        subscriptionUrl = subscriptionUrl ?: clearedSubscriptionUrl,
                         bootstrapExpiresAtEpochMillis = updatedExpires,
                     ),
                 )
@@ -3987,7 +3998,8 @@ class WindowsRuntimeController(
     }
 
     private fun isBootstrapProfile(config: WindowsAppConfig): Boolean =
-        config.profileSource == "bootstrap" || config.subscriptionUrl.contains("/api/bootstrap/sub/")
+        config.profileSource == "bootstrap" ||
+            (config.profileSource == "legacy" && config.subscriptionUrl.contains("/api/bootstrap/sub/"))
 
     private fun bootstrapAllowedDomains(config: WindowsAppConfig): List<String> {
         val extras = listOfNotNull(

@@ -139,12 +139,55 @@ class WindowsBootstrapTest {
             "Service validator rejected scoped bootstrap XHTTP config: $validatedServiceConfig",
         )
 
-        // Upgrading to account profile clears bootstrap expiry and revokes the temp token.
+        // Upgrading to account profile clears bootstrap expiry, clears stale bootstrap URL, and revokes the temp token.
         val upgraded = controller.storeImportedProfile("account", PLAIN_PROFILE)
         assertEquals(0, upgraded.exitCode, upgraded.output)
-        assertEquals("account", controller.readConfig().profileSource)
-        assertEquals(0L, controller.readConfig().bootstrapExpiresAtEpochMillis)
+        val upgradedCfg = controller.readConfig()
+        assertEquals("account", upgradedCfg.profileSource)
+        assertEquals(0L, upgradedCfg.bootstrapExpiresAtEpochMillis)
+        assertFalse(upgradedCfg.subscriptionUrl.contains("/api/bootstrap/"))
         assertTrue(seenRequests.any { it.startsWith("POST ") && it.endsWith("/api/bootstrap/revoke") })
+        val regen = controller.run("generate")
+        assertEquals(0, regen.exitCode, regen.output)
+        val accountGenerated = JsonParser.parseString(root.resolve("runtime/config.json").readText()).asJsonObject
+        assertEquals("bridge", accountGenerated.getAsJsonObject("route").get("final").asString)
+    }
+
+    @Test
+    fun accountProfileWithLegacyStaleBootstrapUrlDoesNotTriggerBlockFinal() = runBlocking {
+        val root = Files.createTempDirectory("gates-bootstrap-stale-url-").toFile()
+        val controller = WindowsRuntimeController(
+            allowRuntimeServiceDelegation = false,
+            appDir = root,
+            validateGeneratedConfig = { RuntimeCommandResult(0, "ok") },
+            xrayPinProvider = { "d5b558191cccb1e92a5772b68b8cab67717b26f634b0f15153215f65ae982a7e" },
+        )
+        controller.storeImportedProfile(
+            source = "account",
+            json = XHTTP_PROFILE,
+            subscriptionUrl = "https://cloak.yokhan.xyz/gates/api/bootstrap/sub/stale123",
+        )
+        val cfg = controller.readConfig()
+        assertEquals("account", cfg.profileSource)
+        assertFalse(cfg.subscriptionUrl.contains("/api/bootstrap/"))
+
+        val gen = controller.run("generate")
+        if (gen.exitCode != 0 && "Physical bind" in gen.output) {
+            // Host without active adapter for XHTTP physical bind: verify plain account profile does not fall back to block.
+            controller.storeImportedProfile(
+                source = "account",
+                json = PLAIN_PROFILE,
+                subscriptionUrl = "https://cloak.yokhan.xyz/gates/api/bootstrap/sub/stale123",
+            )
+            val plainGen = controller.run("generate")
+            assertEquals(0, plainGen.exitCode, plainGen.output)
+            val generated = JsonParser.parseString(root.resolve("runtime/config.json").readText()).asJsonObject
+            assertEquals("auto", generated.getAsJsonObject("route").get("final").asString)
+            return@runBlocking
+        }
+        assertEquals(0, gen.exitCode, gen.output)
+        val generated = JsonParser.parseString(root.resolve("runtime/config.json").readText()).asJsonObject
+        assertEquals("xhttp", generated.getAsJsonObject("route").get("final").asString)
     }
 
     @Test
