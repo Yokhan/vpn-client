@@ -141,10 +141,20 @@ object XrayConfigBuilder {
                 if (spec.alpn.isNotEmpty()) tls["alpn"] = spec.alpn
             }
         }
-        streamSettings["xhttpSettings"] = linkedMapOf<String, Any?>(
+        val xhttp = linkedMapOf<String, Any?>(
             "path" to spec.path,
             "mode" to spec.mode,
+            "extra" to linkedMapOf<String, Any?>(
+                "xmux" to linkedMapOf<String, Any?>(
+                    "maxConnections" to "1",
+                    "hKeepAlivePeriod" to 30,
+                ),
+            ),
         )
+        if (spec.serverName.isNotBlank()) {
+            xhttp["host"] = spec.serverName
+        }
+        streamSettings["xhttpSettings"] = xhttp
 
         val inbound = linkedMapOf<String, Any?>(
             "tag" to "sidecar-in",

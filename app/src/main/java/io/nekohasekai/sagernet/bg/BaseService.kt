@@ -46,6 +46,8 @@ class BaseService {
 
     class Data internal constructor(private val service: Interface) {
         var state = State.Stopped
+        @Volatile
+        var connectedAtElapsedMs: Long = 0L
         var proxy: ProxyInstance? = null
         var notification: ServiceNotification? = null
 
@@ -64,6 +66,12 @@ class BaseService {
                             proxy?.box?.wake()
                             if (DataStore.wakeResetConnections) {
                                 Libcore.resetAllConnections(true)
+                                val proxyInstance = proxy as? io.nekohasekai.sagernet.bg.proto.BoxInstance
+                                if (proxyInstance != null) {
+                                    io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher {
+                                        proxyInstance.restartXhttpSidecarOnNetworkChange()
+                                    }
+                                }
                             }
                         }
                     }
@@ -71,6 +79,7 @@ class BaseService {
 
                 Action.RESET_UPSTREAM_CONNECTIONS -> runOnDefaultDispatcher {
                     Libcore.resetAllConnections(true)
+                    (proxy as? io.nekohasekai.sagernet.bg.proto.BoxInstance)?.restartXhttpSidecarOnNetworkChange()
                     runOnMainDispatcher {
                         Util.collapseStatusBar(ctx)
                         Toast.makeText(ctx, "Reset upstream connections done", Toast.LENGTH_SHORT)
@@ -89,6 +98,11 @@ class BaseService {
         fun changeState(s: State, msg: String? = null) {
             if (state == s && msg == null) return
             state = s
+            connectedAtElapsedMs = when {
+                s == State.Connected && connectedAtElapsedMs > 0L -> connectedAtElapsedMs
+                s == State.Connected -> SystemClock.elapsedRealtime()
+                else -> 0L
+            }
             DataStore.serviceState = s
             binder.stateChanged(s, msg)
         }
@@ -108,6 +122,7 @@ class BaseService {
 
         override fun getState(): Int = (data?.state ?: State.Idle).ordinal
         override fun getProfileName(): String = data?.proxy?.displayProfileName ?: "Idle"
+        override fun getConnectedElapsedMs(): Long = data?.connectedAtElapsedMs ?: 0L
 
         override fun registerCallback(cb: ISagerNetServiceCallback, id: Int) {
             if (id == SagerConnection.CONNECTION_ID_RESTART_BG) {
@@ -154,7 +169,7 @@ class BaseService {
                 var lastError: String? = null
                 for (url in urls.map { it.trim() }.filter { it.isNotEmpty() }.distinct()) {
                     try {
-                        val elapsed = Libcore.urlTest(box, url, 5000)
+                        val elapsed = Libcore.urlTest(box, url, 3800)
                         if (elapsed > 0) return elapsed
                         lastError = "$url returned $elapsed"
                     } catch (e: Exception) {
@@ -179,19 +194,21 @@ class BaseService {
                 ),
             )
 
-            val latencies = mutableListOf<Int>()
-            val failures = mutableListOf<String>()
-            for ((name, urls) in serviceChecks) {
-                try {
-                    latencies += testAny(name, urls)
-                } catch (e: Exception) {
-                    failures += e.readableMessage
+            val results = runBlocking {
+                coroutineScope {
+                    serviceChecks.map { (name, urls) ->
+                        async(Dispatchers.IO) {
+                            runCatching { testAny(name, urls) }
+                        }
+                    }.awaitAll()
                 }
             }
-
-            if (failures.isEmpty()) return latencies.maxOrNull() ?: 0
+            val latencies = results.mapNotNull { it.getOrNull() }.filter { it > 0 }
+            if (latencies.isNotEmpty()) {
+                return latencies.minOrNull() ?: 0
+            }
+            val failures = results.mapNotNull { it.exceptionOrNull()?.readableMessage }
             error(Protocols.genFriendlyMsg(failures.joinToString("; ")))
-
         }
 
         fun stateChanged(s: State, msg: String?) = launch {
@@ -331,10 +348,13 @@ class BaseService {
         var upstreamInterfaceName: String?
 
         suspend fun preInit() {
+            var lastStableInterfaceName: String? = null
+            var networkLostSinceLastActive = false
             DefaultNetworkListener.start(this) { network ->
                 if (network == null) {
                     SagerNet.underlyingNetwork = null
                     upstreamInterfaceName = null
+                    networkLostSinceLastActive = true
                     DataStore.vpnService?.updateUnderlyingNetwork()
                     return@start
                 }
@@ -342,14 +362,31 @@ class BaseService {
                     SagerNet.underlyingNetwork = network
                     DataStore.vpnService?.updateUnderlyingNetwork()
                     val oldName = upstreamInterfaceName
-                    if (oldName != link.interfaceName) {
-                        upstreamInterfaceName = link.interfaceName
+                    val newName = link.interfaceName
+                    if (oldName != newName) {
+                        upstreamInterfaceName = newName
                     }
-                    if (oldName != null && upstreamInterfaceName != null && oldName != upstreamInterfaceName) {
-                        Logs.d("Network changed: $oldName -> $upstreamInterfaceName")
+                    val interfaceChanged = lastStableInterfaceName != null &&
+                        newName != null &&
+                        lastStableInterfaceName != newName
+                    val recoveredAfterLoss = lastStableInterfaceName != null &&
+                        networkLostSinceLastActive &&
+                        newName != null
+                    if (interfaceChanged || recoveredAfterLoss) {
+                        Logs.d("Network changed: ${lastStableInterfaceName} -> $newName (afterLoss=$networkLostSinceLastActive)")
                         if (DataStore.networkChangeResetConnections) {
                             Libcore.resetAllConnections(true)
                         }
+                        val proxyInstance = data.proxy as? io.nekohasekai.sagernet.bg.proto.BoxInstance
+                        if (proxyInstance != null) {
+                            io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher {
+                                proxyInstance.restartXhttpSidecarOnNetworkChange()
+                            }
+                        }
+                    }
+                    if (newName != null) {
+                        lastStableInterfaceName = newName
+                        networkLostSinceLastActive = false
                     }
                 }
             }

@@ -231,7 +231,14 @@ internal fun buildWindowsXrayConfig(
             addProperty("path", path)
             addProperty("host", host)
             addProperty("mode", mode)
-            transport.getAsJsonObject("extra")?.let { add("extra", it.deepCopy()) }
+            val extra = transport.getAsJsonObject("extra")?.deepCopy() ?: JsonObject()
+            if (!extra.has("xmux")) {
+                extra.add("xmux", JsonObject().apply {
+                    addProperty("maxConnections", "1")
+                    addProperty("hKeepAlivePeriod", 30)
+                })
+            }
+            add("extra", extra)
         })
         if (bind?.interfaceName?.isNotBlank() == true) {
             add("sockopt", JsonObject().apply { addProperty("interface", bind.interfaceName) })

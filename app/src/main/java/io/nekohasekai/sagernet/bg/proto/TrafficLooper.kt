@@ -7,6 +7,7 @@ import io.nekohasekai.sagernet.bg.SagerConnection
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.fmt.TAG_BYPASS
+import io.nekohasekai.sagernet.fmt.TAG_DIRECT
 import io.nekohasekai.sagernet.fmt.TAG_PROXY
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
@@ -18,8 +19,10 @@ class TrafficLooper
 ) {
 
     private var job: Job? = null
-    private val idMap = mutableMapOf<Long, TrafficUpdater.TrafficLooperData>() // id to 1 data
+    private val idMap = mutableMapOf<Long, TrafficUpdater.TrafficLooperData>() // id to 1 data (selector)
     private val tagMap = mutableMapOf<String, TrafficUpdater.TrafficLooperData>() // tag to 1 data
+    private val idTagsMap = mutableMapOf<Long, MutableList<TrafficUpdater.TrafficLooperData>>()
+    private val idBaseTraffic = mutableMapOf<Long, Pair<Long, Long>>() // id -> (rxBase, txBase)
 
     suspend fun stop() {
         job?.cancel()
@@ -28,9 +31,11 @@ class TrafficLooper
         val traffic = mutableMapOf<Long, TrafficData>()
         data.proxy?.config?.trafficMap?.forEach { (_, ents) ->
             for (ent in ents) {
-                val item = idMap[ent.id] ?: return@forEach
-                ent.rx = item.rx
-                ent.tx = item.tx
+                if (traffic.containsKey(ent.id)) continue
+                val itemsForEnt = idTagsMap[ent.id] ?: idMap[ent.id]?.let(::listOf) ?: continue
+                val base = idBaseTraffic[ent.id] ?: (ent.rx to ent.tx)
+                ent.rx = base.first + itemsForEnt.sumOf { it.rx - it.rxBase }
+                ent.tx = base.second + itemsForEnt.sumOf { it.tx - it.txBase }
                 withContext(Dispatchers.IO) {
                     ProfileManager.updateProfile(ent) // update DB
                 }
@@ -83,16 +88,16 @@ class TrafficLooper
     }
 
     private suspend fun loop() {
-        val delayMs = DataStore.speedInterval.toLong()
+        val delayMs = DataStore.speedInterval.toLong().let { if (it <= 0L) 1000L else it }
         val showDirectSpeed = DataStore.showDirectSpeed
         val profileTrafficStatistics = DataStore.profileTrafficStatistics
-        if (delayMs == 0L) return
 
         var trafficUpdater: TrafficUpdater? = null
         var proxy: ProxyInstance?
 
         // for display
         val itemBypass = TrafficUpdater.TrafficLooperData(tag = TAG_BYPASS)
+        val itemDirect = TrafficUpdater.TrafficLooperData(tag = TAG_DIRECT)
         var lastBroadcastSpeed: SpeedDisplayData? = null
         val lastBroadcastTraffic = HashMap<Long, Pair<Long, Long>>()
 
@@ -104,14 +109,20 @@ class TrafficLooper
             }
 
             if (trafficUpdater == null) {
-                if (!proxy.isInitialized()) continue
+                if (!proxy.isInitialized()) {
+                    delay(100L)
+                    continue
+                }
                 idMap.clear()
-                idMap[-1] = itemBypass
-                //
+                tagMap.clear()
+                idTagsMap.clear()
+                idBaseTraffic.clear()
+                val allItems = mutableListOf<TrafficUpdater.TrafficLooperData>(itemBypass)
                 val tags = hashSetOf(TAG_PROXY, TAG_BYPASS)
                 proxy.config.trafficMap.forEach { (tag, ents) ->
                     tags.add(tag)
                     for (ent in ents) {
+                        idBaseTraffic.putIfAbsent(ent.id, ent.rx to ent.tx)
                         val item = TrafficUpdater.TrafficLooperData(
                             tag = tag,
                             rx = ent.rx,
@@ -120,17 +131,23 @@ class TrafficLooper
                             txBase = ent.tx,
                             ignore = proxy.config.selectorGroupId >= 0L,
                         )
-                        idMap[ent.id] = item
+                        idMap.putIfAbsent(ent.id, item)
+                        idTagsMap.getOrPut(ent.id) { mutableListOf() }.add(item)
                         tagMap[tag] = item
+                        allItems.add(item)
                         Logs.d("traffic count $tag to ${ent.id}")
                     }
+                }
+                if (TAG_DIRECT !in tagMap) {
+                    tags.add(TAG_DIRECT)
+                    allItems.add(itemDirect)
                 }
                 if (proxy.config.selectorGroupId >= 0L) {
                     selectMain(proxy.config.mainEntId)
                 }
                 //
                 trafficUpdater = TrafficUpdater(
-                    box = proxy.box, items = idMap.values.toList()
+                    box = proxy.box, items = allItems
                 )
                 proxy.box.setV2rayStats(tags.joinToString("\n"))
             }
@@ -151,13 +168,15 @@ class TrafficLooper
                 mainTx += it.tx - it.txBase
                 mainRx += it.rx - it.rxBase
             }
+            val directTxRate = itemBypass.txRate + if (TAG_DIRECT !in tagMap) itemDirect.txRate else 0L
+            val directRxRate = itemBypass.rxRate + if (TAG_DIRECT !in tagMap) itemDirect.rxRate else 0L
 
             // speed
             val speed = SpeedDisplayData(
                 mainTxRate,
                 mainRxRate,
-                if (showDirectSpeed) itemBypass.txRate else 0L,
-                if (showDirectSpeed) itemBypass.rxRate else 0L,
+                if (showDirectSpeed) directTxRate else 0L,
+                if (showDirectSpeed) directRxRate else 0L,
                 mainTx,
                 mainRx
             )
@@ -180,12 +199,15 @@ class TrafficLooper
                             b.cbSpeedUpdate(speed)
                         }
                         if (profileTrafficStatistics) {
-                            idMap.forEach { (id, item) ->
+                            idTagsMap.forEach { (id, itemsForEnt) ->
+                                val base = idBaseTraffic[id] ?: (0L to 0L)
+                                val totalRx = base.first + itemsForEnt.sumOf { it.rx - it.rxBase }
+                                val totalTx = base.second + itemsForEnt.sumOf { it.tx - it.txBase }
                                 val prev = lastBroadcastTraffic[id]
-                                if (prev == null || prev.first != item.rx || prev.second != item.tx) {
-                                    lastBroadcastTraffic[id] = item.rx to item.tx
+                                if (prev == null || prev.first != totalRx || prev.second != totalTx) {
+                                    lastBroadcastTraffic[id] = totalRx to totalTx
                                     b.cbTrafficUpdate(
-                                        TrafficData(id = id, rx = item.rx, tx = item.tx) // display
+                                        TrafficData(id = id, rx = totalRx, tx = totalTx) // display
                                     )
                                 }
                             }

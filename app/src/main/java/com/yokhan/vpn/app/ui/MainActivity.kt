@@ -507,11 +507,17 @@ class MainActivity : ThemedActivity(),
     private fun changeState(
         state: BaseService.State,
         msg: String? = null,
+        connectedAtElapsedMs: Long = 0L,
     ) {
         DataStore.serviceState = state
         shellServiceState.value = state
 
-        dashboardController.updateConnectionState(state)
+        val resolvedConnectedElapsed = when {
+            state != BaseService.State.Connected -> 0L
+            connectedAtElapsedMs > 0L -> connectedAtElapsedMs
+            else -> runCatching { connection.service?.connectedElapsedMs ?: 0L }.getOrDefault(0L)
+        }
+        dashboardController.updateConnectionState(state, resolvedConnectedElapsed)
         if (state == BaseService.State.Connected || msg != null) {
             val appContext = applicationContext
             lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -558,7 +564,12 @@ class MainActivity : ThemedActivity(),
             BaseService.State.values()[service.state]
         } catch (_: RemoteException) {
             BaseService.State.Idle
-        }
+        },
+        connectedAtElapsedMs = try {
+            service.connectedElapsedMs
+        } catch (_: RemoteException) {
+            0L
+        },
     )
 
     override fun onServiceDisconnected() = changeState(BaseService.State.Idle)
@@ -656,6 +667,9 @@ class MainActivity : ThemedActivity(),
     fun toggleConnection() {
         if (DataStore.serviceState.canStop) {
             SagerNet.stopServiceAsync()
+        } else if (DataStore.selectedProxy <= 0L) {
+            displayRoute(YokhanShellRoute.Configuration)
+            showDashboardMessage("Выберите или добавьте конфигурацию (вход в аккаунт или «Мудрое Древо»).")
         } else {
             connect.launch(null)
         }

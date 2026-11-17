@@ -39,6 +39,11 @@ abstract class BoxInstance(
     open lateinit var processes: GuardedProcessPool
     private var cacheFiles = ArrayList<File>()
     private var xraySidecar: XraySidecarSupervisor? = null
+    private var xhttpEntryRelay: XhttpEntryRelay? = null
+    private var activeXraySpec: io.nekohasekai.sagernet.fmt.xray.XrayRouteSpec? = null
+    private var activeXrayConfigDir: File? = null
+    private val xrayLifecycleLock = Any()
+    private val xrayClosed = java.util.concurrent.atomic.AtomicBoolean(false)
 
     companion object {
         private const val XHTTP_SIDECAR_PORT = 28080
@@ -79,16 +84,84 @@ abstract class BoxInstance(
         ) ?: throw IllegalStateException(
             "XHTTP route requires the Xray sidecar, which is unavailable in this build",
         )
+        val relay = if (plan.entryHost.isNotBlank() && plan.entryPort > 0) {
+            XhttpEntryRelay(
+                targetHost = plan.entryHost,
+                targetPort = plan.entryPort,
+                addressResolver = { host ->
+                    SagerNet.underlyingNetwork?.getByName(host)
+                        ?: java.net.InetAddress.getByName(host)
+                },
+                socketBinder = { socket ->
+                    SagerNet.underlyingNetwork?.bindSocket(socket)
+                },
+                socketProtector = { socket ->
+                    io.nekohasekai.sagernet.database.DataStore.vpnService?.protect(socket)
+                },
+                logger = { line ->
+                    Logs.d("[xhttp-relay] $line")
+                    if (BuildConfig.DEBUG) android.util.Log.w("GatesXrayRelay", line)
+                },
+            )
+        } else {
+            null
+        }
+        val effectiveSpec = if (relay != null) {
+            plan.spec.copy(
+                entryHost = "127.0.0.1",
+                entryPort = relay.localPort,
+            )
+        } else {
+            plan.spec
+        }
         val configDir = File(SagerNet.application.cacheDir, "xray-sidecar")
-        when (val result = supervisor.start(plan.spec, configDir)) {
-            is XrayStartResult.Ready -> {
-                xraySidecar = supervisor
-                config.config = plan.configJson
+        val result = try {
+            synchronized(xrayLifecycleLock) {
+                if (xrayClosed.get()) {
+                    relay?.close()
+                    return
+                }
+                supervisor.start(effectiveSpec, configDir).also { res ->
+                    if (res is XrayStartResult.Ready) {
+                        xhttpEntryRelay = relay
+                        xraySidecar = supervisor
+                        activeXraySpec = effectiveSpec
+                        activeXrayConfigDir = configDir
+                        config.config = plan.configJson
+                    }
+                }
             }
-
-            is XrayStartResult.Rejected -> throw IllegalStateException(
+        } catch (t: Throwable) {
+            relay?.close()
+            throw t
+        }
+        if (result is XrayStartResult.Rejected) {
+            relay?.close()
+            throw IllegalStateException(
                 "XHTTP sidecar failed to start: ${result.failure.detail}",
             )
+        }
+    }
+
+    fun restartXhttpSidecarOnNetworkChange() {
+        synchronized(xrayLifecycleLock) {
+            if (xrayClosed.get()) return
+            val supervisor = xraySidecar ?: return
+            val spec = activeXraySpec ?: return
+            val configDir = activeXrayConfigDir ?: return
+            Logs.d("[xhttp] resetting sidecar and entry relay after network change")
+            xhttpEntryRelay?.resetConnections()
+            supervisor.stop(XrayStopReason.Failover)
+            if (xrayClosed.get()) return
+            when (val result = supervisor.start(spec, configDir)) {
+                is XrayStartResult.Ready -> {
+                    Logs.d("[xhttp] sidecar restarted cleanly after network change")
+                }
+
+                is XrayStartResult.Rejected -> {
+                    Logs.d("[xhttp] sidecar restart after network change rejected: ${result.failure.detail}")
+                }
+            }
         }
     }
 
@@ -256,8 +329,15 @@ abstract class BoxInstance(
 
         cacheFiles.removeAll { it.delete(); true }
 
-        xraySidecar?.stop(XrayStopReason.Shutdown)
-        xraySidecar = null
+        xrayClosed.set(true)
+        synchronized(xrayLifecycleLock) {
+            xhttpEntryRelay?.close()
+            xhttpEntryRelay = null
+            xraySidecar?.stop(XrayStopReason.Shutdown)
+            xraySidecar = null
+            activeXraySpec = null
+            activeXrayConfigDir = null
+        }
 
         if (::processes.isInitialized) processes.close()
 

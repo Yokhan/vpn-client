@@ -53,6 +53,7 @@ class DashboardController(
     private var latestProfileItems: List<DashboardProfileUiItem> = emptyList()
     private var timerJob: Job? = null
     private var connectionTestJob: Job? = null
+    private var autoLatencyJob: Job? = null
     private var connectionStartTime = 0L
     private val composeModel = mutableStateOf<DashboardComposeModel?>(null)
 
@@ -66,11 +67,21 @@ class DashboardController(
                 scrollToTopSignal = model.scrollToTopSignal,
                 actions = DashboardComposeActions(
                     onMenuClick = activity::openNavigationMenu,
-                    onToggleConnection = activity::toggleConnection,
+                    onToggleConnection = {
+                        if (!DataStore.serviceState.canStop && latestProfileId <= 0L) {
+                            activity.displayRoute(YokhanShellRoute.Configuration)
+                            activity.showDashboardMessage("Выберите или добавьте конфигурацию (вход в аккаунт или «Мудрое Древо»).")
+                        } else {
+                            activity.toggleConnection()
+                        }
+                    },
                     onRunConnectionTest = ::runConnectionTest,
                     onAddProfile = {
-                        if (YokhanKeycloakAuth.isConfigured()) activity.startYokhanLogin()
-                        else activity.displayRoute(YokhanShellRoute.Configuration)
+                        if (YokhanKeycloakAuth.isConfigured() && YokhanKeycloakAuth.sessionAvailable.value) {
+                            activity.startYokhanLogin()
+                        } else {
+                            activity.displayRoute(YokhanShellRoute.Configuration)
+                        }
                     },
                     onSelectProfile = ::selectProfileById,
                     onEditProfile = ::editProfileById,
@@ -95,7 +106,9 @@ class DashboardController(
     fun dispose() {
         timerJob?.cancel()
         connectionTestJob?.cancel()
+        autoLatencyJob?.cancel()
         connectionTestJob = null
+        autoLatencyJob = null
         connectionTestRunning = false
         composeModel.value = null
     }
@@ -127,18 +140,26 @@ class DashboardController(
         }
     }
 
-    fun updateConnectionState(state: BaseService.State) {
+    fun updateConnectionState(
+        state: BaseService.State,
+        serviceConnectedAtElapsedMs: Long = 0L,
+    ) {
         currentState = state
         if (!state.connected) {
+            latestTxRate = 0L
+            latestRxRate = 0L
             latestLatencyMs = null
             connectionTestRunning = false
             connectionTestJob?.cancel()
+            autoLatencyJob?.cancel()
             connectionTestJob = null
+            autoLatencyJob = null
         }
         val dashboardState = buildDashboardState()
         renderDashboard(dashboardState)
         if (dashboardState.connectionStatus == ConnectionStatus.Connected) {
-            startTimer()
+            startTimer(serviceConnectedAtElapsedMs)
+            scheduleAutoLatencyProbeIfNeeded()
         } else {
             stopTimer()
         }
@@ -158,6 +179,8 @@ class DashboardController(
         }
         if (connectionTestJob?.isActive == true) return
 
+        autoLatencyJob?.cancel()
+        autoLatencyJob = null
         connectionTestRunning = true
         renderDashboard()
         activity.showDashboardMessage(R.string.connection_test_testing)
@@ -188,12 +211,34 @@ class DashboardController(
         }
     }
 
-    private fun startTimer() {
-        if (timerJob?.isActive == true) return
-        connectionStartTime = SystemClock.elapsedRealtime()
+    private fun scheduleAutoLatencyProbeIfNeeded() {
+        if (latestLatencyMs != null) return
+        if (connectionTestJob?.isActive == true || autoLatencyJob?.isActive == true) return
+        autoLatencyJob = activity.lifecycleScope.launch {
+            delay(500L)
+            if (!isActive || currentState != BaseService.State.Connected || latestLatencyMs != null) return@launch
+            val elapsed = runCatching {
+                withContext(Dispatchers.IO) { activity.urlTest() }
+            }.getOrNull()
+            if (elapsed != null && elapsed > 0 && currentState == BaseService.State.Connected) {
+                latestLatencyMs = elapsed.toLong()
+                renderDashboard(buildDashboardState())
+            }
+        }
+    }
+
+    private fun startTimer(serviceConnectedAtElapsedMs: Long = 0L) {
+        val targetStart = when {
+            serviceConnectedAtElapsedMs > 0L -> serviceConnectedAtElapsedMs
+            connectionStartTime > 0L -> connectionStartTime
+            else -> SystemClock.elapsedRealtime()
+        }
+        if (timerJob?.isActive == true && connectionStartTime == targetStart) return
+        timerJob?.cancel()
+        connectionStartTime = targetStart
         timerJob = activity.lifecycleScope.launch {
             while (isActive) {
-                val elapsed = SystemClock.elapsedRealtime() - connectionStartTime
+                val elapsed = (SystemClock.elapsedRealtime() - connectionStartTime).coerceAtLeast(0L)
                 renderDashboard(buildDashboardState(elapsed))
                 delay(1000)
             }

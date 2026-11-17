@@ -712,9 +712,13 @@ fun YokhanRouteButton(
     modifier: Modifier = Modifier,
 ) {
     val alpha = if (enabled) 1f else 0.42f
-    val background = if (primary) colors.accent else colors.surface
-    val border = if (primary) colors.accent else colors.border
-    val textColor = if (primary) colors.onAccent else colors.primary
+    val background = (if (primary) colors.accent else colors.surface).let {
+        if (enabled) it else it.copy(alpha = 0.55f)
+    }
+    val border = (if (primary) colors.accent else colors.border).let {
+        if (enabled) it else it.copy(alpha = 0.55f)
+    }
+    val textColor = (if (primary) colors.onAccent else colors.primary).copy(alpha = alpha)
     val shape = RoundedCornerShape(YokhanRadius.Control)
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -741,7 +745,6 @@ fun YokhanRouteButton(
                 role = Role.Button,
                 onClick = onClick,
             )
-            .alpha(alpha)
             .padding(
                 horizontal = 10.dp,
                 vertical = 10.dp,

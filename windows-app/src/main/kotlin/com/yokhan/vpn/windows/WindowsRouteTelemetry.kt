@@ -143,6 +143,20 @@ private fun String?.secondsToMillis(): Long =
 private fun String?.decimalToLong(): Long = (this?.toDoubleOrNull() ?: 0.0).toLong().coerceAtLeast(0)
 
 private val CURL_VALUE_PATTERN = Regex("(ttfb|total|bytes|speed)=([0-9.]+)")
+
+internal fun parseBestLatencyMsFromTestOutput(output: String): Long? {
+    val latencies = output.lineSequence()
+        .map { it.trim() }
+        .filter { it.startsWith("OK ", ignoreCase = true) }
+        .mapNotNull { line ->
+            val values = CURL_VALUE_PATTERN.findAll(line).associate { it.groupValues[1] to it.groupValues[2] }
+            val ttfbMs = values["ttfb"]?.secondsToMillis()?.takeIf { it > 0L }
+            val totalMs = values["total"]?.secondsToMillis()?.takeIf { it > 0L }
+            ttfbMs ?: totalMs
+        }
+        .toList()
+    return latencies.minOrNull()
+}
 private const val TELEMETRY_SCHEMA = "gates-route-telemetry-v2"
 private const val BITS_PER_BYTE = 8L
 private const val BYTES_PER_KILOBYTE = 1_000L

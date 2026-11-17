@@ -93,6 +93,46 @@ class ConfigBuildResult(
     data class IndexEntity(var chain: LinkedHashMap<Int, ProxyEntity>)
 }
 
+private val NON_PROXY_STATS_TYPES = setOf("direct", "block", "dns", "selector", "urltest")
+
+internal fun extractJsonProxyStatsTags(rawConfigJson: String): List<String> {
+    val tags = runCatching {
+        val root = com.google.gson.JsonParser.parseString(rawConfigJson).asJsonObject
+        val outbounds = root.getAsJsonArray("outbounds") ?: return@runCatching emptyList()
+        outbounds.mapNotNull { element ->
+            val obj = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
+            val type = obj.get("type")?.takeIf { it.isJsonPrimitive }?.asString?.trim()?.lowercase().orEmpty()
+            val tag = obj.get("tag")?.takeIf { it.isJsonPrimitive }?.asString?.trim().orEmpty()
+            if (tag.isNotEmpty() && type !in NON_PROXY_STATS_TYPES) tag else null
+        }.distinct()
+    }.getOrDefault(emptyList())
+    return tags.ifEmpty { listOf(TAG_PROXY) }
+}
+
+internal fun normalizeRawConfigTunMtu(rawConfigJson: String, targetMtu: Int): String {
+    if (targetMtu <= 0) return rawConfigJson
+    return runCatching {
+        val root = com.google.gson.JsonParser.parseString(rawConfigJson)
+            .takeIf { it.isJsonObject }
+            ?.asJsonObject
+            ?: return@runCatching rawConfigJson
+        val inbounds = root.getAsJsonArray("inbounds") ?: return@runCatching rawConfigJson
+        var modified = false
+        for (element in inbounds) {
+            val inbound = element.takeIf { it.isJsonObject }?.asJsonObject ?: continue
+            val type = inbound.get("type")?.takeIf { it.isJsonPrimitive }?.asString?.trim()?.lowercase()
+            if (type == "tun") {
+                val currentMtu = inbound.get("mtu")?.takeIf { it.isJsonPrimitive }?.asInt ?: 0
+                if (currentMtu != targetMtu) {
+                    inbound.addProperty("mtu", targetMtu)
+                    modified = true
+                }
+            }
+        }
+        if (modified) root.toString() else rawConfigJson
+    }.getOrDefault(rawConfigJson)
+}
+
 fun buildConfig(
     proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false
 ): ConfigBuildResult {
@@ -100,12 +140,18 @@ fun buildConfig(
     if (proxy.type == TYPE_CONFIG) {
         val bean = proxy.requireBean() as ConfigBean
         if (bean.type == 0) {
+            val effectiveConfig = if (forExport) {
+                bean.config
+            } else {
+                normalizeRawConfigTunMtu(bean.config, DataStore.mtu)
+            }
+            val statsTags = extractJsonProxyStatsTags(effectiveConfig)
             return ConfigBuildResult(
-                bean.config,
+                effectiveConfig,
                 listOf(),
                 proxy.id, //
-                mapOf(TAG_PROXY to listOf(proxy)), //
-                mapOf(proxy.id to TAG_PROXY), //
+                statsTags.associateWith { listOf(proxy) }, //
+                mapOf(proxy.id to statsTags.first()), //
                 -1L
             )
         }

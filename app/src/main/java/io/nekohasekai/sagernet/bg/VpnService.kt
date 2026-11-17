@@ -31,6 +31,19 @@ import java.net.InetAddress
 import java.util.concurrent.ConcurrentHashMap
 import android.net.VpnService as BaseVpnService
 
+internal fun resolveEffectiveTunMtu(tunOptionsJson: String, configuredMtu: Int): Int {
+    val fallback = configuredMtu.takeIf { it > 0 } ?: 1500
+    val coreMtu = runCatching {
+        val obj = com.google.gson.JsonParser.parseString(tunOptionsJson)
+            .takeIf { it.isJsonObject }
+            ?.asJsonObject
+            ?: return@runCatching 0
+        val upper = obj.get("MTU")?.takeIf { it.isJsonPrimitive }?.asInt ?: 0
+        if (upper > 0) upper else (obj.get("mtu")?.takeIf { it.isJsonPrimitive }?.asInt ?: 0)
+    }.getOrDefault(0)
+    return if (coreMtu in 576 until fallback) coreMtu else fallback
+}
+
 class VpnService : BaseVpnService(),
     BaseService.Interface {
 
@@ -123,10 +136,11 @@ class VpnService : BaseVpnService(),
 //        Logs.d(tunPlatformOptionsJson)
 //        val tunOptions = JSONObject(tunOptionsJson)
 
-        // address & route & MTU ...... use NB4A GUI config
+        // Align Android TUN MTU with sing-tun's allocated packet buffer so larger frames never panic Go.
+        val effectiveMtu = resolveEffectiveTunMtu(tunOptionsJson, DataStore.mtu)
         val builder = Builder().setConfigureIntent(SagerNet.configureIntent(this))
             .setSession(getString(R.string.app_name))
-            .setMtu(DataStore.mtu)
+            .setMtu(effectiveMtu)
         val policy = WholeTrafficPolicy(DataStore.wholeTrafficMode)
 
         // address

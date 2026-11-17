@@ -1,8 +1,10 @@
 package com.yokhan.gates.windows
 
+import com.yokhan.gates.shared.domain.ConnectionStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 
 class WindowsRouteTelemetryTest {
     @Test
@@ -50,5 +52,42 @@ class WindowsRouteTelemetryTest {
         val payload = buildWindowsUnknownTelemetryPayload("bridge")
 
         assertEquals("unknown", payload.get("result").asString)
+    }
+
+    @Test
+    fun parsesBestLatencyMsFromMixedTestOutput() {
+        val output = """
+            FAIL https://example.org/a :: 000 timeout
+            OK   https://www.youtube.com/generate_204 :: 204 ttfb=0.184s total=0.210s bytes=0 speed=0
+            OK   https://telegram.org/ :: 200 ttfb=0.097s total=0.140s bytes=1200 speed=8500
+        """.trimIndent()
+
+        assertEquals(97L, parseBestLatencyMsFromTestOutput(output))
+        assertNull(parseBestLatencyMsFromTestOutput("FAIL https://example.org :: 000 timeout"))
+    }
+
+    @Test
+    fun dashboardStateReflectsConnectedLatencyAndResetsWhenDisconnected() {
+        val connected = dashboardState(
+            status = ConnectionStatus.Connected,
+            activeRoute = "bridge",
+            busy = false,
+            latencyMs = 97L,
+            connectionTestRunning = true,
+        )
+        assertEquals("97 мс", connected.latencyLabel)
+        assertEquals(97L, connected.latency.milliseconds)
+        assertEquals(true, connected.isConnectionTestRunning)
+
+        val disconnected = dashboardState(
+            status = ConnectionStatus.Disconnected,
+            activeRoute = "bridge",
+            busy = false,
+            latencyMs = 97L,
+            connectionTestRunning = true,
+        )
+        assertEquals("--", disconnected.latencyLabel)
+        assertNull(disconnected.latency.milliseconds)
+        assertFalse(disconnected.isConnectionTestRunning)
     }
 }

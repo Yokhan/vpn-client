@@ -36,6 +36,38 @@ import org.yaml.snakeyaml.error.YAMLException
 import java.io.StringReader
 import androidx.core.net.toUri
 
+internal fun extractFullXhttpConfigName(rawConfigJson: String): String? {
+    val root = runCatching {
+        com.google.gson.JsonParser.parseString(rawConfigJson)
+            .takeIf { it.isJsonObject }
+            ?.asJsonObject
+    }.getOrNull() ?: return null
+    val outbounds = root.getAsJsonArray("outbounds") ?: return null
+    var hasXhttp = false
+    var primaryTag: String? = null
+    for (element in outbounds) {
+        val outbound = element.takeIf { it.isJsonObject }?.asJsonObject ?: continue
+        val transportType = outbound.getAsJsonObject("transport")
+            ?.get("type")
+            ?.takeIf { it.isJsonPrimitive }
+            ?.asString
+            ?.trim()
+            ?.lowercase()
+        if (transportType == "xhttp") {
+            hasXhttp = true
+        }
+        val ty = outbound.get("type")?.takeIf { it.isJsonPrimitive }?.asString?.trim()?.lowercase()
+        val tag = outbound.get("tag")?.takeIf { it.isJsonPrimitive }?.asString?.trim()
+        if (primaryTag == null && !tag.isNullOrBlank() &&
+            !ty.isNullOrBlank() &&
+            ty !in setOf("dns", "block", "direct", "selector", "urltest")
+        ) {
+            primaryTag = tag
+        }
+    }
+    return if (hasXhttp) (primaryTag ?: "Edge-xhttp") else null
+}
+
 @Suppress("EXPERIMENTAL_API_USAGE")
 object RawUpdater : GroupUpdater() {
 
@@ -805,8 +837,19 @@ object RawUpdater : GroupUpdater() {
                     // VpnService handles runtime merge without needing proxyApps=true
                     DataStore.serverExcludePackages = excludePackages.joinToString("\n")
 
-                    return json.getJSONArray("outbounds")
+                    val outboundsArray = json.getJSONArray("outbounds")
                         .filterIsInstance<JSONObject>()
+                    val rawJsonText = json.toStringPretty()
+                    extractFullXhttpConfigName(rawJsonText)?.let { xhttpName ->
+                        return listOf(ConfigBean().apply {
+                            applyDefaultValues()
+                            type = 0
+                            config = rawJsonText
+                            name = xhttpName
+                        })
+                    }
+
+                    return outboundsArray
                         .mapNotNull {
                             val ty = it.getStr("type")
                             if (ty == null || ty == "" ||

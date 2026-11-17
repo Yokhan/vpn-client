@@ -1211,25 +1211,40 @@ private fun SignalBox(colors: DashboardColors) {
 
 @Composable
 private fun WaveLine(active: Boolean, colors: DashboardColors, modifier: Modifier = Modifier) {
-    val lineAlpha = if (active) 0.55f else 0.16f
+    val lineAlpha = if (active) 0.72f else 0.16f
+    val phase = if (active) {
+        rememberInfiniteTransition(label = "wave-line").animateFloat(
+            initialValue = 0f,
+            targetValue = (kotlin.math.PI * 2.0).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1600, easing = androidx.compose.animation.core.LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "wave-phase",
+        ).value
+    } else {
+        0f
+    }
     Canvas(modifier) {
-        val segment = size.width / 8f
-        repeat(8) { index ->
-            val x = index * segment
+        val steps = 24
+        val amplitude = if (active) size.height * 0.34f else size.height * 0.22f
+        val centerY = size.height * 0.5f
+        val stepWidth = size.width / steps
+        var prevX = 0f
+        var prevY = centerY - kotlin.math.sin(phase.toDouble()).toFloat() * amplitude
+        for (i in 1..steps) {
+            val x = i * stepWidth
+            val theta = (i.toDouble() / steps) * (kotlin.math.PI * 6.0) + phase.toDouble()
+            val y = centerY - kotlin.math.sin(theta).toFloat() * amplitude
             drawLine(
                 color = colors.accent.copy(alpha = lineAlpha),
-                start = Offset(x, size.height / 2f),
-                end = Offset(x + segment / 2f, size.height / 4f),
-                strokeWidth = 1.1.dp.toPx(),
+                start = Offset(prevX, prevY),
+                end = Offset(x, y),
+                strokeWidth = 1.2.dp.toPx(),
                 cap = StrokeCap.Round,
             )
-            drawLine(
-                color = colors.accent.copy(alpha = lineAlpha),
-                start = Offset(x + segment / 2f, size.height / 4f),
-                end = Offset(x + segment, size.height / 2f),
-                strokeWidth = 1.1.dp.toPx(),
-                cap = StrokeCap.Round,
-            )
+            prevX = x
+            prevY = y
         }
     }
 }

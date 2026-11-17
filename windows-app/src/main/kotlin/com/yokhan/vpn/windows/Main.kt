@@ -452,6 +452,8 @@ private fun WindowsApp(
     var tunnelStartedAtMillis by remember { mutableStateOf<Long?>(null) }
     val telemetryTracker = remember { WindowsLiveTelemetryTracker() }
     var liveTelemetry by remember { mutableStateOf(WindowsLiveTelemetrySnapshot()) }
+    var latestLatencyMs by remember { mutableStateOf<Long?>(null) }
+    var connectionTestRunning by remember { mutableStateOf(false) }
     var availableRoutes by remember { mutableStateOf(emptyList<WindowsProfileRoute>()) }
     var busy by remember { mutableStateOf(true) }
     var lastMessage by remember { mutableStateOf("") }
@@ -542,13 +544,15 @@ private fun WindowsApp(
     val authorizationPhase by if (qa == null || qa.realAccess) controller.authorizationPhase.collectAsState()
         else remember { mutableStateOf(WindowsAuthorizationPhase.Idle) }
 
-    val state = remember(connectionStatus, activeRoute, resolvedActiveRoute, liveTelemetry, busy) {
+    val state = remember(connectionStatus, activeRoute, resolvedActiveRoute, liveTelemetry, latestLatencyMs, connectionTestRunning, busy) {
         dashboardState(
             status = connectionStatus,
             activeRoute = activeRoute,
             busy = busy,
             resolvedRoute = resolvedActiveRoute,
             telemetry = liveTelemetry,
+            latencyMs = latestLatencyMs,
+            connectionTestRunning = connectionTestRunning,
         )
     }
     val windowSpaceActive = sessionState.ready &&
@@ -854,6 +858,8 @@ private fun WindowsApp(
         if (qa != null) return@LaunchedEffect
         if (connectionStatus != ConnectionStatus.Connected) {
             liveTelemetry = telemetryTracker.sample(false, null)
+            latestLatencyMs = null
+            connectionTestRunning = false
             return@LaunchedEffect
         }
         while (true) {
@@ -862,6 +868,21 @@ private fun WindowsApp(
             }
             liveTelemetry = snap
             delay(1_000)
+        }
+    }
+
+    LaunchedEffect(qa, connectionStatus, activeRoute) {
+        if (qa != null) return@LaunchedEffect
+        if (connectionStatus != ConnectionStatus.Connected) {
+            latestLatencyMs = null
+            return@LaunchedEffect
+        }
+        delay(600)
+        if (connectionStatus != ConnectionStatus.Connected || busy || latestLatencyMs != null) return@LaunchedEffect
+        val probe = withContext(Dispatchers.IO) { runCatching { controller.run("test") }.getOrNull() }
+        val measured = probe?.output?.let(::parseBestLatencyMsFromTestOutput)
+        if (measured != null && connectionStatus == ConnectionStatus.Connected) {
+            latestLatencyMs = measured
         }
     }
 
@@ -935,8 +956,14 @@ private fun WindowsApp(
             runtimeCommandGeneration.commandStarted()
             runWindowsUiAction(
                 setBusy = { busy = it },
-                onFailure = { lastMessage = it },
+                onFailure = {
+                    connectionTestRunning = false
+                    lastMessage = it
+                },
             ) {
+                if (command == "test") {
+                    connectionTestRunning = true
+                }
                 if (command == "connect") {
                     val source = withContext(Dispatchers.IO) { runCatching { controller.readConfig().profileSource }.getOrNull() }
                     if (source == "account") {
@@ -984,7 +1011,11 @@ private fun WindowsApp(
                 if (command == "probe-routes") {
                     probeOutput = result.output
                     toolsOutput = result.output
-                } else if (command in setOf("test", "reconnect", "sync-runtime", "disable-system-proxy", "support-bundle")) {
+                } else if (command == "test") {
+                    connectionTestRunning = false
+                    latestLatencyMs = parseBestLatencyMsFromTestOutput(result.output) ?: latestLatencyMs
+                    toolsOutput = result.output
+                } else if (command in setOf("reconnect", "sync-runtime", "disable-system-proxy", "support-bundle")) {
                     toolsOutput = result.output
                 }
                 val live = withContext(Dispatchers.IO) { runCatching { controller.queryLiveRuntimeStatus() }.getOrNull() }
@@ -2408,6 +2439,8 @@ internal fun dashboardState(
     busy: Boolean,
     resolvedRoute: String = activeRoute,
     telemetry: WindowsLiveTelemetrySnapshot = WindowsLiveTelemetrySnapshot(),
+    latencyMs: Long? = null,
+    connectionTestRunning: Boolean = false,
 ): DashboardState {
     val connected = status == ConnectionStatus.Connected
     val running = status == ConnectionStatus.Connecting || connected || status == ConnectionStatus.Disconnecting
@@ -2417,6 +2450,7 @@ internal fun dashboardState(
         activeRouteLabel(activeRoute)
     }
     val effectiveProtoRoute = if (activeRoute == "auto" && resolvedRoute != "auto") resolvedRoute else activeRoute
+    val effectiveLatency = if (connected) latencyMs?.coerceAtLeast(0L) else null
     return DashboardState(
         connectionStatus = status,
         activeProfileName = effectiveLabel,
@@ -2425,14 +2459,14 @@ internal fun dashboardState(
         activeProfileSubtitle = if (activeRoute == "auto") "Автоматический выбор маршрута" else "",
         uploadRate = RateDisplay(telemetry.uploadBytesPerSec),
         downloadRate = RateDisplay(telemetry.downloadBytesPerSec),
-        latency = LatencyDisplay(null),
+        latency = LatencyDisplay(effectiveLatency),
         uploadLabel = if (connected) telemetry.uploadLabel else "0 B/s",
         downloadLabel = if (connected) telemetry.downloadLabel else "0 B/s",
-        latencyLabel = "--",
+        latencyLabel = effectiveLatency?.let { "$it мс" } ?: "--",
         timerLabel = if (connected) telemetry.timerLabel else "00:00:00",
         shouldAnimateSpace = running,
         canRunConnectionTest = connected,
-        isConnectionTestRunning = false,
+        isConnectionTestRunning = connectionTestRunning && connected,
         errorMessage = null,
     )
 }
