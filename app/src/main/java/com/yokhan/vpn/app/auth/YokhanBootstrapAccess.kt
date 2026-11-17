@@ -474,6 +474,7 @@ object YokhanBootstrapAccess {
                 .edit()
                 .putLong(KEY_EXPIRES_AT_MS, expiresAtMillis)
                 .apply()
+            DataStore.flushConfiguration()
             GroupManager.postReload(group.id)
         }
         return beans.size

@@ -20,6 +20,8 @@ import com.yokhan.gates.app.ui.MainActivity
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.SagerNet
+import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.GroupManager
 import io.nekohasekai.sagernet.database.ProxyEntity
@@ -34,6 +36,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -465,10 +468,67 @@ object YokhanKeycloakAuth {
                     DataStore.selectedGroup = group.id
                 }
             }
+            DataStore.flushConfiguration()
             GroupManager.postReload(group.id)
         }
-        runCatching { YokhanBootstrapAccess.revokeBestEffort(context.applicationContext) }
+        finalizeAuthenticatedProfileImport(
+            isTunnelActive = { DataStore.serviceState.canStop },
+            reloadTunnel = {
+                withContext(Dispatchers.Main) {
+                    if (DataStore.serviceState.canStop) {
+                        SagerNet.reloadServiceAsync()
+                    }
+                }
+            },
+            waitForTunnelReconnect = { awaitTunnelTransitionAfterReload() },
+            revokeBootstrap = { YokhanBootstrapAccess.revokeBestEffort(context.applicationContext) },
+        )
         proxies.size
+    }
+
+    internal suspend fun finalizeAuthenticatedProfileImport(
+        isTunnelActive: () -> Boolean,
+        reloadTunnel: suspend () -> Unit,
+        waitForTunnelReconnect: suspend () -> Unit,
+        revokeBootstrap: suspend () -> Unit,
+    ) {
+        if (isTunnelActive()) {
+            reloadTunnel()
+            waitForTunnelReconnect()
+        }
+        runCatching { revokeBootstrap() }
+    }
+
+    private suspend fun awaitTunnelTransitionAfterReload() {
+        val startedAt = System.currentTimeMillis()
+        val deadline = startedAt + 8_000L
+        var sawTransition = false
+        var stoppedSince = 0L
+        while (System.currentTimeMillis() < deadline) {
+            val state = DataStore.serviceState
+            when {
+                state == BaseService.State.Stopping || state == BaseService.State.Connecting -> {
+                    sawTransition = true
+                    stoppedSince = 0L
+                }
+                state == BaseService.State.Stopped -> {
+                    sawTransition = true
+                    if (stoppedSince == 0L) stoppedSince = System.currentTimeMillis()
+                    if (System.currentTimeMillis() - stoppedSince >= 2_500L) return
+                }
+                state == BaseService.State.Connected -> {
+                    if (sawTransition) {
+                        delay(300L)
+                        return
+                    }
+                    if (System.currentTimeMillis() - startedAt >= 1_500L) {
+                        return
+                    }
+                }
+                else -> if (!state.canStop) return
+            }
+            delay(120L)
+        }
     }
 
     private suspend fun freshAccessToken(
