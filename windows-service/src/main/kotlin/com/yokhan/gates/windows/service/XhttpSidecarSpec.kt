@@ -152,7 +152,8 @@ object XhttpSidecarSpecParser {
 
         val route = root.getAsJsonObject("route")
         val finalRoute = string(route?.get("final"))
-        if (required && finalRoute != outboundTag) return invalid()
+        val scopedBootstrapRequired = finalRoute == "block" && isReferenced(route, outbounds, outboundTag)
+        if (required && finalRoute != outboundTag && !scopedBootstrapRequired) return invalid()
         if (!required && !isReferenced(route, outbounds, outboundTag)) return invalid()
 
         val tunInterfaceNames = root.getAsJsonArray("inbounds")

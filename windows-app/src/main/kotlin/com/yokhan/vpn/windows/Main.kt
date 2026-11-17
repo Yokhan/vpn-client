@@ -1356,6 +1356,13 @@ private fun WindowsApp(
                     accessFailure = null
                     accessPending = false
                     lastMessage = result.output
+                    val live = withContext(Dispatchers.IO) { runCatching { controller.queryLiveRuntimeStatus() }.getOrNull() }
+                    if (live != null) {
+                        protectionState = live.protectionState
+                        resolvedActiveRoute = live.resolvedRoute
+                        tunnelStartedAtMillis = live.startedAtEpochMillis
+                        connectionStatus = if (live.connected) ConnectionStatus.Connected else ConnectionStatus.Disconnected
+                    }
                     routeStack = routeStack.resetToDashboard()
                 }
             }

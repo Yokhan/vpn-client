@@ -77,6 +77,21 @@ class XhttpSidecarSpecTest {
     @Test
     fun rejectsRequiredSidecarThatTheTunnelDoesNotDependOn() {
         assertRejected(validConfig(finalRoute = "direct"), ConfigErrorCode.INVALID_XHTTP_SIDECAR)
+        assertRejected(validConfig(finalRoute = "block"), ConfigErrorCode.INVALID_XHTTP_SIDECAR)
+    }
+
+    @Test
+    fun acceptsRequiredSidecarForScopedBootstrapWithFinalBlock() {
+        val result = assertIs<ConfigValidationResult.Accepted>(
+            SingBoxConfigValidator.validate(
+                validConfig(
+                    finalRoute = "block",
+                    routeRulesJson = """[{"domain_suffix":["yokhan.xyz"],"outbound":"xhttp"}]""",
+                ),
+            ),
+        ).config
+        assertEquals(true, result.sidecar?.required)
+        assertEquals("xhttp", result.sidecar?.outboundTag)
     }
 
     @Test
@@ -142,6 +157,7 @@ class XhttpSidecarSpecTest {
         schema: Int = 1,
         extraSpecKey: String = "",
         withSidecar: Boolean = true,
+        routeRulesJson: String? = null,
     ): ByteArray {
         val user = socksUser?.let { ""","username":"$it"""" }.orEmpty()
         val socks = """{"type":"socks","tag":"$socksTag","server":"$socksServer","server_port":$socksPort,"version":"$socksVersion"$user}"""
@@ -180,10 +196,11 @@ class XhttpSidecarSpecTest {
                 """"executable_sha256":"$sha256","listen_port":$sidecarPort,"required":$required,""" +
                 """"xray_config":$xrayConfig$extraSpecKey}"""
         }
+        val routeRules = routeRulesJson?.let { ""","rules":$it""" }.orEmpty()
         val tunInterface = tunInterfaceName?.let { ""","interface_name":"$it"""" }.orEmpty()
         return ("""{"inbounds":[{"type":"tun","tag":"tun-in"$tunInterface},""" +
             """{"type":"mixed","tag":"mixed-in","listen":"127.0.0.1","listen_port":2088}],""" +
             """"outbounds":[$socks$autoOutbound,{"type":"direct","tag":"direct"}],""" +
-            """"route":{"final":"$singBoxFinal"}$sidecar}""").toByteArray()
+            """"route":{"final":"$singBoxFinal"$routeRules}$sidecar}""").toByteArray()
     }
 }

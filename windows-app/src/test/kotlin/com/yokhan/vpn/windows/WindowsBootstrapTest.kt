@@ -2,6 +2,8 @@ package com.yokhan.gates.windows
 
 import com.google.gson.JsonParser
 import com.yokhan.gates.shared.domain.access.WiseTreeAccess
+import com.yokhan.gates.windows.service.ConfigValidationResult
+import com.yokhan.gates.windows.service.SingBoxConfigValidator
 import kotlinx.coroutines.runBlocking
 import java.net.Authenticator
 import java.net.CookieHandler
@@ -130,6 +132,12 @@ class WindowsBootstrapTest {
 
         val xhttpSpec = JsonParser.parseString(root.resolve("runtime/xhttp-spec.json").readText()).asJsonObject
         assertTrue(xhttpSpec.get("required").asBoolean)
+        assertTrue(startedPayloads.isNotEmpty())
+        val validatedServiceConfig = SingBoxConfigValidator.validate(startedPayloads.single().toByteArray())
+        assertTrue(
+            validatedServiceConfig is ConfigValidationResult.Accepted,
+            "Service validator rejected scoped bootstrap XHTTP config: $validatedServiceConfig",
+        )
 
         // Upgrading to account profile clears bootstrap expiry and revokes the temp token.
         val upgraded = controller.storeImportedProfile("account", PLAIN_PROFILE)

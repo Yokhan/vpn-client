@@ -134,6 +134,103 @@ class WindowsAuthorizationTest {
         assertFalse(controller.sessionState().ready)
     }
 
+    @Test fun authorizationCodeLoopbackLoginUsesPkceAndHandlesCallback() = runBlocking {
+        windowsDpapiAvailable()
+        val root = Files.createTempDirectory("gates-auth-loopback-").toFile()
+        var challenge = ""
+        var seenRedirectUri = ""
+        var openedAuthUri = ""
+        lateinit var controller: WindowsRuntimeController
+        val authMetadata = """{"issuer":"$GATES_AUTH_ISSUER","authorization_endpoint":"$GATES_AUTH_ISSUER/protocol/openid-connect/auth","device_authorization_endpoint":"$GATES_AUTH_ISSUER/protocol/openid-connect/auth/device","token_endpoint":"$GATES_AUTH_ISSUER/protocol/openid-connect/token"}"""
+        val http = ScriptedAuthClient { request, body ->
+            when {
+                request.uri().path.endsWith("openid-configuration") -> 200 to authMetadata
+                request.uri().path.endsWith("/token") -> {
+                    assertTrue(body.contains("grant_type=authorization_code"))
+                    assertTrue(body.contains("code=AUTH_CODE_OK"))
+                    val verifier = body.substringAfter("code_verifier=").substringBefore('&')
+                    val expected = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                        java.security.MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray()),
+                    )
+                    assertEquals(challenge, expected)
+                    val redirectParam = java.net.URLDecoder.decode(
+                        body.substringAfter("redirect_uri=").substringBefore('&'),
+                        Charsets.UTF_8,
+                    )
+                    assertEquals(seenRedirectUri, redirectParam)
+                    200 to TOKENS
+                }
+                else -> 200 to PROFILE
+            }
+        }
+        val callbackDispatched = CountDownLatch(1)
+        controller = WindowsRuntimeController(
+            appDir = root,
+            accessOnly = true,
+            authHttpClient = http,
+            authorizationBrowser = { authUrl ->
+                openedAuthUri = authUrl
+                val uri = URI.create(authUrl)
+                val query = uri.rawQuery.split('&').associate {
+                    val i = it.indexOf('=')
+                    java.net.URLDecoder.decode(it.substring(0, i), Charsets.UTF_8) to
+                        java.net.URLDecoder.decode(it.substring(i + 1), Charsets.UTF_8)
+                }
+                challenge = query.getValue("code_challenge")
+                seenRedirectUri = query.getValue("redirect_uri")
+                val state = query.getValue("state")
+                assertEquals("code", query["response_type"])
+                assertEquals("S256", query["code_challenge_method"])
+                assertTrue(seenRedirectUri.startsWith("http://127.0.0.1:"))
+                Thread {
+                    val client = HttpClient.newHttpClient()
+                    val bad = client.send(
+                        HttpRequest.newBuilder(URI.create("$seenRedirectUri?code=BAD&state=wrong-state")).GET().build(),
+                        HttpResponse.BodyHandlers.ofString(),
+                    )
+                    assertEquals(400, bad.statusCode())
+                    val ok = client.send(
+                        HttpRequest.newBuilder(URI.create("$seenRedirectUri?code=AUTH_CODE_OK&state=$state")).GET().build(),
+                        HttpResponse.BodyHandlers.ofString(),
+                    )
+                    assertEquals(200, ok.statusCode())
+                    callbackDispatched.countDown()
+                }.start()
+                true
+            },
+            authorizationPause = { Thread.sleep(25) },
+        )
+        val result = withContext(Dispatchers.IO) { controller.run("login") }
+        assertTrue(callbackDispatched.await(5, TimeUnit.SECONDS))
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(openedAuthUri.contains("/protocol/openid-connect/auth?"))
+        assertTrue(controller.sessionState().signedIn)
+        assertTrue(controller.sessionState().ready)
+        assertNull(controller.authorizationPrompt.value)
+    }
+
+    @Test fun cancellationStopsLoopbackLoginWithoutSavingTokens() = runBlocking {
+        val root = Files.createTempDirectory("gates-auth-loopback-cancel-").toFile()
+        val waiting = CountDownLatch(1)
+        val authMetadata = """{"issuer":"$GATES_AUTH_ISSUER","authorization_endpoint":"$GATES_AUTH_ISSUER/protocol/openid-connect/auth","token_endpoint":"$GATES_AUTH_ISSUER/protocol/openid-connect/token"}"""
+        val http = ScriptedAuthClient { _, _ -> 200 to authMetadata }
+        val controller = WindowsRuntimeController(
+            appDir = root,
+            accessOnly = true,
+            authHttpClient = http,
+            authorizationBrowser = { waiting.countDown(); false },
+            authorizationPause = { Thread.sleep(50) },
+        )
+        val job = launch(Dispatchers.IO) { controller.run("login") }
+        assertTrue(withContext(Dispatchers.IO) { waiting.await(3, TimeUnit.SECONDS) })
+        assertEquals("", controller.authorizationPrompt.value?.userCode)
+        val start = System.nanoTime()
+        job.cancelAndJoin()
+        assertTrue((System.nanoTime() - start) / 1_000_000 < 1500)
+        assertNull(controller.authorizationPrompt.value)
+        assertFalse(root.resolve("auth-state.json").exists())
+    }
+
     private fun windowsDpapiAvailable() = assumeTrue(System.getProperty("os.name").startsWith("Windows"))
 
     companion object {

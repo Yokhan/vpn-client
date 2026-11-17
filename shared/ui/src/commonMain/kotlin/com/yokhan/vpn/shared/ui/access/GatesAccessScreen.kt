@@ -152,7 +152,7 @@ fun GatesAccessScreen(
         if (message.isNotBlank()) YokhanBody(message, palette, typography)
         if (authorizationPending) {
             YokhanRouteCard(labels.browserCardTitle, palette, typography) {
-                if (authorizationUri.isNotBlank()) {
+                if (authorizationUri.isNotBlank() && !authorizationUri.contains("127.0.0.1")) {
                     YokhanCaption(labels.qrHint, palette, typography)
                     YokhanQrCode(
                         content = authorizationUri,

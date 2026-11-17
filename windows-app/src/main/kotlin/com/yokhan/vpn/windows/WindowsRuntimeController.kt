@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.sun.net.httpserver.HttpServer
 import com.yokhan.gates.shared.domain.access.WiseTreeAccess
 import java.awt.Desktop
 import java.io.File
@@ -17,6 +18,7 @@ import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
 import java.net.URI
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -674,7 +676,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.9.6"
+private const val WINDOWS_APP_VERSION = "1.9.7"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -1317,14 +1319,13 @@ class WindowsRuntimeController(
                 ),
             )
         }
-        val (deviceEndpoint, tokenEndpoint) = runCatching {
-            val device = validatedWindowsAuthEndpoint(config.authIssuer, metadata.get("device_authorization_endpoint")?.asString
-                ?.takeIf { it.isNotBlank() }
-                ?: "${config.authIssuer}/protocol/openid-connect/auth/device")
-            val token = validatedWindowsAuthEndpoint(config.authIssuer, metadata.get("token_endpoint")?.asString
-                ?.takeIf { it.isNotBlank() }
-                ?: error("Keycloak metadata has no token endpoint"))
-            device to token
+        val tokenEndpoint = runCatching {
+            validatedWindowsAuthEndpoint(
+                config.authIssuer,
+                metadata.get("token_endpoint")?.asString
+                    ?.takeIf { it.isNotBlank() }
+                    ?: error("Keycloak metadata has no token endpoint"),
+            )
         }.getOrElse {
             return RuntimeCommandResult(
                 1,
@@ -1335,6 +1336,201 @@ class WindowsRuntimeController(
                 ),
             )
         }
+        val authorizationEndpoint = runCatching {
+            metadata.get("authorization_endpoint")?.asString
+                ?.takeIf { it.isNotBlank() }
+                ?.let { validatedWindowsAuthEndpoint(config.authIssuer, it) }
+        }.getOrElse {
+            return RuntimeCommandResult(
+                1,
+                "Authorization endpoints are invalid.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.AUTHORIZATION,
+                    WindowsAccessCode.AUTH_START_FAILED,
+                ),
+            )
+        }
+        if (authorizationEndpoint != null) {
+            val loopbackAttempt = loginWithAuthorizationCode(
+                config = config,
+                metadata = metadata,
+                authorizationEndpoint = authorizationEndpoint,
+                tokenEndpoint = tokenEndpoint,
+                checkActive = checkActive,
+            )
+            if (loopbackAttempt != null) {
+                return loopbackAttempt
+            }
+        }
+        val deviceEndpoint = runCatching {
+            validatedWindowsAuthEndpoint(
+                config.authIssuer,
+                metadata.get("device_authorization_endpoint")?.asString
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "${config.authIssuer}/protocol/openid-connect/auth/device",
+            )
+        }.getOrElse {
+            return RuntimeCommandResult(
+                1,
+                "Authorization endpoints are invalid.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.AUTHORIZATION,
+                    WindowsAccessCode.AUTH_START_FAILED,
+                ),
+            )
+        }
+        return loginWithDeviceCode(config, metadata, deviceEndpoint, tokenEndpoint, checkActive)
+        } finally {
+            authorizationPrompt.value = null
+            authorizationPhase.value = WindowsAuthorizationPhase.Idle
+        }
+    }
+
+    private fun loginWithAuthorizationCode(
+        config: WindowsAppConfig,
+        metadata: JsonObject,
+        authorizationEndpoint: String,
+        tokenEndpoint: String,
+        checkActive: () -> Unit,
+    ): RuntimeCommandResult? {
+        val server = runCatching {
+            HttpServer.create(InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 4)
+        }.getOrNull() ?: return null
+        val callbackResult = CompletableFuture<LoopbackAuthCallback>()
+        val pkce = newPkcePair()
+        val expectedState = randomOAuthState()
+        val redirectUri = "http://127.0.0.1:${server.address.port}/callback"
+        val authUri = buildString {
+            append(authorizationEndpoint)
+            append(if ('?' in authorizationEndpoint) '&' else '?')
+            append("client_id=").append(urlEncode(config.authClientId))
+            append("&redirect_uri=").append(urlEncode(redirectUri))
+            append("&response_type=code")
+            append("&scope=").append(urlEncode("openid profile email"))
+            append("&code_challenge=").append(urlEncode(pkce.challenge))
+            append("&code_challenge_method=S256")
+            append("&state=").append(urlEncode(expectedState))
+        }
+        server.createContext("/callback") { exchange ->
+            val params = parseQueryParameters(exchange.requestURI?.rawQuery)
+            val returnedState = params["state"].orEmpty()
+            val error = params["error"]
+            val code = params["code"]
+            if (returnedState.isBlank() || !constantTimeEquals(returnedState, expectedState)) {
+                sendLoopbackHtmlResponse(
+                    exchange,
+                    400,
+                    "Некорректный параметр состояния входа. Вернитесь в GATES и повторите вход.",
+                )
+                return@createContext
+            }
+            if (!error.isNullOrBlank()) {
+                sendLoopbackHtmlResponse(
+                    exchange,
+                    200,
+                    "Вход не завершён ($error). Можно закрыть эту вкладку и вернуться в GATES.",
+                )
+                callbackResult.complete(LoopbackAuthCallback(error = error))
+                return@createContext
+            }
+            if (!code.isNullOrBlank()) {
+                sendLoopbackHtmlResponse(
+                    exchange,
+                    200,
+                    "Вход в GATES выполнен. Можно закрыть эту вкладку и вернуться в приложение.",
+                )
+                callbackResult.complete(LoopbackAuthCallback(code = code))
+                return@createContext
+            }
+            sendLoopbackHtmlResponse(
+                exchange,
+                400,
+                "Код авторизации не получен. Вернитесь в GATES и повторите вход.",
+            )
+        }
+        server.createContext("/") { exchange ->
+            sendLoopbackHtmlResponse(exchange, 404, "Not found")
+        }
+        server.start()
+        return try {
+            checkActive()
+            authorizationPrompt.value = WindowsAuthorizationPrompt(authUri, "")
+            authorizationPhase.value = WindowsAuthorizationPhase.Waiting
+            val opened = openUri(authUri)
+            val deadline = System.currentTimeMillis() + 600_000L
+            while (!callbackResult.isDone && System.currentTimeMillis() < deadline) {
+                checkActive()
+                authorizationPause?.invoke(200L) ?: Thread.sleep(200L)
+            }
+            checkActive()
+            if (!callbackResult.isDone) {
+                return RuntimeCommandResult(
+                    1,
+                    buildString {
+                        append("Login timed out.")
+                        if (!opened) append(" Browser could not be opened.")
+                    },
+                    accessFailure = WindowsAccessFailure(WindowsAccessStage.AUTHORIZATION, WindowsAccessCode.AUTH_TIMEOUT),
+                )
+            }
+            val outcome = callbackResult.get()
+            if (outcome.error != null) {
+                val failureCode = if (outcome.error == "access_denied") {
+                    WindowsAccessCode.AUTH_DENIED
+                } else {
+                    WindowsAccessCode.AUTH_START_FAILED
+                }
+                return RuntimeCommandResult(
+                    1,
+                    if (failureCode == WindowsAccessCode.AUTH_DENIED) "Login was denied." else "Login failed: ${outcome.error}",
+                    accessFailure = WindowsAccessFailure(WindowsAccessStage.AUTHORIZATION, failureCode),
+                )
+            }
+            val code = outcome.code ?: return RuntimeCommandResult(
+                1,
+                "Login failed: missing authorization code.",
+                accessFailure = WindowsAccessFailure(WindowsAccessStage.AUTHORIZATION, WindowsAccessCode.AUTH_START_FAILED),
+            )
+            val tokenResponse = try {
+                postForm(
+                    tokenEndpoint,
+                    mapOf(
+                        "grant_type" to "authorization_code",
+                        "code" to code,
+                        "redirect_uri" to redirectUri,
+                        "client_id" to config.authClientId,
+                        "code_verifier" to pkce.verifier,
+                    ),
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                return RuntimeCommandResult(
+                    1,
+                    "Login token exchange failed.",
+                    accessFailure = WindowsAccessFailure(WindowsAccessStage.TOKEN, WindowsAccessCode.TRANSPORT_ERROR),
+                )
+            }
+            if (tokenResponse.statusCode() !in 200..299) {
+                return RuntimeCommandResult(
+                    tokenResponse.statusCode(),
+                    "Login token exchange failed: HTTP ${tokenResponse.statusCode()}",
+                    accessFailure = windowsTokenAccessFailure(tokenResponse.statusCode(), tokenResponse.body()),
+                )
+            }
+            completeLoginTokenResponse(config, metadata, tokenEndpoint, tokenResponse.body(), opened, checkActive)
+        } finally {
+            runCatching { server.stop(0) }
+        }
+    }
+
+    private fun loginWithDeviceCode(
+        config: WindowsAppConfig,
+        metadata: JsonObject,
+        deviceEndpoint: String,
+        tokenEndpoint: String,
+        checkActive: () -> Unit,
+    ): RuntimeCommandResult {
         val pkce = newPkcePair()
         val deviceResponse = try {
             postForm(
@@ -1423,53 +1619,7 @@ class WindowsRuntimeController(
                 )
             }
             if (tokenResponse.statusCode() in 200..299) {
-                synchronized(authorizationCommitLock) {
-                    checkActive()
-                    authorizationPrompt.value = null
-                    authorizationPhase.value = WindowsAuthorizationPhase.ReceivingProfile
-                }
-                val tokenPayload = runCatching {
-                    JsonParser.parseString(tokenResponse.body()).asJsonObject
-                }.getOrElse {
-                    return RuntimeCommandResult(
-                        1,
-                        "Login token response is invalid.",
-                        accessFailure = WindowsAccessFailure(
-                            WindowsAccessStage.TOKEN,
-                            WindowsAccessCode.UNKNOWN,
-                        ),
-                    )
-                }
-                try {
-                    saveAuthState(config, tokenEndpoint, tokenPayload, readAuthState(config))
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    return RuntimeCommandResult(
-                        1,
-                        "Login token could not be stored.",
-                        accessFailure = WindowsAccessFailure(
-                            WindowsAccessStage.TOKEN,
-                            WindowsAccessCode.UNKNOWN,
-                        ),
-                    )
-                }
-                checkActive()
-                refreshAccountLabel(config, metadata, tokenPayload)
-                checkActive()
-                val imported = importAuthenticatedAppConfig()
-                return RuntimeCommandResult(
-                    imported.exitCode,
-                    buildString {
-                        appendLine("Signed in with Keycloak.")
-                        if (opened) {
-                            appendLine("Browser was opened for device authorization.")
-                        }
-                        append(imported.output)
-                    }.trim(),
-                    accessFailure = imported.accessFailure,
-                    accessPending = imported.accessPending,
-                )
+                return completeLoginTokenResponse(config, metadata, tokenEndpoint, tokenResponse.body(), opened, checkActive)
             }
 
             val error = runCatching {
@@ -1504,10 +1654,105 @@ class WindowsRuntimeController(
             },
             accessFailure = WindowsAccessFailure(WindowsAccessStage.AUTHORIZATION, WindowsAccessCode.AUTH_TIMEOUT),
         )
-        } finally {
+    }
+
+    private fun completeLoginTokenResponse(
+        config: WindowsAppConfig,
+        metadata: JsonObject,
+        tokenEndpoint: String,
+        responseBody: String,
+        opened: Boolean,
+        checkActive: () -> Unit,
+    ): RuntimeCommandResult {
+        synchronized(authorizationCommitLock) {
+            checkActive()
             authorizationPrompt.value = null
-            authorizationPhase.value = WindowsAuthorizationPhase.Idle
+            authorizationPhase.value = WindowsAuthorizationPhase.ReceivingProfile
         }
+        val tokenPayload = runCatching {
+            JsonParser.parseString(responseBody).asJsonObject
+        }.getOrElse {
+            return RuntimeCommandResult(
+                1,
+                "Login token response is invalid.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.TOKEN,
+                    WindowsAccessCode.UNKNOWN,
+                ),
+            )
+        }
+        try {
+            saveAuthState(config, tokenEndpoint, tokenPayload, readAuthState(config))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return RuntimeCommandResult(
+                1,
+                "Login token could not be stored.",
+                accessFailure = WindowsAccessFailure(
+                    WindowsAccessStage.TOKEN,
+                    WindowsAccessCode.UNKNOWN,
+                ),
+            )
+        }
+        checkActive()
+        refreshAccountLabel(config, metadata, tokenPayload)
+        checkActive()
+        val imported = importAuthenticatedAppConfig()
+        return RuntimeCommandResult(
+            imported.exitCode,
+            buildString {
+                appendLine("Signed in with Keycloak.")
+                if (opened) {
+                    appendLine("Browser was opened for authorization.")
+                }
+                append(imported.output)
+            }.trim(),
+            accessFailure = imported.accessFailure,
+            accessPending = imported.accessPending,
+        )
+    }
+
+    private data class LoopbackAuthCallback(
+        val code: String? = null,
+        val error: String? = null,
+    )
+
+    private fun randomOAuthState(): String {
+        val bytes = ByteArray(24)
+        SecureRandom().nextBytes(bytes)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+    }
+
+    private fun parseQueryParameters(rawQuery: String?): Map<String, String> {
+        if (rawQuery.isNullOrBlank()) return emptyMap()
+        return rawQuery.split('&').mapNotNull { part ->
+            if (part.isBlank()) return@mapNotNull null
+            val idx = part.indexOf('=')
+            val key = URLDecoder.decode(if (idx >= 0) part.substring(0, idx) else part, StandardCharsets.UTF_8)
+            val value = if (idx >= 0) URLDecoder.decode(part.substring(idx + 1), StandardCharsets.UTF_8) else ""
+            key to value
+        }.toMap()
+    }
+
+    private fun constantTimeEquals(left: String, right: String): Boolean =
+        MessageDigest.isEqual(left.toByteArray(StandardCharsets.UTF_8), right.toByteArray(StandardCharsets.UTF_8))
+
+    private fun sendLoopbackHtmlResponse(
+        exchange: com.sun.net.httpserver.HttpExchange,
+        statusCode: Int,
+        message: String,
+    ) {
+        val escaped = message
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        val html = """<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>GATES</title></head><body style="font-family:system-ui,sans-serif;background:#0e1015;color:#eef2f7;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0"><div style="max-width:440px;padding:24px;border:1px solid #2b3240;border-radius:12px;background:#161a23;text-align:center"><h2 style="margin:0 0 8px 0">GATES</h2><p style="margin:0;line-height:1.5">$escaped</p></div></body></html>"""
+        val bytes = html.toByteArray(StandardCharsets.UTF_8)
+        exchange.responseHeaders.set("Content-Type", "text/html; charset=utf-8")
+        exchange.responseHeaders.set("Cache-Control", "no-store")
+        exchange.sendResponseHeaders(statusCode, bytes.size.toLong())
+        exchange.responseBody.use { it.write(bytes) }
     }
 
     private fun importAuthenticatedAppConfig(): RuntimeCommandResult {
