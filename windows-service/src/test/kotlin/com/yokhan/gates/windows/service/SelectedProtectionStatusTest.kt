@@ -108,6 +108,46 @@ class SelectedProtectionStatusTest {
         assertEquals("6:20010db8000000000000000000000001", normalizeNumericIpAddress("2001:0db8:0:0:0:0:0:1"))
     }
 
+    @Test
+    fun extractsIpv4AndIpv6UnicastAddressesFromNativeTableForTargetLuidOnly() {
+        val targetLuid = 14918723521478656L
+        val otherLuid = 6755399441055744L
+        val rowBytes = 80L
+        val headerBytes = 8L
+        val table = com.sun.jna.Memory(headerBytes + rowBytes * 3L).apply {
+            clear()
+            setInt(0L, 3)
+            // Row 0: target IPv4 172.30.248.1
+            setShort(headerBytes + 0L, 2.toShort())
+            write(headerBytes + 4L, byteArrayOf(172.toByte(), 30, 248.toByte(), 1), 0, 4)
+            setLong(headerBytes + 32L, targetLuid)
+            // Row 1: other interface IPv4 127.0.0.1
+            val r1 = headerBytes + rowBytes
+            setShort(r1 + 0L, 2.toShort())
+            write(r1 + 4L, byteArrayOf(127, 0, 0, 1), 0, 4)
+            setLong(r1 + 32L, otherLuid)
+            // Row 2: target IPv6 fe80::1
+            val r2 = headerBytes + rowBytes * 2L
+            setShort(r2 + 0L, 23.toShort())
+            write(
+                r2 + 8L,
+                byteArrayOf(0xfe.toByte(), 0x80.toByte(), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+                0,
+                16,
+            )
+            setLong(r2 + 32L, targetLuid)
+        }
+
+        val extracted = extractUnicastAddressesForLuid(table, targetLuid)
+        assertEquals(2, extracted.size)
+        assertEquals("172.30.248.1", extracted[0])
+        assertTrue(tunAddressesMatch(setOf("172.30.248.1"), extracted))
+        assertTrue(isInterfaceNotReadyWin32Error(2))
+        assertTrue(isInterfaceNotReadyWin32Error(87))
+        assertTrue(isInterfaceNotReadyWin32Error(1168))
+        assertFalse(isInterfaceNotReadyWin32Error(5))
+    }
+
     private class FakeBackend : WfpGuardBackend {
         var policy: WfpPolicy? = null
         var rules: List<InstalledWfpRule> = emptyList()

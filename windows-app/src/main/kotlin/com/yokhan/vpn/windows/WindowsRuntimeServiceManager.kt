@@ -65,14 +65,14 @@ class WindowsRuntimeServiceManager(
         )
     }
 
-    fun install(allowSessionRestore: Boolean = true): RuntimeCommandResult {
+    fun install(allowSessionRestore: Boolean = true, forceRestart: Boolean = false): RuntimeCommandResult {
         val assets = validatedAssets() ?: return RuntimeCommandResult(
             1,
             "GATES Runtime can only be installed from the per-machine Program Files package.",
         )
         val currentUserSid = queryCurrentUserSid()
             ?: return RuntimeCommandResult(1, "Could not determine the current Windows user SID.")
-        val script = buildInstallScript(assets, currentUserSid, allowSessionRestore)
+        val script = buildInstallScript(assets, currentUserSid, allowSessionRestore, forceRestart)
         val installed = runElevatedPowerShell(script, timeoutSeconds = 120)
         if (installed.exitCode != 0) return installed
         if (installed.output == RUNTIME_ACTIVATION_DEFERRED_MESSAGE) return installed
@@ -98,10 +98,10 @@ class WindowsRuntimeServiceManager(
         return install()
     }
 
-    fun prepareWithoutConnecting(): RuntimeCommandResult {
+    fun prepareWithoutConnecting(forceRestart: Boolean = false): RuntimeCommandResult {
         val health = client.health()
-        if (health.exitCode == 0) return health
-        return install(allowSessionRestore = false)
+        if (health.exitCode == 0 && !forceRestart) return health
+        return install(allowSessionRestore = false, forceRestart = forceRestart)
     }
 
     private fun currentAssets(): WindowsRuntimeServiceAssets? {
@@ -173,6 +173,7 @@ internal fun buildInstallScript(
     assets: WindowsRuntimeServiceAssets,
     currentUserSid: String,
     allowSessionRestore: Boolean = true,
+    forceRestart: Boolean = false,
 ): String = """
     ${'$'}ErrorActionPreference = 'Stop'
     function Invoke-GatesNative {
@@ -226,20 +227,27 @@ internal fun buildInstallScript(
             ${ '$' }stage = 'preserve_active_service'
             throw 'active_service_token_invalid'
         }
-        // An MSI upgrade replaces files on disk while the old SYSTEM processes keep
-        // running the previous image. Restart only when the installed files are newer
-        // than the running processes, so ordinary app starts keep an active tunnel.
+        # An MSI upgrade replaces files on disk while the old SYSTEM processes keep
+        # running the previous image. Restart when any installed service asset is newer
+        # than the running process, or when an incompatible running service must be replaced.
         ${ '$' }wrapperPid = ${ '$' }service.ProcessId
         ${ '$' }wrapperStarted = (Get-Process -Id ${ '$' }wrapperPid -ErrorAction Stop).StartTime.ToUniversalTime()
         ${ '$' }wrapperChanged = (Get-Item -LiteralPath ${ '$' }wrapperPath).LastWriteTimeUtc -gt ${ '$' }wrapperStarted
         ${ '$' }runtimeLauncher = ${psSingleQuoted(assets.launcher?.absolutePath ?: assets.wrapper.absolutePath)}
         ${ '$' }runtimeChild = Get-CimInstance Win32_Process -Filter ("ParentProcessId=" + ${ '$' }wrapperPid) |
             Where-Object { ${ '$' }_.Name -eq 'GATES.exe' } | Select-Object -First 1
-        ${ '$' }runtimeStarted = if (${ '$' }null -ne ${ '$' }runtimeChild) {
+        ${ '$' }runtimeStarted = if (${ '$' }null -ne ${ '$' }runtimeChild -and ${ '$' }null -ne ${ '$' }runtimeChild.CreationDate) {
             ${ '$' }runtimeChild.CreationDate.ToUniversalTime()
         } else { ${ '$' }wrapperStarted }
         ${ '$' }launcherChanged = (Get-Item -LiteralPath ${ '$' }runtimeLauncher).LastWriteTimeUtc -gt ${ '$' }runtimeStarted
-        if (-not (${ '$' }wrapperChanged -or ${ '$' }launcherChanged)) {
+        ${ '$' }serviceJarPath = [System.IO.Path]::GetFullPath(${psSingleQuoted(assets.jar.absolutePath)})
+        ${ '$' }serviceJarChanged = (Test-Path -LiteralPath ${ '$' }serviceJarPath -PathType Leaf) -and
+            ((Get-Item -LiteralPath ${ '$' }serviceJarPath).LastWriteTimeUtc -gt ${ '$' }runtimeStarted)
+        ${ '$' }serviceConfigPath = [System.IO.Path]::GetFullPath(${psSingleQuoted(assets.configuration.absolutePath)})
+        ${ '$' }serviceConfigChanged = (Test-Path -LiteralPath ${ '$' }serviceConfigPath -PathType Leaf) -and
+            ((Get-Item -LiteralPath ${ '$' }serviceConfigPath).LastWriteTimeUtc -gt ${ '$' }runtimeStarted)
+        ${ '$' }forceRestartService = ${if (forceRestart) "\$true" else "\$false"}
+        if (-not (${ '$' }wrapperChanged -or ${ '$' }launcherChanged -or ${ '$' }serviceJarChanged -or ${ '$' }serviceConfigChanged -or ${ '$' }forceRestartService)) {
             Write-Output 'GATES_SERVICE_STATE=running_matching'
             Write-Output 'GATES_TOKEN_STATE=preserved'
             exit 0

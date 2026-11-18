@@ -4,8 +4,10 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.sun.jna.Native
+import com.sun.jna.Pointer
 import com.sun.jna.WString
 import com.sun.jna.ptr.LongByReference
+import com.sun.jna.ptr.PointerByReference
 import com.sun.jna.win32.StdCallLibrary
 import com.yokhan.gates.windows.service.wfp.WfpGuardBackend
 import com.yokhan.gates.windows.service.wfp.WfpAction
@@ -13,14 +15,10 @@ import com.yokhan.gates.windows.service.wfp.WfpPolicy
 import com.yokhan.gates.windows.service.wfp.WfpPolicyPlanner
 import com.yokhan.gates.windows.service.wfp.WfpScope
 import com.yokhan.gates.windows.service.wfp.WindowsFilteringPlatformBackend
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.Inet6Address
 import java.net.InetAddress
-import java.nio.charset.StandardCharsets.UTF_16LE
 import java.security.MessageDigest
-import java.util.Base64
-import java.util.concurrent.TimeUnit
 
 data class SelectedAppProtection(val protectedExecutables: List<String>)
 
@@ -185,108 +183,68 @@ object WindowsTunIdentityResolver : TunIdentityResolver {
 
     override fun resolve(interfaceAlias: String, configuredAddresses: Set<String>): TunIdentityResolution {
         if (!isWindows()) throw IOException("Windows TUN identity backend is unavailable on this platform")
-        val powershellFalse = "$" + "false"
-        val script = """
-            ${'$'}ErrorActionPreference = 'Stop'
-            [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(${powershellFalse})
-            ${'$'}alias = '${interfaceAlias.replace("'", "''")}'
-            try {
-                ${'$'}rows = @(Get-NetIPAddress -InterfaceAlias ${'$'}alias -ErrorAction Stop | Select-Object InterfaceAlias, IPAddress)
-            } catch {
-                if (${'$'}_.CategoryInfo.Category -eq 'ObjectNotFound') {
-                    @{ status = 'not-ready' } | ConvertTo-Json -Compress
-                    exit 0
-                }
-                [Console]::Error.WriteLine('Interface address query failed')
-                exit 70
-            }
-            if (${'$'}rows.Count -eq 0) {
-                @{ status = 'not-ready' } | ConvertTo-Json -Compress
-                exit 0
-            }
-            @{ status = 'ready'; alias = ${'$'}rows[0].InterfaceAlias; addresses = @(${'$'}rows | Select-Object -ExpandProperty IPAddress) } | ConvertTo-Json -Compress
-        """.trimIndent()
-        val encoded = Base64.getEncoder().encodeToString(script.toByteArray(UTF_16LE))
-        val process = ProcessBuilder("powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded)
-            .redirectErrorStream(true).start()
-        val output = ByteArrayOutputStream()
-        val readerFailure = java.util.concurrent.atomic.AtomicReference<Exception?>(null)
-        val queryDeadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(IDENTITY_QUERY_TIMEOUT_MILLIS)
-        val reader = Thread {
-            try {
-                process.inputStream.use { input ->
-                    val buffer = ByteArray(1024)
-                    while (true) {
-                        val count = input.read(buffer)
-                        if (count < 0) break
-                        synchronized(output) {
-                            val remaining = MAX_IDENTITY_OUTPUT_BYTES + 1 - output.size()
-                            if (remaining > 0) output.write(buffer, 0, minOf(count, remaining))
-                        }
-                    }
-                }
-            } catch (failure: Exception) {
-                readerFailure.set(failure)
-            }
-        }.apply { isDaemon = true; start() }
-        try {
-            val completed = process.waitFor(IDENTITY_QUERY_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
-            if (!completed) throw IOException("TUN identity query exceeded its bounded subprocess deadline")
-            val remainingNanos = queryDeadlineNanos - System.nanoTime()
-            if (remainingNanos <= 0L) throw IOException("TUN identity output exceeded its bounded subprocess deadline")
-            val remainingMillis = TimeUnit.NANOSECONDS.toMillis(remainingNanos).coerceAtLeast(1L)
-            reader.join(remainingMillis)
-            if (reader.isAlive) throw IOException("TUN identity output reader exceeded its bounded deadline")
-            readerFailure.get()?.let { throw IOException("TUN identity output could not be read", it) }
-            val exitCode = process.exitValue()
-            if (exitCode != 0) throw IOException("TUN identity backend query failed")
-            val raw = synchronized(output) { output.toByteArray() }
-            if (raw.size > MAX_IDENTITY_OUTPUT_BYTES) throw IOException("TUN identity backend response exceeded its limit")
-            val status = try { JsonParser.parseString(raw.toString(Charsets.UTF_8)).asJsonObject }
-            catch (failure: Exception) { throw IOException("TUN identity backend response was invalid", failure) }
-            if (status.get("status")?.asString == "not-ready") return TunIdentityResolution.NotReady
-            if (status.get("status")?.asString != "ready") throw IOException("TUN identity backend returned an unknown status")
-            if (status.get("alias")?.asString != interfaceAlias) return TunIdentityResolution.NotReady
-            val values = status.getAsJsonArray("addresses")?.map { it.asString }
-                ?: throw IOException("TUN identity backend omitted addresses")
-            val expectedNormalized = configuredAddresses.mapNotNull(::normalizeNumericIpAddress).toSet()
-            if (expectedNormalized.size != configuredAddresses.size) throw IOException("Configured TUN address set is invalid")
-            val observedNormalized = values.mapNotNull(::normalizeNumericIpAddress)
-            if (observedNormalized.size != values.size) throw IOException("TUN identity backend returned an invalid address")
-            if (!tunAddressesMatch(expectedNormalized, values)) return TunIdentityResolution.NotReady
-            val luid = LongByReference()
-            val luidResult = api.ConvertInterfaceAliasToLuid(WString(interfaceAlias), luid)
-            if (luidResult == ERROR_NOT_FOUND) return TunIdentityResolution.NotReady
-            if (luidResult != 0 || luid.value <= 0) throw IOException("TUN interface LUID could not be verified")
-            return TunIdentityResolution.Ready(TunIdentity(interfaceAlias, expectedNormalized, luid.value))
-        } catch (failure: InterruptedException) {
-            val stopped = stopQuery(process, reader)
-            Thread.currentThread().interrupt()
-            if (!stopped) throw IOException("TUN identity query could not be stopped", failure)
-            throw failure
-        } catch (failure: Exception) {
-            if (!stopQuery(process, reader)) throw IOException("TUN identity query could not be stopped", failure)
-            throw failure
-        } finally {
-            if (process.isAlive) process.destroyForcibly()
-        }
-    }
+        val luid = LongByReference()
+        val luidResult = api.ConvertInterfaceAliasToLuid(WString(interfaceAlias), luid)
+        if (isInterfaceNotReadyWin32Error(luidResult)) return TunIdentityResolution.NotReady
+        if (luidResult != 0 || luid.value <= 0) throw IOException("TUN interface LUID could not be verified ($luidResult)")
 
-    private fun stopQuery(process: Process, reader: Thread): Boolean {
-        process.destroyForcibly()
-        val processStopped = runCatching {
-            !process.isAlive || process.waitFor(IDENTITY_QUERY_CLEANUP_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
-        }.getOrDefault(false)
-        runCatching { process.inputStream.close() }
-        runCatching { reader.join(IDENTITY_QUERY_CLEANUP_TIMEOUT_MILLIS) }
-        return processStopped && !process.isAlive && !reader.isAlive
+        val aliasBuffer = CharArray(IF_MAX_STRING_SIZE + 1)
+        val aliasResult = api.ConvertInterfaceLuidToAlias(luid, aliasBuffer, aliasBuffer.size)
+        if (isInterfaceNotReadyWin32Error(aliasResult)) return TunIdentityResolution.NotReady
+        if (aliasResult != 0) throw IOException("TUN interface alias could not be verified ($aliasResult)")
+        val resolvedAlias = Native.toString(aliasBuffer)
+        if (resolvedAlias != interfaceAlias) return TunIdentityResolution.NotReady
+
+        val tableReference = PointerByReference()
+        val tableResult = api.GetUnicastIpAddressTable(AF_UNSPEC, tableReference)
+        if (tableResult != 0) throw IOException("TUN unicast address table query failed ($tableResult)")
+        val tablePointer = tableReference.value ?: return TunIdentityResolution.NotReady
+        val values = try {
+            extractUnicastAddressesForLuid(tablePointer, luid.value)
+        } finally {
+            api.FreeMibTable(tablePointer)
+        }
+        if (values.isEmpty()) return TunIdentityResolution.NotReady
+
+        val expectedNormalized = configuredAddresses.mapNotNull(::normalizeNumericIpAddress).toSet()
+        if (expectedNormalized.size != configuredAddresses.size) throw IOException("Configured TUN address set is invalid")
+        val observedNormalized = values.mapNotNull(::normalizeNumericIpAddress)
+        if (observedNormalized.size != values.size) throw IOException("TUN identity backend returned an invalid address")
+        if (!tunAddressesMatch(expectedNormalized, values)) return TunIdentityResolution.NotReady
+        return TunIdentityResolution.Ready(TunIdentity(interfaceAlias, expectedNormalized, luid.value))
     }
 
     private fun isWindows(): Boolean = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
 
     private interface InterfaceAliasApi : StdCallLibrary {
         fun ConvertInterfaceAliasToLuid(alias: WString, luid: LongByReference): Int
+        fun ConvertInterfaceLuidToAlias(luid: LongByReference, alias: CharArray, length: Int): Int
+        fun GetUnicastIpAddressTable(family: Short, table: PointerByReference): Int
+        fun FreeMibTable(memory: Pointer)
     }
+}
+
+internal fun extractUnicastAddressesForLuid(tablePointer: Pointer, targetLuid: Long): List<String> {
+    val count = tablePointer.getInt(0L)
+    if (count <= 0) return emptyList()
+    val addresses = mutableListOf<String>()
+    for (index in 0 until count) {
+        val rowOffset = UNICAST_TABLE_HEADER_BYTES + index.toLong() * MIB_UNICASTIPADDRESS_ROW_BYTES
+        val rowLuid = tablePointer.getLong(rowOffset + MIB_ROW_LUID_OFFSET)
+        if (rowLuid != targetLuid) continue
+        val family = tablePointer.getShort(rowOffset).toInt() and 0xffff
+        when (family) {
+            AF_INET -> {
+                val bytes = tablePointer.getByteArray(rowOffset + SOCKADDR_IN_ADDR_OFFSET, 4)
+                addresses += InetAddress.getByAddress(bytes).hostAddress
+            }
+            AF_INET6 -> {
+                val bytes = tablePointer.getByteArray(rowOffset + SOCKADDR_IN6_ADDR_OFFSET, 16)
+                addresses += InetAddress.getByAddress(bytes).hostAddress
+            }
+        }
+    }
+    return addresses
 }
 
 fun selectedProtectionAlias(controlToken: String): String {
@@ -384,7 +342,18 @@ internal fun prependDirectProcessRules(root: JsonObject, processPaths: List<Stri
     route.addProperty("find_process", true)
 }
 
-private const val IDENTITY_QUERY_TIMEOUT_MILLIS = 2_000L
-private const val IDENTITY_QUERY_CLEANUP_TIMEOUT_MILLIS = 250L
+internal fun isInterfaceNotReadyWin32Error(win32Error: Int): Boolean =
+    win32Error == ERROR_FILE_NOT_FOUND || win32Error == ERROR_INVALID_PARAMETER || win32Error == ERROR_NOT_FOUND
+
+private const val ERROR_FILE_NOT_FOUND = 2
+private const val ERROR_INVALID_PARAMETER = 87
 private const val ERROR_NOT_FOUND = 1168
-private const val MAX_IDENTITY_OUTPUT_BYTES = 16 * 1024
+private const val IF_MAX_STRING_SIZE = 256
+private const val AF_UNSPEC: Short = 0
+private const val AF_INET = 2
+private const val AF_INET6 = 23
+private const val UNICAST_TABLE_HEADER_BYTES = 8L
+private const val MIB_UNICASTIPADDRESS_ROW_BYTES = 80L
+private const val MIB_ROW_LUID_OFFSET = 32L
+private const val SOCKADDR_IN_ADDR_OFFSET = 4L
+private const val SOCKADDR_IN6_ADDR_OFFSET = 8L

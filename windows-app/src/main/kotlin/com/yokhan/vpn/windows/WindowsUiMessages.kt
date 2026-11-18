@@ -5,6 +5,8 @@ internal fun windowsUiResultMessage(command: String, result: RuntimeCommandResul
         when {
             "GATES_PROTECTION_REQUIRES_EXE_PATHS" in result.output ->
                 return "Добавьте полный путь к EXE в список «Через VPN». Защита по одному имени процесса недоступна."
+            "GATES_PROTECTION_MISSING_EXE" in result.output || "MISSING_EXE" in result.output ->
+                return "Один из выбранных .exe файлов для защиты не найден на диске. Удалите лишнюю запись или выберите файл заново."
             "GATES_PROTECTION_STOP_FIRST" in result.output ->
                 return "Сначала отключите VPN. Защита работающего соединения не изменена."
             "GATES_PROTECTION_REQUIRES_TUN" in result.output || "GATES_PROTECTION_REQUIRES_SERVICE" in result.output ->
@@ -108,6 +110,13 @@ internal fun windowsUiFailureCode(command: String, result: RuntimeCommandResult)
         "runtime configuration differs" in detail -> "GATES_STATE_MISMATCH"
         "selected route is not available" in detail -> "GATES_ROUTE_UNAVAILABLE"
         "expected .exe path or process name" in detail -> "GATES_INVALID_APP"
+        "gates_protection_requires_exe_paths" in detail -> "GATES_PROTECTION_REQUIRES_EXE_PATHS"
+        "gates_protection_missing_exe" in detail || "missing_exe" in detail -> "GATES_PROTECTION_MISSING_EXE"
+        "gates_protection_stop_first" in detail -> "GATES_PROTECTION_STOP_FIRST"
+        "gates_protection_requires_tun" in detail || "gates_protection_requires_service" in detail -> "GATES_PROTECTION_REQUIRES_TUN"
+        "gates_protection_service_unavailable" in detail -> "GATES_PROTECTION_SERVICE_UNAVAILABLE"
+        "gates_protection_not_armed" in detail -> "GATES_PROTECTION_NOT_ARMED"
+        "gates_protection_not_disarmed" in detail -> "GATES_PROTECTION_NOT_DISARMED"
         command == "prepare-runtime" || "runtime-helper-connect exit=" in detail -> "GATES_SERVICE_SETUP"
         command == "connect" -> "GATES_CONNECT_FAILED"
         else -> "GATES_COMMAND_FAILED"

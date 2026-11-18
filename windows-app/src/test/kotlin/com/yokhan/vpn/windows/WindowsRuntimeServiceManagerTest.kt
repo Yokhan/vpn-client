@@ -63,7 +63,20 @@ class WindowsRuntimeServiceManagerTest {
         assertTrue(script.contains("GATES_SERVICE_STATE=restarting"))
         assertTrue(script.contains("Invoke-GatesNative 'taskkill.exe'"))
         assertTrue(script.contains("Get-Process xray, sing-box"))
-        assertTrue(script.contains("if (-not (\$wrapperChanged -or \$launcherChanged))"))
+        assertTrue(script.contains("if (-not (\$wrapperChanged -or \$launcherChanged -or \$serviceJarChanged -or \$serviceConfigChanged -or \$forceRestartService))"))
+        assertTrue(script.contains("# An MSI upgrade replaces files on disk"))
+        assertFalse(script.contains("// An MSI upgrade replaces files on disk"))
+        val forced = buildInstallScript(
+            WindowsRuntimeServiceAssets(
+                wrapper = File("C:/Program Files/GATES/app/resources/gates-service/Gates.Service.exe"),
+                jar = File("C:/Program Files/GATES/app/resources/gates-service/Gates.Service.jar"),
+                configuration = File("C:/Program Files/GATES/app/resources/gates-service/Gates.Service.xml"),
+            ),
+            "S-1-5-21-1-2-3-1001",
+            allowSessionRestore = false,
+            forceRestart = true,
+        )
+        assertTrue(forced.contains("\$forceRestartService = \$true"))
         assertTrue(script.contains("if (-not \$serviceInstalled)"))
         assertTrue(script.contains("function Invoke-GatesNative"))
         assertTrue(script.contains("PSNativeCommandUseErrorActionPreference = \$false"))

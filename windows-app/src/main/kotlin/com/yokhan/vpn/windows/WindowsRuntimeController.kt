@@ -676,7 +676,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.9.9"
+private const val WINDOWS_APP_VERSION = "1.9.10"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -772,6 +772,9 @@ class WindowsRuntimeController(
         "GATES\\Service",
     ),
     private val verifyBootstrapCode: (String) -> Boolean = WiseTreeAccess::verifyCode,
+    private val repairRuntimeService: () -> RuntimeCommandResult = {
+        WindowsRuntimeServiceManager().prepareWithoutConnecting(forceRestart = true)
+    },
 ) {
     internal val authorizationPrompt = MutableStateFlow<WindowsAuthorizationPrompt?>(null)
     internal val authorizationPhase = MutableStateFlow(WindowsAuthorizationPhase.Idle)
@@ -2848,10 +2851,11 @@ class WindowsRuntimeController(
         val serviceRunning = health.isRunningServiceTunnel() || serviceHasIntent
 
         if (!serviceRunning) {
-            return applyRoutingChange(
-                updated,
-                if (enabled) "Защита при обрыве включена: выбранные EXE заблокированы до подключения."
-                else "Защита при обрыве выключена.",
+            return setDisconnectedKillSwitch(
+                currentConfig = currentConfig,
+                updated = updated,
+                enabled = enabled,
+                brokerConfirmedAbsent = brokerConfirmedAbsent,
             )
         }
 
@@ -2862,22 +2866,13 @@ class WindowsRuntimeController(
         if (stopped.exitCode != 0) {
             return RuntimeCommandResult(1, "GATES_PROTECTION_STOP_FIRST: ${stopped.output}".trim())
         }
-        val syncResult = if (enabled) {
-            runtimeService.armProtection(windowsProtectionPayloadJson(updated))
-        } else {
-            runtimeService.disarmProtection()
-        }
+        val syncResult = syncProtectionWithService(enabled, updated, allowServiceRestart = false)
         if (syncResult.exitCode != 0) {
             if (currentConfig.killSwitchEnabled) {
                 runCatching { runtimeService.armProtection(windowsProtectionPayloadJson(currentConfig)) }
             }
             startThroughRuntimeService()
-            val code = when {
-                "UNSUPPORTED_COMMAND" in syncResult.output -> "GATES_PROTECTION_SERVICE_UNAVAILABLE"
-                enabled -> "GATES_PROTECTION_NOT_ARMED"
-                else -> "GATES_PROTECTION_NOT_DISARMED"
-            }
-            return RuntimeCommandResult(1, "$code: ${syncResult.output}".trim())
+            return syncResult
         }
         writeConfig(updated)
         val generated = generateConfig()
@@ -2896,6 +2891,86 @@ class WindowsRuntimeController(
             0,
             if (enabled) "Защита при обрыве включена и применена." else "Защита при обрыве выключена.",
         )
+    }
+
+    private fun setDisconnectedKillSwitch(
+        currentConfig: WindowsAppConfig,
+        updated: WindowsAppConfig,
+        enabled: Boolean,
+        brokerConfirmedAbsent: Boolean,
+    ): RuntimeCommandResult {
+        val message = if (enabled) {
+            "Защита при обрыве включена: выбранные EXE заблокированы до подключения."
+        } else {
+            "Защита при обрыве выключена."
+        }
+        if (allowRuntimeServiceDelegation && !brokerConfirmedAbsent && (enabled || currentConfig.killSwitchEnabled)) {
+            val syncResult = syncProtectionWithService(enabled, updated, allowServiceRestart = true)
+            if (syncResult.exitCode != 0) return syncResult
+        }
+        val files = listOf(appConfigFile, generatedConfigFile, generatedModeFile, xhttpSpecFile)
+        val previous = files.associateWith { if (it.isFile) it.readBytes() else null }
+        val saved = runCatching {
+            writeConfig(updated)
+            if (rawConfigFile.isFile) {
+                // Keep standalone WFP toggling functional even if the device is currently offline
+                // (e.g. XHTTP physical-bind checks cannot find an active NIC while disconnected).
+                runCatching { generateConfig() }
+            }
+        }.isSuccess
+        if (!saved) {
+            runCatching {
+                previous.forEach { (file, bytes) ->
+                    if (bytes != null) file.writeBytes(bytes) else check(!file.exists() || file.delete())
+                }
+            }
+            if (allowRuntimeServiceDelegation && !brokerConfirmedAbsent) {
+                if (currentConfig.killSwitchEnabled) {
+                    runCatching { runtimeService.armProtection(windowsProtectionPayloadJson(currentConfig)) }
+                } else {
+                    runCatching { runtimeService.disarmProtection() }
+                }
+            }
+            return RuntimeCommandResult(1, if (enabled) "GATES_PROTECTION_NOT_ARMED" else "GATES_PROTECTION_NOT_DISARMED")
+        }
+        return RuntimeCommandResult(0, message)
+    }
+
+    private fun syncProtectionWithService(
+        enabled: Boolean,
+        config: WindowsAppConfig,
+        allowServiceRestart: Boolean,
+    ): RuntimeCommandResult {
+        var result = if (enabled) {
+            runtimeService.armProtection(windowsProtectionPayloadJson(config))
+        } else {
+            runtimeService.disarmProtection()
+        }
+        if (result.exitCode != 0 && "UNSUPPORTED_COMMAND" in result.output &&
+            allowServiceRestart && allowRuntimeServiceDelegation
+        ) {
+            val prepared = repairRuntimeService()
+            if (prepared.exitCode == 0) {
+                result = if (enabled) {
+                    runtimeService.armProtection(windowsProtectionPayloadJson(config))
+                } else {
+                    runtimeService.disarmProtection()
+                }
+            }
+        }
+        val verified = if (result.exitCode != 0) false else {
+            val status = parseWindowsProtectionState(runtimeService.protectionStatus())
+            if (enabled) status in setOf(WindowsProtectionState.BLOCKED, WindowsProtectionState.ARMED)
+            else status == WindowsProtectionState.DISABLED
+        }
+        if (verified) return RuntimeCommandResult(0, result.output)
+        val code = when {
+            "UNSUPPORTED_COMMAND" in result.output -> "GATES_PROTECTION_SERVICE_UNAVAILABLE"
+            "MISSING_EXE" in result.output -> "GATES_PROTECTION_MISSING_EXE"
+            enabled -> "GATES_PROTECTION_NOT_ARMED"
+            else -> "GATES_PROTECTION_NOT_DISARMED"
+        }
+        return RuntimeCommandResult(1, "$code: ${result.output}".trim())
     }
 
     private fun stopThroughRuntimeService(): RuntimeCommandResult {
@@ -3198,36 +3273,11 @@ class WindowsRuntimeController(
                 RuntimeCommandResult(applied.exitCode, listOf(message, generated.output, applied.output).joinToString("\n"))
             } else {
                 if (allowRuntimeServiceDelegation && !brokerConfirmedAbsent && updated.killSwitchEnabled) {
-                    val armResult = runtimeService.armProtection(windowsProtectionPayloadJson(updated))
-                    val armed = armResult.exitCode == 0 &&
-                        parseWindowsProtectionState(runtimeService.protectionStatus()) in setOf(
-                            WindowsProtectionState.BLOCKED,
-                            WindowsProtectionState.ARMED,
-                        )
-                    if (!armed) {
-                        val code = if ("UNSUPPORTED_COMMAND" in armResult.output) {
-                            "GATES_PROTECTION_SERVICE_UNAVAILABLE"
-                        } else {
-                            "GATES_PROTECTION_NOT_ARMED"
-                        }
-                        RuntimeCommandResult(1, "$code: ${armResult.output}".trim())
-                    } else {
-                        RuntimeCommandResult(0, "$message\nSaved and WFP updated\n${generated.output}")
-                    }
+                    val sync = syncProtectionWithService(enabled = true, config = updated, allowServiceRestart = true)
+                    if (sync.exitCode != 0) sync else RuntimeCommandResult(0, "$message\nSaved and WFP updated\n${generated.output}")
                 } else if (allowRuntimeServiceDelegation && !brokerConfirmedAbsent && previousConfig.killSwitchEnabled && !updated.killSwitchEnabled) {
-                    val disarmResult = runtimeService.disarmProtection()
-                    val disarmed = disarmResult.exitCode == 0 &&
-                        parseWindowsProtectionState(runtimeService.protectionStatus()) == WindowsProtectionState.DISABLED
-                    if (!disarmed) {
-                        val code = if ("UNSUPPORTED_COMMAND" in disarmResult.output) {
-                            "GATES_PROTECTION_SERVICE_UNAVAILABLE"
-                        } else {
-                            "GATES_PROTECTION_NOT_DISARMED"
-                        }
-                        RuntimeCommandResult(1, "$code: ${disarmResult.output}".trim())
-                    } else {
-                        RuntimeCommandResult(0, "$message\nWFP disarmed\n${generated.output}")
-                    }
+                    val sync = syncProtectionWithService(enabled = false, config = updated, allowServiceRestart = true)
+                    if (sync.exitCode != 0) sync else RuntimeCommandResult(0, "$message\nWFP disarmed\n${generated.output}")
                 } else {
                     RuntimeCommandResult(0, "$message\nSaved for the next connection\n${generated.output}")
                 }

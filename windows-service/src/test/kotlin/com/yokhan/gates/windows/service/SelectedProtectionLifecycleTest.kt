@@ -214,6 +214,21 @@ class SelectedProtectionLifecycleTest {
         assertEquals(ProtectionStatus.DISABLED, restarted.protectionStatus())
     }
 
+    @Test
+    fun updatingProtectedAppsWhileConnectedSyncsStandingProtectionAcrossStop() {
+        val launcher = RecordingProtectedLauncher()
+        val supervisor = SerializedTunnelSupervisor(launcher)
+
+        supervisor.armStandingProtection(guardedConfig.protection!!)
+        assertEquals(TunnelStartResult.Started, supervisor.start(guardedConfig))
+        assertEquals(TunnelStartResult.Restarted, supervisor.start(replacementGuardedConfig))
+        assertEquals(replacementGuardedConfig.protection, launcher.persistedStanding)
+
+        assertEquals(TunnelStopResult.Stopped, supervisor.stop())
+        assertEquals(replacementGuardedConfig.protection, launcher.lastArmedProtection)
+        assertEquals(ProtectionStatus.BLOCKED, supervisor.protectionStatus())
+    }
+
     private class RecordingProtectedLauncher : TunnelLauncher {
         val events = mutableListOf<String>()
         val children = mutableListOf<Child>()
@@ -265,9 +280,12 @@ class SelectedProtectionLifecycleTest {
 
         override fun armProtection(config: ValidatedSingBoxConfig) {
             events += "arm"
+            lastArmedProtection = config.protection
             if (failArm) throw IOException("arm failed")
             released = false
         }
+
+        var lastArmedProtection: SelectedAppProtection? = null
 
         override fun permitProtection(config: ValidatedSingBoxConfig, confirmChildAlive: () -> Unit): ProtectionPermitResult {
             confirmChildAlive()

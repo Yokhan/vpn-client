@@ -164,6 +164,7 @@ class WindowsKillSwitchTest {
                 override fun stop(): RuntimeCommandResult = error("Must not stop")
             },
             prepareRuntimeService = { RuntimeCommandResult(0, "ok") },
+            repairRuntimeService = { RuntimeCommandResult(0, "ok") },
         )
         controller.writeConfig(config.copy(killSwitchEnabled = false))
 
@@ -171,6 +172,89 @@ class WindowsKillSwitchTest {
         assertEquals(1, result.exitCode)
         assertTrue("GATES_PROTECTION_SERVICE_UNAVAILABLE" in result.output)
         assertFalse(controller.readConfig().killSwitchEnabled)
+    }
+
+    @Test fun outdatedRunningServiceIsRepairedOnUnsupportedCommandAndMissingExeIsReported() = runBlocking {
+        var repaired = 0
+        var protectionStatus = "DISABLED"
+        var armMode = "unsupported"
+        val controller = WindowsRuntimeController(
+            appDir = Files.createTempDirectory("gates-protection-repair").toFile(),
+            runtimeServiceInstalled = { true },
+            runtimeService = object : WindowsRuntimeControl {
+                override fun health() = RuntimeCommandResult(0, "STOPPED")
+                override fun configurationDigest() = RuntimeCommandResult(0, "NONE")
+                override fun protectionStatus() = RuntimeCommandResult(0, protectionStatus)
+                override fun armProtection(protectionJson: String): RuntimeCommandResult = when (armMode) {
+                    "unsupported" -> RuntimeCommandResult(1, "GATES Runtime rejected the request: UNSUPPORTED_COMMAND")
+                    "missing" -> RuntimeCommandResult(1, "GATES Runtime rejected the request: MISSING_EXE")
+                    else -> {
+                        protectionStatus = "BLOCKED"
+                        RuntimeCommandResult(0, "BLOCKED")
+                    }
+                }
+                override fun startTunnel(configJson: String): RuntimeCommandResult = error("Must not start")
+                override fun stop(): RuntimeCommandResult = error("Must not stop")
+            },
+            prepareRuntimeService = { RuntimeCommandResult(0, "ok") },
+            repairRuntimeService = {
+                repaired++
+                armMode = "ok"
+                RuntimeCommandResult(0, "ok")
+            },
+        )
+        controller.writeConfig(config.copy(killSwitchEnabled = false))
+
+        val upgraded = controller.run("set-kill-switch", "true")
+        assertEquals(0, upgraded.exitCode, upgraded.output)
+        assertEquals(1, repaired)
+        assertTrue(controller.readConfig().killSwitchEnabled)
+
+        controller.writeConfig(config.copy(killSwitchEnabled = false))
+        protectionStatus = "DISABLED"
+        armMode = "missing"
+        val missingExe = controller.run("set-kill-switch", "true")
+        assertEquals(1, missingExe.exitCode)
+        assertTrue("GATES_PROTECTION_MISSING_EXE" in missingExe.output)
+        assertFalse(controller.readConfig().killSwitchEnabled)
+    }
+
+    @Test fun disconnectedKillSwitchToggleSucceedsEvenWhenConfigGenerationFailsOffline() = runBlocking {
+        var protectionStatus = "DISABLED"
+        val controller = WindowsRuntimeController(
+            appDir = Files.createTempDirectory("gates-protection-offline-toggle").toFile(),
+            runtimeServiceInstalled = { true },
+            runtimeService = object : WindowsRuntimeControl {
+                override fun health() = RuntimeCommandResult(0, "STOPPED")
+                override fun configurationDigest() = RuntimeCommandResult(0, "NONE")
+                override fun protectionStatus() = RuntimeCommandResult(0, protectionStatus)
+                override fun armProtection(protectionJson: String): RuntimeCommandResult {
+                    protectionStatus = "BLOCKED"
+                    return RuntimeCommandResult(0, "BLOCKED")
+                }
+                override fun disarmProtection(): RuntimeCommandResult {
+                    protectionStatus = "DISABLED"
+                    return RuntimeCommandResult(0, "DISABLED")
+                }
+                override fun startTunnel(configJson: String): RuntimeCommandResult = error("Must not start")
+                override fun stop(): RuntimeCommandResult = error("Must not stop")
+            },
+            validateGeneratedConfig = { RuntimeCommandResult(1, "offline NIC unavailable") },
+            prepareRuntimeService = { RuntimeCommandResult(0, "ok") },
+        )
+        val profile = """{"inbounds":[{"type":"tun","tag":"tun-in"}],"outbounds":[{"type":"direct","tag":"direct"},{"type":"vless","tag":"bridge","server":"203.0.113.10","server_port":443,"uuid":"00000000-0000-4000-8000-000000000001"}]}"""
+        controller.writeConfig(config.copy(killSwitchEnabled = false, activeRoute = "bridge"))
+        assertEquals(0, controller.storeImportedProfile("manual", profile).exitCode)
+
+        val on = controller.run("set-kill-switch", "true")
+        assertEquals(0, on.exitCode, on.output)
+        assertTrue(controller.readConfig().killSwitchEnabled)
+        assertEquals("BLOCKED", protectionStatus)
+
+        val off = controller.run("set-kill-switch", "false")
+        assertEquals(0, off.exitCode, off.output)
+        assertFalse(controller.readConfig().killSwitchEnabled)
+        assertEquals("DISABLED", protectionStatus)
     }
 
     @Test fun connectedKillSwitchToggleStopsDisarmsAndRestartsTunnel() = runBlocking {

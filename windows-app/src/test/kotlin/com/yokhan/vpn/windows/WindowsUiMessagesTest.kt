@@ -87,4 +87,13 @@ class WindowsUiMessagesTest {
             windowsUiResultMessage("add-app-proxy", RuntimeCommandResult(1, "failed C:\\foo.exe")),
         )
     }
+    @Test fun protectionFailuresSurfaceSpecificFailureCodesAndActionableMessages() {
+        val missingExe = RuntimeCommandResult(1, "GATES_PROTECTION_MISSING_EXE: MISSING_EXE")
+        assertEquals("GATES_PROTECTION_MISSING_EXE", windowsUiFailureCode("set-kill-switch", missingExe))
+        assertTrue(windowsUiResultMessage("set-kill-switch", missingExe).contains(".exe"))
+
+        val staleService = RuntimeCommandResult(1, "GATES_PROTECTION_SERVICE_UNAVAILABLE")
+        assertEquals("GATES_PROTECTION_SERVICE_UNAVAILABLE", windowsUiFailureCode("set-kill-switch", staleService))
+        assertTrue(windowsUiResultMessage("set-kill-switch", staleService).contains("служба"))
+    }
 }

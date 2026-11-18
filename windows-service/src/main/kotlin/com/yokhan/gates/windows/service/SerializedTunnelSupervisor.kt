@@ -204,6 +204,7 @@ class SerializedTunnelSupervisor(
         ownedChild = launchWithProtection(config)
         ownedChildConfig = config
         activeConfig = config
+        syncStandingProtectionOnGuardedStart(config.protection)
         resetRestartBackoff()
         TunnelStartResult.Restarted
     } catch (_: Exception) {
@@ -307,8 +308,12 @@ class SerializedTunnelSupervisor(
         val previous = standingProtection
         try {
             launcher.armProtection(ValidatedSingBoxConfig("{}", protection))
-        } catch (_: Exception) {
-            throw IOException("Selected-app protection could not be armed")
+        } catch (failure: Exception) {
+            logProtectionFailure("arm-standing", failure)
+            if (failure.message?.contains("WFP_MISSING_EXECUTABLE") == true) {
+                throw IOException("WFP_MISSING_EXECUTABLE: Selected-app executable could not be found", failure)
+            }
+            throw IOException("Selected-app protection could not be armed", failure)
         }
         try {
             launcher.persistStandingProtection(protection)
@@ -622,9 +627,27 @@ class SerializedTunnelSupervisor(
     private fun armProtection(config: ValidatedSingBoxConfig) {
         try {
             launcher.armProtection(config)
-        } catch (_: Exception) {
-            throw IOException("Selected-app protection could not be armed")
+        } catch (failure: Exception) {
+            logProtectionFailure("arm", failure)
+            if (failure.message?.contains("WFP_MISSING_EXECUTABLE") == true) {
+                throw IOException("WFP_MISSING_EXECUTABLE: Selected-app executable could not be found", failure)
+            }
+            throw IOException("Selected-app protection could not be armed", failure)
         }
+    }
+
+    private fun syncStandingProtectionOnGuardedStart(updatedProtection: SelectedAppProtection?) {
+        if (updatedProtection == null || standingProtection == null || standingProtection == updatedProtection) return
+        val persisted = runCatching { launcher.persistStandingProtection(updatedProtection) }.isSuccess
+        if (persisted) standingProtection = updatedProtection
+    }
+
+    private fun logProtectionFailure(stage: String, failure: Throwable) {
+        val code = failure.message?.let { message ->
+            Regex("(?:HRESULT 0x[0-9a-fA-F]+|WFP_MISSING_EXECUTABLE|[A-Z][A-Z0-9_]{3,})").find(message)?.value
+        }
+        val detail = code ?: failure.javaClass.simpleName
+        System.err.println("GATES protection $stage failed: $detail")
     }
 
     private fun resetRestartBackoff() {

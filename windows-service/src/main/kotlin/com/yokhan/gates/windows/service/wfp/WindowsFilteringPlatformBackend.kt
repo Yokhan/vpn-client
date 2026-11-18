@@ -123,7 +123,7 @@ private class NativeWfpApi : WfpApi {
             transaction(engine) {
                 val installed = enumerateOwnedKeys(engine)
                 val desired = rules.map(WfpRulePlan::key).toSet()
-                (installed - desired).forEach { key -> checkStatus(wfp.FwpmFilterDeleteByKey0(engine, WfpGuid(key))) }
+                (installed - desired).forEach { key -> checkStatus(wfp.FwpmFilterDeleteByKey0(engine, WfpGuid(key)), "FwpmFilterDeleteByKey0") }
                 val missing = desired - installed
                 val byKey = rules.associateBy(WfpRulePlan::key)
                 missing.map(byKey::getValue).forEach { addFilter(engine, it, persistent = true) }
@@ -155,7 +155,7 @@ private class NativeWfpApi : WfpApi {
     override fun removeOwnedPersistentRules() {
         withEngine(dynamic = false) { engine ->
             transaction(engine) { enumerateOwnedKeys(engine).forEach { key ->
-                checkStatus(wfp.FwpmFilterDeleteByKey0(engine, WfpGuid(key)))
+                checkStatus(wfp.FwpmFilterDeleteByKey0(engine, WfpGuid(key)), "FwpmFilterDeleteByKey0")
             } }
         }
     }
@@ -178,7 +178,7 @@ private class NativeWfpApi : WfpApi {
                 write()
             }
             val providerResult = withPersistentSecurityDescriptor { sd -> wfp.FwpmProviderAdd0(engine, provider, sd) }
-            if (providerResult == FWP_E_ALREADY_EXISTS) verifyProvider(engine) else checkStatus(providerResult)
+            if (providerResult == FWP_E_ALREADY_EXISTS) verifyProvider(engine) else checkStatus(providerResult, "FwpmProviderAdd0")
 
             val sublayer = WfpSublayer().apply {
                 subLayerKey = WfpGuid(this@NativeWfpApi.sublayerKey)
@@ -189,19 +189,19 @@ private class NativeWfpApi : WfpApi {
                 write()
             }
             val sublayerResult = withPersistentSecurityDescriptor { sd -> wfp.FwpmSubLayerAdd0(engine, sublayer, sd) }
-            if (sublayerResult == FWP_E_ALREADY_EXISTS) verifySublayer(engine) else checkStatus(sublayerResult)
+            if (sublayerResult == FWP_E_ALREADY_EXISTS) verifySublayer(engine) else checkStatus(sublayerResult, "FwpmSubLayerAdd0")
         }
         withPersistentDacl { dacl ->
-            checkStatus(wfp.FwpmProviderSetSecurityInfoByKey0(engine, WfpGuid(providerKey), PROTECTED_DACL_SECURITY_INFORMATION, null, null, dacl, null))
+            checkStatus(wfp.FwpmProviderSetSecurityInfoByKey0(engine, WfpGuid(providerKey), PROTECTED_DACL_SECURITY_INFORMATION, null, null, dacl, null), "FwpmProviderSetSecurityInfoByKey0")
         }
         withPersistentDacl { dacl ->
-            checkStatus(wfp.FwpmSubLayerSetSecurityInfoByKey0(engine, WfpGuid(sublayerKey), PROTECTED_DACL_SECURITY_INFORMATION, null, null, dacl, null))
+            checkStatus(wfp.FwpmSubLayerSetSecurityInfoByKey0(engine, WfpGuid(sublayerKey), PROTECTED_DACL_SECURITY_INFORMATION, null, null, dacl, null), "FwpmSubLayerSetSecurityInfoByKey0")
         }
     }
 
     private fun verifyProvider(engine: Pointer) {
         val output = PointerByReference()
-        checkStatus(wfp.FwpmProviderGetByKey0(engine, WfpGuid(providerKey), output))
+        checkStatus(wfp.FwpmProviderGetByKey0(engine, WfpGuid(providerKey), output), "FwpmProviderGetByKey0")
         val pointer = requireNotNull(output.value)
         try {
             val found = WfpProvider(pointer).apply { read() }
@@ -216,7 +216,7 @@ private class NativeWfpApi : WfpApi {
 
     private fun verifySublayer(engine: Pointer) {
         val output = PointerByReference()
-        checkStatus(wfp.FwpmSubLayerGetByKey0(engine, WfpGuid(sublayerKey), output))
+        checkStatus(wfp.FwpmSubLayerGetByKey0(engine, WfpGuid(sublayerKey), output), "FwpmSubLayerGetByKey0")
         val pointer = requireNotNull(output.value)
         try {
             val found = WfpSublayer(pointer).apply { read() }
@@ -260,7 +260,7 @@ private class NativeWfpApi : WfpApi {
             } else {
                 withPersistentSecurityDescriptor { sd -> wfp.FwpmFilterAdd0(engine, filter, sd, LongByReference()) }
             }
-            checkStatus(status)
+            checkStatus(status, "FwpmFilterAdd0")
         }
     }
 
@@ -296,7 +296,12 @@ private class NativeWfpApi : WfpApi {
 
     private fun appId(path: String): ByteArray {
         val output = PointerByReference()
-        checkStatus(wfp.FwpmGetAppIdFromFileName0(Memory((path.length * 2L) + 2).apply { setWideString(0, path) }, output))
+        val status = wfp.FwpmGetAppIdFromFileName0(Memory((path.length * 2L) + 2).apply { setWideString(0, path) }, output)
+        if (status == ERROR_FILE_NOT_FOUND || status == ERROR_PATH_NOT_FOUND ||
+            status == HRESULT_FILE_NOT_FOUND || status == HRESULT_PATH_NOT_FOUND) {
+            error("WFP_MISSING_EXECUTABLE: executable does not exist on disk ($path)")
+        }
+        checkStatus(status, "FwpmGetAppIdFromFileName0")
         val blobPointer = output.value ?: error("FwpmGetAppIdFromFileName0 returned a null blob")
         try {
             val blob = WfpByteBlob(blobPointer).apply { read() }
@@ -350,13 +355,13 @@ private class NativeWfpApi : WfpApi {
         template: WfpFilterEnumTemplate,
     ): List<InstalledWfpRule> {
         val enumHandle = PointerByReference()
-        checkStatus(wfp.FwpmFilterCreateEnumHandle0(engine, template, enumHandle))
+        checkStatus(wfp.FwpmFilterCreateEnumHandle0(engine, template, enumHandle), "FwpmFilterCreateEnumHandle0")
         val result = mutableListOf<InstalledWfpRule>()
         try {
             while (true) {
                 val entries = PointerByReference()
                 val count = IntByReference()
-                checkStatus(wfp.FwpmFilterEnum0(engine, enumHandle.value, 128, entries, count))
+                checkStatus(wfp.FwpmFilterEnum0(engine, enumHandle.value, 128, entries, count), "FwpmFilterEnum0")
                 val array = entries.value
                 try {
                     repeat(count.value) { index ->
@@ -380,16 +385,16 @@ private class NativeWfpApi : WfpApi {
                 if (count.value < 128) break
             }
         } finally {
-            checkStatus(wfp.FwpmFilterDestroyEnumHandle0(engine, enumHandle.value))
+            checkStatus(wfp.FwpmFilterDestroyEnumHandle0(engine, enumHandle.value), "FwpmFilterDestroyEnumHandle0")
         }
         return result
     }
 
     private fun transaction(engine: Pointer, operation: () -> Unit) {
-        checkStatus(wfp.FwpmTransactionBegin0(engine, 0))
+        checkStatus(wfp.FwpmTransactionBegin0(engine, 0), "FwpmTransactionBegin0")
         try {
             operation()
-            checkStatus(wfp.FwpmTransactionCommit0(engine))
+            checkStatus(wfp.FwpmTransactionCommit0(engine), "FwpmTransactionCommit0")
         } catch (failure: Throwable) {
             wfp.FwpmTransactionAbort0(engine)
             throw failure
@@ -415,11 +420,13 @@ private class NativeWfpApi : WfpApi {
             write()
         }
         val handle = PointerByReference()
-        checkStatus(wfp.FwpmEngineOpen0(null, RPC_C_AUTHN_WINNT, null, session, handle))
+        withWfpNativeArena(arena) {
+            checkStatus(wfp.FwpmEngineOpen0(null, RPC_C_AUTHN_WINNT, null, session, handle), "FwpmEngineOpen0")
+        }
         return requireNotNull(handle.value)
     }
 
-    private fun closeEngine(engine: Pointer) = checkStatus(wfp.FwpmEngineClose0(engine))
+    private fun closeEngine(engine: Pointer) = checkStatus(wfp.FwpmEngineClose0(engine), "FwpmEngineClose0")
 
     private fun persistentSecurityDescriptor(): Pointer {
         val output = PointerByReference()
@@ -449,8 +456,8 @@ private class NativeWfpApi : WfpApi {
         return WfpDisplayData().apply { this.name = arena.wide(name); this.description = arena.wide(description); write() }
     }
 
-    private fun checkStatus(status: Int) {
-        check(status == 0) { "WFP API failed with HRESULT 0x${status.toUInt().toString(16)}" }
+    private fun checkStatus(status: Int, operation: String = "API") {
+        check(status == 0) { "WFP $operation failed with HRESULT 0x${status.toUInt().toString(16)}" }
     }
 
     private interface WfpFunctions : StdCallLibrary {
@@ -502,6 +509,10 @@ private class NativeWfpApi : WfpApi {
         const val PROTECTED_DACL_SECURITY_INFORMATION = 0x80000004.toInt()
         const val SUBLAYER_WEIGHT = 0x7fff
         const val FWP_E_ALREADY_EXISTS = 0x80320009.toInt()
+        const val ERROR_FILE_NOT_FOUND = 2
+        const val ERROR_PATH_NOT_FOUND = 3
+        const val HRESULT_FILE_NOT_FOUND = 0x80070002.toInt()
+        const val HRESULT_PATH_NOT_FOUND = 0x80070003.toInt()
         val FIELD_ALE_APP_ID = UUID.fromString("d78e1e87-8644-4ea5-9437-d809ecefc971")
         val FIELD_IP_LOCAL_INTERFACE = UUID.fromString("4cd62a49-59c3-4969-b7f3-bda5d32890a4")
         val FIELD_FLAGS = UUID.fromString("632ce23b-5167-435c-86d7-e903684aa80c")

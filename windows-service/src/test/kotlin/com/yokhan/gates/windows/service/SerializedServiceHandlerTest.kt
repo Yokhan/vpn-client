@@ -114,6 +114,23 @@ class SerializedServiceHandlerTest {
         assertEquals(null, standing)
     }
 
+    @Test
+    fun armProtectionMapsRuntimeAndMissingExeFailuresWithoutDroppingConnection() {
+        var failureToThrow: RuntimeException = IllegalStateException("WFP_MISSING_EXECUTABLE: missing file")
+        val launcher = object : TunnelLauncher {
+            override fun launch(config: ValidatedSingBoxConfig): TunnelChild = FakeTunnelChild()
+            override fun armProtection(config: ValidatedSingBoxConfig) { throw failureToThrow }
+        }
+        val handler = SerializedServiceHandler(SerializedTunnelSupervisor(launcher), token)
+        val proof = ControlAuthentication.clientProof(token, clientNonce, serverNonce)
+        val payload = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString("""{"schema":1,"protected_executables":["C:\\Apps\\browser.exe"]}""".toByteArray())
+
+        assertEquals("2|ERROR|MISSING_EXE", handler.handle("2|$proof|ARM_PROTECTION|$payload", clientNonce, serverNonce))
+        failureToThrow = IllegalStateException("WFP FwpmFilterAdd0 failed")
+        assertEquals("2|ERROR|ARM_PROTECTION_FAILED", handler.handle("2|$proof|ARM_PROTECTION|$payload", clientNonce, serverNonce))
+    }
+
     private fun startFrame(
         config: String,
         authProof: String = ControlAuthentication.clientProof(token, clientNonce, serverNonce),

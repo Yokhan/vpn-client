@@ -68,15 +68,15 @@ class SerializedServiceHandler(
         return try {
             supervisor.armStandingProtection(protection)
             successResponse(supervisor.protectionStatus().name)
-        } catch (_: IOException) {
-            errorResponse("ARM_PROTECTION_FAILED")
+        } catch (failure: Exception) {
+            errorResponse(if (failure.message?.contains("WFP_MISSING_EXECUTABLE") == true) "MISSING_EXE" else "ARM_PROTECTION_FAILED")
         }
     }
 
     private fun handleDisarmProtection(): String = try {
         supervisor.disarmStandingProtection()
         successResponse(supervisor.protectionStatus().name)
-    } catch (_: IOException) {
+    } catch (_: Exception) {
         errorResponse("DISARM_PROTECTION_FAILED")
     }
 
