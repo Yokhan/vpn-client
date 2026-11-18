@@ -676,7 +676,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.9.8"
+private const val WINDOWS_APP_VERSION = "1.9.9"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -776,6 +776,8 @@ class WindowsRuntimeController(
     internal val authorizationPrompt = MutableStateFlow<WindowsAuthorizationPrompt?>(null)
     internal val authorizationPhase = MutableStateFlow(WindowsAuthorizationPhase.Idle)
     private val authorizationCommitLock = Any()
+    @Volatile
+    private var cachedAutoPhysicalBind: Pair<Long, PhysicalBindTarget>? = null
 
     fun cancelPendingAuthorization(cancel: () -> Unit): Boolean = synchronized(authorizationCommitLock) {
         if (authorizationPrompt.value == null) false else { cancel(); true }
@@ -2253,6 +2255,11 @@ class WindowsRuntimeController(
         val runtimeMode = effectiveRuntimeMode(appConfig, forceProxyMode)
         val root = JsonParser.parseString(profileStore.readText(rawConfigFile, StandardCharsets.UTF_8)).asJsonObject
         root.add("inbounds", buildInbounds(appConfig, runtimeMode))
+        val resolvedPhysicalBind = if (appConfig.physicalBindEnabled == true) {
+            resolvePhysicalBindTarget(appConfig)
+        } else {
+            null
+        }
         val xhttpPlan = if (windowsXhttpEnabled(root)) {
             if (appConfig.activeRoute != WINDOWS_XHTTP_ROUTE_TAG) {
                 stripWindowsXhttpOutbound(root)
@@ -2264,11 +2271,7 @@ class WindowsRuntimeController(
                 val sidecarPort = chooseWindowsXhttpPort(appConfig.xhttpSidecarPort) { port ->
                     port != appConfig.socksPort && port != appConfig.httpPort
                 } ?: return RuntimeCommandResult(1, "Нет свободного локального порта для XHTTP sidecar.")
-                val bind = if (appConfig.physicalBindEnabled == true) {
-                    resolvePhysicalBindTarget(appConfig)?.let { WindowsXhttpBind(it.interfaceName, it.ipv4) }
-                } else {
-                    null
-                }
+                val bind = resolvedPhysicalBind?.let { WindowsXhttpBind(it.interfaceName, it.ipv4) }
                 val bindInterface = bind?.interfaceName?.takeIf { it.isNotBlank() }
                 if (bindInterface == null || bindInterface.equals(appConfig.tunInterfaceName, ignoreCase = true)) {
                     return RuntimeCommandResult(
@@ -2288,7 +2291,7 @@ class WindowsRuntimeController(
         normalizeLog(root)
         normalizeDns(root, appConfig)
         normalizeRoute(root, appConfig, runtimeMode)
-        applyPhysicalBind(root, appConfig)
+        applyPhysicalBind(root, appConfig, resolvedPhysicalBind)
         generatedModeFile.writeText(runtimeMode, StandardCharsets.US_ASCII)
         generatedConfigFile.writeText(gson.toJson(root), StandardCharsets.UTF_8)
         if (xhttpPlan != null) {
@@ -2310,7 +2313,7 @@ class WindowsRuntimeController(
                     0,
                     buildString {
                         appendLine("Generated $runtimeMode config: ${generatedConfigFile.absolutePath}")
-                        append("Physical bind: ${physicalBindSummary(appConfig)}")
+                        append("Physical bind: ${physicalBindSummary(appConfig, resolvedPhysicalBind)}")
                     }.trim(),
                 )
             } else {
@@ -2369,6 +2372,7 @@ class WindowsRuntimeController(
     @Synchronized
     private fun connect(): RuntimeCommandResult {
         ensureDirs()
+        cachedAutoPhysicalBind = null
         val config = readConfig()
         if (allowRuntimeServiceDelegation && runtimeService.health().isRunningServiceTunnel()) {
             if (config.killSwitchEnabled && parseWindowsProtectionState(runtimeService.protectionStatus()) != WindowsProtectionState.ARMED) {
@@ -3056,6 +3060,7 @@ class WindowsRuntimeController(
             return RuntimeCommandResult(1, "Список приоритета маршрутов пуст.")
         }
         val current = readConfig()
+        cachedAutoPhysicalBind = null
         val normalized = (valid + current.routeOrder.filter { it !in valid }).distinct()
         return applyRoutingChange(
             current.copy(routeOrder = normalized),
@@ -3077,6 +3082,7 @@ class WindowsRuntimeController(
         physicalBindInterface: String,
     ): RuntimeCommandResult {
         val current = readConfig()
+        cachedAutoPhysicalBind = null
         val host = listenHost.trim().ifBlank { "127.0.0.1" }
         if (socksPort !in 1024..65535 || httpPort !in 1024..65535) {
             return RuntimeCommandResult(1, "Порты должны быть в диапазоне 1024..65535.")
@@ -3887,12 +3893,13 @@ class WindowsRuntimeController(
 
     private fun normalizeLog(root: JsonObject) {
         val log = root.getAsJsonObject("log") ?: JsonObject().also { root.add("log", it) }
-        log.addProperty("level", "info")
+        log.addProperty("level", "warn")
         log.addProperty("timestamp", true)
     }
 
     private fun normalizeDns(root: JsonObject, config: WindowsAppConfig) {
         val dns = root.getAsJsonObject("dns") ?: return
+        dns.addProperty("independent_cache", true)
         val tags = root.getAsJsonArray("outbounds")
             ?.mapNotNull { it.asJsonObject.get("tag")?.asString }
             ?.toSet()
@@ -3902,7 +3909,12 @@ class WindowsRuntimeController(
             val server = element.asJsonObject
             when (server.get("tag")?.asString) {
                 "direct-dns" -> server.remove("detour")
-                "proxy-dns" -> server.addProperty("detour", finalRoute)
+                "proxy-dns" -> {
+                    server.addProperty("type", "tcp")
+                    server.addProperty("server", "1.1.1.1")
+                    server.remove("path")
+                    server.addProperty("detour", finalRoute)
+                }
             }
         }
         applyWindowsRuDnsRules(dns, config)
@@ -4026,12 +4038,23 @@ class WindowsRuntimeController(
         val merged = JsonArray()
         prepend.forEach { merged.add(it) }
         rules.forEach { element ->
-            if (!config.wholeTrafficMode || !element.isJsonObject || shouldKeepUpstreamRuleForWholeTraffic(element.asJsonObject)) {
+            val rule = element.takeIf { it.isJsonObject }?.asJsonObject
+            val blockedByQuicToggle = rule != null && !config.blockQuic && isUpstreamQuicBlockRule(rule)
+            if (!blockedByQuicToggle && (!config.wholeTrafficMode || rule == null || shouldKeepUpstreamRuleForWholeTraffic(rule))) {
                 merged.add(element)
             }
         }
         route.add("rules", merged)
         route.addProperty("find_process", true)
+    }
+
+    private fun isUpstreamQuicBlockRule(rule: JsonObject): Boolean {
+        val outbound = rule.get("outbound")?.asString
+        val action = rule.get("action")?.asString
+        if (outbound != "block" && action != "reject") return false
+        val networks = rule.getAsJsonArray("network")?.mapNotNull { it.takeIf { el -> el.isJsonPrimitive }?.asString }
+        val ports = rule.getAsJsonArray("port")?.mapNotNull { it.takeIf { el -> el.isJsonPrimitive }?.asInt }
+        return networks == listOf("udp") && ports == listOf(443)
     }
 
 
@@ -4078,9 +4101,13 @@ class WindowsRuntimeController(
         return detectWindowsRuntimeRoute(logs)
     }
 
-    private fun applyPhysicalBind(root: JsonObject, config: WindowsAppConfig) {
+    private fun applyPhysicalBind(
+        root: JsonObject,
+        config: WindowsAppConfig,
+        preResolvedBind: PhysicalBindTarget? = null,
+    ) {
         if (config.physicalBindEnabled != true) return
-        val bind = resolvePhysicalBindTarget(config) ?: return
+        val bind = preResolvedBind ?: resolvePhysicalBindTarget(config) ?: return
         val routes = config.physicalBindRoutes.toSet()
         if (routes.isEmpty()) return
         root.getAsJsonArray("outbounds")?.forEach { element ->
@@ -4097,9 +4124,12 @@ class WindowsRuntimeController(
         }
     }
 
-    private fun physicalBindSummary(config: WindowsAppConfig): String {
+    private fun physicalBindSummary(
+        config: WindowsAppConfig,
+        preResolvedBind: PhysicalBindTarget? = null,
+    ): String {
         if (config.physicalBindEnabled != true) return "disabled"
-        val bind = resolvePhysicalBindTarget(config)
+        val bind = preResolvedBind ?: resolvePhysicalBindTarget(config)
             ?: return "enabled, but no physical IPv4 adapter found"
         val routes = config.physicalBindRoutes.joinToString(",")
         val iface = bind.interfaceName ?: "auto-interface"
@@ -4114,8 +4144,16 @@ class WindowsRuntimeController(
             val resolvedIpv4 = configuredIpv4 ?: configuredInterface?.let { ipv4ForInterface(it) }
             return PhysicalBindTarget(configuredInterface, resolvedIpv4, "configured")
         }
-        return detectPhysicalBindTargetFromPowerShell()
+        val now = System.currentTimeMillis()
+        cachedAutoPhysicalBind?.let { (cachedAt, cachedBind) ->
+            if (now - cachedAt in 0..15_000L) return cachedBind
+        }
+        val detected = detectPhysicalBindTargetFromPowerShell()
             ?: detectPhysicalBindTargetFromJava()
+        if (detected != null) {
+            cachedAutoPhysicalBind = now to detected
+        }
+        return detected
     }
 
     private fun detectPhysicalBindTargetFromPowerShell(): PhysicalBindTarget? {

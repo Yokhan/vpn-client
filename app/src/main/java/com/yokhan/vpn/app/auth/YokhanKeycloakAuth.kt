@@ -145,7 +145,11 @@ object YokhanKeycloakAuth {
                 throw cancelled
             } catch (error: Exception) {
                 Log.w(LOG_TAG, "config_sync_failed type=${error.javaClass.simpleName}")
-                activity.showDashboardMessage(R.string.yokhan_auth_sync_failed)
+                if (error is GatesAccountAccessException && !error.message.isNullOrBlank()) {
+                    activity.showDashboardMessage(error.message!!)
+                } else {
+                    activity.showDashboardMessage(R.string.yokhan_auth_sync_failed)
+                }
                 if (AuthSyncRecoveryPolicy.shouldOpenLogin(mutableSessionAvailable.value, error)) {
                     mutableSessionAvailable.value = false
                 }
@@ -584,6 +588,7 @@ object YokhanKeycloakAuth {
         return authHttpClient().newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
+                throwIfUnlinkedAccountError(response.code, body)
                 Log.w(LOG_TAG, "profiles_fetch_failed http=${response.code}")
                 return@use emptyList()
             }
@@ -626,6 +631,7 @@ object YokhanKeycloakAuth {
         return authHttpClient().newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
+                throwIfUnlinkedAccountError(response.code, body)
                 if (response.code != 404) {
                     Log.w(LOG_TAG, "xhttp_fetch_failed http=${response.code}")
                 }
@@ -645,6 +651,30 @@ object YokhanKeycloakAuth {
                 type = 0
                 config = body
             }
+        }
+    }
+
+    internal class GatesAccountAccessException(message: String) : IllegalStateException(message)
+
+    internal fun throwIfUnlinkedAccountError(statusCode: Int, body: String) {
+        val code = runCatching {
+            com.google.gson.JsonParser.parseString(body)
+                .takeIf { it.isJsonObject }
+                ?.asJsonObject
+                ?.get("code")
+                ?.takeIf { it.isJsonPrimitive }
+                ?.asString
+                ?.trim()
+                .orEmpty()
+        }.getOrDefault("")
+        when {
+            code in setOf("GATES_USER_NOT_FOUND", "GATES_DEVICE_NOT_FOUND", "GATES_ACCESS_NOT_LINKED") ||
+                statusCode == 403 -> throw GatesAccountAccessException(
+                "Аккаунт не привязан к доступу GATES (нужна привязка Telegram в боте или выдача доступа). Пока можно войти по коду Древа.",
+            )
+            code == "GATES_ROOM_FORBIDDEN" -> throw GatesAccountAccessException(
+                "Устройство не привязано к выбранной комнате GATES.",
+            )
         }
     }
 

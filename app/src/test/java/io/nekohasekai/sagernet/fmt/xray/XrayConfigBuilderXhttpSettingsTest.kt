@@ -38,7 +38,7 @@ class XrayConfigBuilderXhttpSettingsTest {
         val xmux = xhttpSettings
             .getAsJsonObject("extra")
             .getAsJsonObject("xmux")
-        assertEquals("1", xmux.get("maxConnections").asString)
+        assertEquals("4", xmux.get("maxConnections").asString)
         assertEquals(30, xmux.get("hKeepAlivePeriod").asInt)
     }
 }

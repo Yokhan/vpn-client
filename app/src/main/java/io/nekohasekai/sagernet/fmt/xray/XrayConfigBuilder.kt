@@ -146,7 +146,7 @@ object XrayConfigBuilder {
             "mode" to spec.mode,
             "extra" to linkedMapOf<String, Any?>(
                 "xmux" to linkedMapOf<String, Any?>(
-                    "maxConnections" to "1",
+                    "maxConnections" to "4",
                     "hKeepAlivePeriod" to 30,
                 ),
             ),

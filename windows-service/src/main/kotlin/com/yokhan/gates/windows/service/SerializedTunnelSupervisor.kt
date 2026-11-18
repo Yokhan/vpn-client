@@ -16,6 +16,10 @@ interface TunnelChild {
     fun isAlive(): Boolean
     fun requestStop()
     fun awaitStopped(timeoutMillis: Long): Boolean
+    fun stopPreservingSidecar(timeoutMillis: Long): Boolean {
+        requestStop()
+        return awaitStopped(timeoutMillis)
+    }
 }
 
 fun interface TunnelLauncher {
@@ -163,9 +167,15 @@ class SerializedTunnelSupervisor(
         }
 
         persistCandidate(config, previousConfig)
+        val preserveSidecar = config.sidecar != null && ownedChildConfig?.sidecar == config.sidecar
         val stopped = try {
-            child.requestStop()
-            child.awaitStopped(RESTART_STOP_TIMEOUT_MILLIS)
+            if (preserveSidecar) {
+                child.requestStop()
+                child.stopPreservingSidecar(RESTART_STOP_TIMEOUT_MILLIS)
+            } else {
+                child.requestStop()
+                child.awaitStopped(RESTART_STOP_TIMEOUT_MILLIS)
+            }
         } catch (_: Exception) {
             false
         }

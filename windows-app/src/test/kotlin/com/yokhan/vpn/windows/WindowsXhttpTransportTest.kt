@@ -33,7 +33,7 @@ class WindowsXhttpTransportTest {
         assertEquals("127.0.0.1", outbound.get("server").asString)
         assertEquals(2095, outbound.get("server_port").asInt)
         assertEquals("5", outbound.get("version").asString)
-        assertEquals("tcp", outbound.get("network").asString)
+        assertFalse(outbound.has("network"))
 
         val tun = root.getAsJsonArray("inbounds").first { it.asJsonObject.get("type").asString == "tun" }.asJsonObject
         val excluded = tun.getAsJsonArray("route_exclude_address").map { it.asString }
@@ -46,6 +46,10 @@ class WindowsXhttpTransportTest {
         val stream = xray.getAsJsonArray("outbounds").first().asJsonObject.getAsJsonObject("streamSettings")
         assertEquals("xhttp", stream.get("network").asString)
         assertEquals("reality", stream.get("security").asString)
+        assertEquals(
+            "4",
+            stream.getAsJsonObject("xhttpSettings").getAsJsonObject("extra").getAsJsonObject("xmux").get("maxConnections").asString,
+        )
         assertEquals("203.0.113.10", xray.getAsJsonArray("outbounds").first().asJsonObject
             .getAsJsonObject("settings").getAsJsonArray("vnext").first().asJsonObject.get("address").asString)
         assertEquals("Wi-Fi", stream.getAsJsonObject("sockopt").get("interface").asString)

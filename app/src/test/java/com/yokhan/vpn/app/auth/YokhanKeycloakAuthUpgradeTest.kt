@@ -50,4 +50,19 @@ class YokhanKeycloakAuthUpgradeTest {
 
         assertEquals(listOf("reload", "wait", "revoke_attempt"), events)
     }
+
+    @Test
+    fun surfacesUnlinkedAccountErrorInsteadOfNoProxies() {
+        val error = try {
+            YokhanKeycloakAuth.throwIfUnlinkedAccountError(
+                404,
+                """{"error":"gates user not found","code":"GATES_USER_NOT_FOUND"}""",
+            )
+            null
+        } catch (e: IllegalStateException) {
+            e
+        }
+        org.junit.Assert.assertNotNull(error)
+        org.junit.Assert.assertTrue(error!!.message!!.contains("не привязан"))
+    }
 }

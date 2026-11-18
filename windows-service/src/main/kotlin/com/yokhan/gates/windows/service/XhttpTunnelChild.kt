@@ -54,6 +54,12 @@ class XhttpTunnelChild(
         return stopped
     }
 
+    override fun stopPreservingSidecar(timeoutMillis: Long): Boolean {
+        stopping.set(true)
+        watchdog?.interrupt()
+        return tunnel.awaitStopped(timeoutMillis)
+    }
+
     private fun watchSidecar() {
         val childSidecar = sidecar ?: return
         val childSpec = spec ?: return

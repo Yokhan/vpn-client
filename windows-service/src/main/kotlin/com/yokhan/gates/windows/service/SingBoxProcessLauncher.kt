@@ -65,6 +65,7 @@ class SingBoxProcessLauncher(
         }
         val runtimeConfig = paths.dataDirectory.resolve(RUNTIME_CONFIG_FILE)
         Files.writeString(runtimeConfig, runtimeConfigText(config), StandardCharsets.UTF_8)
+        rotateSingBoxLog(paths.logFile)
         val sidecarSpec = config.sidecar
         if (sidecarSpec != null) {
             when (val result = sidecar.start(sidecarSpec)) {
@@ -182,6 +183,14 @@ class SingBoxProcessLauncher(
             },
         )
 
+    private fun rotateSingBoxLog(logFile: Path) {
+        runCatching {
+            if (!Files.isRegularFile(logFile) || Files.size(logFile) <= MAX_SING_BOX_LOG_BYTES) return
+            val previous = logFile.resolveSibling("service.previous.log")
+            Files.move(logFile, previous, REPLACE_EXISTING)
+        }
+    }
+
     private fun persistedConfigJson(config: ValidatedSingBoxConfig): String {
         if (config.protection == null && config.sidecar == null) return config.canonicalJson
         val root = com.google.gson.JsonParser.parseString(config.canonicalJson).asJsonObject
@@ -195,6 +204,10 @@ class SingBoxProcessLauncher(
         }
         config.sidecar?.let { sidecar -> root.add("gates_xhttp", sidecar.toJsonObject()) }
         return com.google.gson.Gson().toJson(root)
+    }
+
+    private companion object {
+        const val MAX_SING_BOX_LOG_BYTES = 5L * 1024 * 1024
     }
 }
 

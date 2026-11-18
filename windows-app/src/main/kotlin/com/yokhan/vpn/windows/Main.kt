@@ -822,8 +822,8 @@ private fun WindowsApp(
                 val update = withContext(Dispatchers.IO) { controller.run("check-update") }
                 if (update.exitCode == 0 && update.output.contains("Update available: true")) {
                     updateAvailable = true
-                    if (!busy && lastMessage.isBlank()) {
-                        lastMessage = "Доступно обновление приложения."
+                    if (!busy && (lastMessage.isBlank() || lastMessage == "Проверка службы GATES…")) {
+                        lastMessage = "Доступно обновление приложения — откройте «Система» для загрузки."
                     }
                 }
             }

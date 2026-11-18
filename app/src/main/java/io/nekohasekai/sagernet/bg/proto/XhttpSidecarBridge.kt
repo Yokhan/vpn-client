@@ -87,7 +87,6 @@ internal object XhttpSidecarBridge {
             addProperty("server", LOOPBACK)
             addProperty("server_port", sidecarPort)
             addProperty("version", "5")
-            addProperty("network", "tcp")
         })
 
         // The child dials the real entry. That flow is captured by the TUN, so sing-box

@@ -165,7 +165,6 @@ internal fun applyWindowsXhttpTransport(
         addProperty("server", "127.0.0.1")
         addProperty("server_port", config.xhttpSidecarPort)
         addProperty("version", "5")
-        addProperty("network", "tcp")
     })
     excludeFromTun(root, serverIps)
     return WindowsXhttpPlan(
@@ -234,7 +233,7 @@ internal fun buildWindowsXrayConfig(
             val extra = transport.getAsJsonObject("extra")?.deepCopy() ?: JsonObject()
             if (!extra.has("xmux")) {
                 extra.add("xmux", JsonObject().apply {
-                    addProperty("maxConnections", "1")
+                    addProperty("maxConnections", "4")
                     addProperty("hKeepAlivePeriod", 30)
                 })
             }

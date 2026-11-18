@@ -107,6 +107,47 @@ class WindowsRuBypassTest {
         }
     }
 
+    @Test
+    fun disablesUpstreamUdp443BlockWhenBlockQuicIsFalseAndOptimizesLogAndDns() {
+        val root = Files.createTempDirectory("gates-ru-quic-test-").toFile()
+        val controller = WindowsRuntimeController(
+            allowRuntimeServiceDelegation = false,
+            appDir = root,
+            validateGeneratedConfig = { RuntimeCommandResult(0, "ok") },
+        )
+        controller.writeConfig(
+            WindowsAppConfig(
+                activeRoute = "bridge",
+                physicalBindEnabled = false,
+                restoreSystemProxyOnStop = false,
+                roomNetEnabled = false,
+                blockQuic = false,
+            ),
+        )
+        root.resolve("runtime").mkdirs()
+        root.resolve("runtime/subscription.singbox.json").writeText(
+            """{"dns":{"servers":[{"type":"https","tag":"proxy-dns","server":"1.1.1.1","path":"/dns-query","detour":"bridge"},{"type":"udp","tag":"direct-dns","server":"77.88.8.8"}]},"inbounds":[{"type":"tun","tag":"tun-in"}],"outbounds":[{"type":"direct","tag":"direct"},{"type":"block","tag":"block"},{"type":"vless","tag":"bridge","server":"203.0.113.10","server_port":443,"uuid":"00000000-0000-4000-8000-000000000001"}],"route":{"rules":[{"network":["udp"],"port":[443],"outbound":"block"}]}}""",
+            StandardCharsets.UTF_8,
+        )
+
+        val generated = kotlinx.coroutines.runBlocking { controller.run("generate") }
+        assertEquals(0, generated.exitCode, generated.output)
+
+        val parsed = JsonParser.parseString(root.resolve("runtime/config.json").readText(StandardCharsets.UTF_8)).asJsonObject
+        assertEquals("warn", parsed.getAsJsonObject("log").get("level").asString)
+        val dns = parsed.getAsJsonObject("dns")
+        assertEquals(true, dns.get("independent_cache").asBoolean)
+        val proxyDns = dns.getAsJsonArray("servers").first { it.asJsonObject.get("tag").asString == "proxy-dns" }.asJsonObject
+        assertEquals("tcp", proxyDns.get("type").asString)
+        assertEquals("1.1.1.1", proxyDns.get("server").asString)
+        assertTrue(!proxyDns.has("path"))
+        val rules = parsed.getAsJsonObject("route").getAsJsonArray("rules")
+        assertTrue(rules.none {
+            it.isJsonObject && it.asJsonObject.get("outbound")?.asString == "block" &&
+                it.asJsonObject.getAsJsonArray("network")?.any { n -> n.asString == "udp" } == true
+        })
+    }
+
     private companion object {
         const val VLESS_PROFILE = """{"inbounds":[{"type":"tun","tag":"tun-in"}],"outbounds":[
             {"type":"direct","tag":"direct"},

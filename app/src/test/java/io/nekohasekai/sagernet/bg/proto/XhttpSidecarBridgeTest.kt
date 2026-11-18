@@ -47,6 +47,7 @@ class XhttpSidecarBridgeTest {
         val outbound = root.getAsJsonArray("outbounds").first { it.asJsonObject.get("tag").asString == "xhttp" }.asJsonObject
         assertEquals("socks", outbound.get("type").asString)
         assertEquals(28080, outbound.get("server_port").asInt)
+        assertEquals(false, outbound.has("network"))
 
         val bypass = root.getAsJsonObject("route").getAsJsonArray("rules").first().asJsonObject
         assertEquals("46.226.160.43/32", bypass.getAsJsonArray("ip_cidr").first().asString)

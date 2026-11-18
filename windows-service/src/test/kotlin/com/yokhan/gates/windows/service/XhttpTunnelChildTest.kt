@@ -92,6 +92,20 @@ class XhttpTunnelChildTest {
         assertTrue(child.awaitStopped(1_000))
     }
 
+    @Test
+    fun stopPreservingSidecarStopsTunnelWithoutStoppingSidecar() {
+        val events = mutableListOf<String>()
+        val sidecar = FakeSidecar(events).apply { healthy = true }
+        val tunnel = FakeTunnelChild(events)
+        val child = XhttpTunnelChild(tunnel, sidecar, spec(required = true), watchdogIntervalMillis = 500)
+
+        child.requestStop()
+        assertTrue(child.stopPreservingSidecar(1_000))
+        assertEquals(0, sidecar.stopCalls)
+        assertTrue(sidecar.healthy)
+        assertEquals(listOf("tunnel-stop", "tunnel-await"), events)
+    }
+
     private fun spec(required: Boolean): XhttpSidecarSpec = XhttpSidecarSpec(
         outboundTag = "xhttp",
         executableName = "xray.exe",
