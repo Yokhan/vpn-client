@@ -39,7 +39,7 @@ val defaultRuntimeDir = rootProject.projectDir.parentFile
 val windowsRuntimeDir = providers.environmentVariable("YOKHAN_SING_BOX_DIR")
     .map { file(it) }
     .orElse(defaultRuntimeDir)
-val windowsPackageVersion = "1.9.11"
+val windowsPackageVersion = "1.9.12"
 val windowsUpdateSignerSha1 = providers.environmentVariable("GATES_WINDOWS_UPDATE_SIGNER_SHA1").orElse("")
 val winswVersion = "2.12.0"
 val winswSha256 = "05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da"

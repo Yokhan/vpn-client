@@ -14,6 +14,7 @@ import io.nekohasekai.sagernet.group.RawUpdater
 import io.nekohasekai.sagernet.ktx.applyDefaultValues
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import moe.matsuri.nb4a.proxy.config.ConfigBean
@@ -214,68 +215,72 @@ object YokhanBootstrapAccess {
         }
 
         val seedExpiresAt = System.currentTimeMillis() + BOOTSTRAP_DEFAULT_TTL_MS
-        runCatching {
-            profileUpdater(
-                WiseTreeAccess.buildEmbeddedBootstrapProfileJson(autoDetectInterface = false),
-                seedExpiresAt,
-            )
-        }.getOrElse { error ->
-            return@withContext Result.failure(
-                IllegalStateException("Не удалось подготовить временный профиль: ${error.message ?: error.javaClass.simpleName}", error),
-            )
-        }
-        val tunnelReady = try {
-            ensureEmbeddedTunnelConnected()
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            false
-        }
-        if (!tunnelReady) {
-            runCatching { stopEmbeddedTunnel?.invoke() }
-            runCatching { profileCleaner() }
-            return@withContext Result.failure(
-                IllegalStateException("Не удалось запустить временный туннель. Проверьте разрешение VPN."),
-            )
-        }
-
-        var tunnelResponse: Pair<Int, String>? = null
-        val maxAttempts = 3
-        for (attempt in 1..maxAttempts) {
-            val attemptPair = try {
-                claimRequester("/api/bootstrap/claim", requestJson, deviceId)
+        var committed = false
+        try {
+            runCatching {
+                profileUpdater(
+                    WiseTreeAccess.buildEmbeddedBootstrapProfileJson(autoDetectInterface = false),
+                    seedExpiresAt,
+                )
+            }.getOrElse { error ->
+                if (error is CancellationException) throw error
+                return@withContext Result.failure(
+                    IllegalStateException("Не удалось подготовить временный профиль: ${error.message ?: error.javaClass.simpleName}", error),
+                )
+            }
+            val tunnelReady = try {
+                ensureEmbeddedTunnelConnected()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                null
+                false
             }
-            if (attemptPair != null) {
-                tunnelResponse = attemptPair
-                if (attemptPair.first < 500) break
+            if (!tunnelReady) {
+                return@withContext Result.failure(
+                    IllegalStateException("Не удалось запустить временный туннель. Проверьте разрешение VPN."),
+                )
             }
-            if (attempt < maxAttempts) {
-                delay(200L)
-            }
-        }
 
-        if (tunnelResponse == null || tunnelResponse.first >= 500) {
-            runCatching { stopEmbeddedTunnel?.invoke() }
-            runCatching { profileCleaner() }
-            return@withContext Result.failure(
-                IllegalStateException("Не удалось связаться с сервером разового доступа."),
-            )
-        }
-        if (tunnelResponse.first !in 200..299) {
-            runCatching { stopEmbeddedTunnel?.invoke() }
-            runCatching { profileCleaner() }
-            return@withContext Result.failure(
-                IllegalStateException(bootstrapClaimErrorMessage(tunnelResponse.first)),
-            )
-        }
-        return@withContext finishClaimWithPayload(tunnelResponse.second, subFetcher, profileUpdater).also { res ->
-            if (res.isFailure) {
-                runCatching { stopEmbeddedTunnel?.invoke() }
-                runCatching { profileCleaner() }
+            var tunnelResponse: Pair<Int, String>? = null
+            val maxAttempts = 3
+            for (attempt in 1..maxAttempts) {
+                val attemptPair = try {
+                    claimRequester("/api/bootstrap/claim", requestJson, deviceId)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
+                }
+                if (attemptPair != null) {
+                    tunnelResponse = attemptPair
+                    if (attemptPair.first < 500) break
+                }
+                if (attempt < maxAttempts) {
+                    delay(200L)
+                }
+            }
+
+            if (tunnelResponse == null || tunnelResponse.first >= 500) {
+                return@withContext Result.failure(
+                    IllegalStateException("Не удалось связаться с сервером разового доступа."),
+                )
+            }
+            if (tunnelResponse.first !in 200..299) {
+                return@withContext Result.failure(
+                    IllegalStateException(bootstrapClaimErrorMessage(tunnelResponse.first)),
+                )
+            }
+            val result = finishClaimWithPayload(tunnelResponse.second, subFetcher, profileUpdater)
+            if (result.isSuccess) {
+                committed = true
+            }
+            return@withContext result
+        } finally {
+            if (!committed) {
+                withContext(NonCancellable) {
+                    runCatching { stopEmbeddedTunnel?.invoke() }
+                    runCatching { profileCleaner() }
+                }
             }
         }
     }

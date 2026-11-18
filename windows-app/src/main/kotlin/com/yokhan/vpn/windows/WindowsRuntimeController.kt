@@ -8,6 +8,7 @@ import com.google.gson.JsonParser
 import com.sun.net.httpserver.HttpServer
 import com.yokhan.gates.shared.domain.access.WiseTreeAccess
 import java.awt.Desktop
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.RandomAccessFile
 import java.net.DatagramPacket
@@ -15,6 +16,7 @@ import java.net.DatagramSocket
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.ProxySelector
 import java.net.Socket
 import java.net.SocketTimeoutException
 import java.net.URI
@@ -40,6 +42,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import java.util.zip.GZIPOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.CancellationException
@@ -676,7 +679,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.9.11"
+private const val WINDOWS_APP_VERSION = "1.9.12"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -775,6 +778,7 @@ class WindowsRuntimeController(
     private val repairRuntimeService: () -> RuntimeCommandResult = {
         WindowsRuntimeServiceManager().prepareWithoutConnecting(forceRestart = true)
     },
+    private val localProxyAddressProvider: ((WindowsAppConfig) -> InetSocketAddress?)? = null,
 ) {
     internal val authorizationPrompt = MutableStateFlow<WindowsAuthorizationPrompt?>(null)
     internal val authorizationPhase = MutableStateFlow(WindowsAuthorizationPhase.Idle)
@@ -2053,7 +2057,7 @@ class WindowsRuntimeController(
         if (isBootstrapTunnelRunning()) {
             stop()
         }
-        val connected = connect()
+        val connected = connect(allowAccountSync = false)
         return if (connected.exitCode == 0) {
             awaitBootstrapRelayReady(readConfig())
             RuntimeCommandResult(
@@ -2090,57 +2094,61 @@ class WindowsRuntimeController(
         if (isBootstrapTunnelRunning()) {
             stop()
         }
-        val seedExpiresAt = System.currentTimeMillis() + 15 * 60 * 1000L
-        val seedStored = storeImportedProfile(
-            source = "bootstrap",
-            json = WiseTreeAccess.buildEmbeddedBootstrapProfileJson(autoDetectInterface = true),
-            subscriptionUrl = "$GATES_CLOAK_APP_API_BASE_URL/api/bootstrap/seed",
-            bootstrapExpiresAtEpochMillis = seedExpiresAt,
-        )
-        if (seedStored.exitCode != 0) return seedStored
-        val seedConnected = connect()
-        if (seedConnected.exitCode != 0) {
-            rollback()
-            return seedConnected
-        }
-        awaitBootstrapRelayReady(readConfig())
-        var tunnelResponse: HttpResponse<String>? = null
-        val maxAttempts = if (authHttpClient != null) 1 else 3
-        for (attempt in 1..maxAttempts) {
-            val response = runCatching {
-                sendAppApiPostWithFallback(
-                    config = readConfig(),
-                    path = "/api/bootstrap/claim",
-                    bodyJson = payloadJson,
-                    timeoutSeconds = 15,
-                    extraHeaders = mapOf("X-Yokhan-Device" to deviceId),
-                    allowRedirects = false,
-                )
-            }.getOrElse { error ->
-                if (error is CancellationException) throw error
-                null
+        var committed = false
+        try {
+            val seedExpiresAt = System.currentTimeMillis() + 15 * 60 * 1000L
+            val seedStored = storeImportedProfile(
+                source = "bootstrap",
+                json = WiseTreeAccess.buildEmbeddedBootstrapProfileJson(autoDetectInterface = true),
+                subscriptionUrl = "$GATES_CLOAK_APP_API_BASE_URL/api/bootstrap/seed",
+                bootstrapExpiresAtEpochMillis = seedExpiresAt,
+            )
+            if (seedStored.exitCode != 0) return seedStored
+            val seedConnected = connect(allowAccountSync = false)
+            if (seedConnected.exitCode != 0) {
+                return seedConnected
             }
-            if (response != null) {
-                tunnelResponse = response
-                if (response.statusCode() < 500) break
+            awaitBootstrapRelayReady(readConfig())
+            var tunnelResponse: HttpResponse<String>? = null
+            val maxAttempts = if (authHttpClient != null) 1 else 3
+            for (attempt in 1..maxAttempts) {
+                val response = runCatching {
+                    sendAppApiPostWithFallback(
+                        config = readConfig(),
+                        path = "/api/bootstrap/claim",
+                        bodyJson = payloadJson,
+                        timeoutSeconds = 15,
+                        extraHeaders = mapOf("X-Yokhan-Device" to deviceId),
+                        allowRedirects = false,
+                    )
+                }.getOrElse { error ->
+                    if (error is CancellationException) throw error
+                    null
+                }
+                if (response != null) {
+                    tunnelResponse = response
+                    if (response.statusCode() < 500) break
+                }
+                if (attempt < maxAttempts) {
+                    runCatching { Thread.sleep(1_200L) }
+                }
             }
-            if (attempt < maxAttempts) {
-                runCatching { Thread.sleep(1_200L) }
+            if (tunnelResponse == null || tunnelResponse.statusCode() >= 500) {
+                return RuntimeCommandResult(1, "Не удалось связаться с сервером разового доступа.")
+            }
+            if (tunnelResponse.statusCode() !in 200..299) {
+                return bootstrapClaimErrorResult(tunnelResponse.statusCode())
+            }
+            val applied = applyClaimedBootstrapSubscription(tunnelResponse.body())
+            if (applied.exitCode == 0) {
+                committed = true
+            }
+            return applied
+        } finally {
+            if (!committed) {
+                rollback()
             }
         }
-        if (tunnelResponse == null || tunnelResponse.statusCode() >= 500) {
-            rollback()
-            return RuntimeCommandResult(1, "Не удалось связаться с сервером разового доступа.")
-        }
-        if (tunnelResponse.statusCode() !in 200..299) {
-            rollback()
-            return bootstrapClaimErrorResult(tunnelResponse.statusCode())
-        }
-        val applied = applyClaimedBootstrapSubscription(tunnelResponse.body())
-        if (applied.exitCode != 0) {
-            rollback()
-        }
-        return applied
     }
 
     private fun awaitBootstrapRelayReady(config: WindowsAppConfig) {
@@ -2218,26 +2226,31 @@ class WindowsRuntimeController(
         }
         var lastStatus = 0
         var lastError: Exception? = null
-        val client = httpClient(allowRedirects = false)
-        for (candidateUrl in candidateUrls) {
-            val response = try {
-                val request = HttpRequest.newBuilder(URI.create(candidateUrl))
-                    .header("Accept", "application/json")
-                    .timeout(Duration.ofSeconds(30))
-                    .GET().build()
-                client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                lastError = error
-                continue
-            }
-            if (response.statusCode() in 200..299) {
-                return storeImportedProfile(source, response.body(), subscriptionUrl, bootstrapExpiresAtEpochMillis)
-            }
-            lastStatus = response.statusCode()
-            if (lastStatus < 500) {
-                return RuntimeCommandResult(lastStatus, "Не удалось получить подписку: HTTP $lastStatus.")
+        val clients = buildList {
+            add(httpClient(allowRedirects = false))
+            activeLocalProxyAddress(config)?.let { add(httpClientWithProxy(it, allowRedirects = false)) }
+        }
+        for (client in clients) {
+            for (candidateUrl in candidateUrls) {
+                val response = try {
+                    val request = HttpRequest.newBuilder(URI.create(candidateUrl))
+                        .header("Accept", "application/json")
+                        .timeout(Duration.ofSeconds(30))
+                        .GET().build()
+                    client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    lastError = error
+                    continue
+                }
+                if (response.statusCode() in 200..299) {
+                    return storeImportedProfile(source, response.body(), subscriptionUrl, bootstrapExpiresAtEpochMillis)
+                }
+                lastStatus = response.statusCode()
+                if (lastStatus < 500 && lastStatus != 408) {
+                    return RuntimeCommandResult(lastStatus, "Не удалось получить подписку: HTTP $lastStatus.")
+                }
             }
         }
         return if (lastStatus != 0) {
@@ -2373,12 +2386,12 @@ class WindowsRuntimeController(
     }
 
     @Synchronized
-    private fun connect(): RuntimeCommandResult {
+    private fun connect(allowAccountSync: Boolean = true): RuntimeCommandResult {
         ensureDirs()
         cachedAutoPhysicalBind = null
-        val config = readConfig()
+        val initialConfig = readConfig()
         if (allowRuntimeServiceDelegation && runtimeService.health().isRunningServiceTunnel()) {
-            if (config.killSwitchEnabled && parseWindowsProtectionState(runtimeService.protectionStatus()) != WindowsProtectionState.ARMED) {
+            if (initialConfig.killSwitchEnabled && parseWindowsProtectionState(runtimeService.protectionStatus()) != WindowsProtectionState.ARMED) {
                 return RuntimeCommandResult(1, "GATES_PROTECTION_NOT_ARMED")
             }
             return RuntimeCommandResult(
@@ -2389,7 +2402,7 @@ class WindowsRuntimeController(
         val existingId = managedProcessId()
         val existingProcess = managedProcess()
         if (isManagedProcessRunning(existingId, existingProcess)) {
-            if (config.killSwitchEnabled) return RuntimeCommandResult(1, "GATES_PROTECTION_REQUIRES_SERVICE")
+            if (initialConfig.killSwitchEnabled) return RuntimeCommandResult(1, "GATES_PROTECTION_REQUIRES_SERVICE")
             return RuntimeCommandResult(
                 0,
                 "Runtime is already running ${runningRuntimeModeSummary()} runtime. Saved configurations apply on the next connection.",
@@ -2397,6 +2410,17 @@ class WindowsRuntimeController(
         }
         extractRuntime()
         val steps = mutableListOf<String>()
+        var config = initialConfig
+        if (allowAccountSync) {
+            val syncResult = syncOrRecoverSignedInAccount(config)
+            config = readConfig()
+            if (syncResult != null) {
+                steps += "import-app exit=${syncResult.exitCode}"
+                if (syncResult.exitCode != 0 && (!rawConfigFile.isFile || isBootstrapSeedOrExpired(config))) {
+                    return RuntimeCommandResult(syncResult.exitCode, steps.joinToString("\n") + "\n" + syncResult.output)
+                }
+            }
+        }
         if (
             isBootstrapProfile(config) &&
             config.bootstrapExpiresAtEpochMillis in 1..System.currentTimeMillis()
@@ -2416,15 +2440,7 @@ class WindowsRuntimeController(
             if (signedIn.exitCode != 0) {
                 return RuntimeCommandResult(signedIn.exitCode, steps.joinToString("\n") + "\n" + signedIn.output)
             }
-        }
-        if (readAuthState(config) != null && config.profileSource !in setOf("manual", "bootstrap")) {
-            val imported = runCatching { importAuthenticatedAppConfig() }.getOrElse {
-                RuntimeCommandResult(1, "Не удалось обновить аккаунтную конфигурацию.")
-            }
-            steps += "import-app exit=${imported.exitCode}"
-            if (imported.exitCode != 0 && !rawConfigFile.isFile) {
-                return RuntimeCommandResult(imported.exitCode, steps.joinToString("\n") + "\n" + imported.output)
-            }
+            config = readConfig()
         }
         if (!rawConfigFile.isFile) {
             val imported = importSubscription()
@@ -3191,14 +3207,17 @@ class WindowsRuntimeController(
         ensureDirs()
         val initial = readConfig()
         var importNote = ""
-        if (readAuthState(initial) != null && initial.profileSource == "account") {
-            val imported = runCatching { importAuthenticatedAppConfig() }.getOrElse {
-                RuntimeCommandResult(1, "Не удалось обновить профиль с сервера.")
+        val syncResult = syncOrRecoverSignedInAccount(initial)
+        if (syncResult != null) {
+            val current = readConfig()
+            if (syncResult.exitCode != 0 && (!rawConfigFile.isFile || isBootstrapSeedOrExpired(current))) {
+                return syncResult
             }
-            if (imported.exitCode != 0 && !rawConfigFile.isFile) {
-                return imported
+            importNote = if (syncResult.exitCode == 0) {
+                if (syncResult.output.contains("Восстановлен сохранённый профиль")) syncResult.output else "Профиль обновлён с сервера."
+            } else {
+                "Использован локальный профиль."
             }
-            importNote = if (imported.exitCode == 0) "Профиль обновлён с сервера." else "Использован локальный профиль."
         }
         val generated = generateConfig()
         if (generated.exitCode != 0) {
@@ -3880,40 +3899,57 @@ class WindowsRuntimeController(
             add("connectivity_history", windowsConnectivityHistory())
         }
         val localFile = File(reportsDir, "bug-report-${Instant.now().toString().replace(":", "-")}.json")
-        localFile.writeText(gson.toJson(payload), StandardCharsets.UTF_8)
+        val fullJson = gson.toJson(payload)
+        localFile.writeText(fullJson, StandardCharsets.UTF_8)
+        val wireJson = boundedReportJson(payload.deepCopy())
+        val gzippedWireBytes = gzipCompressUtf8(wireJson)
 
         val bearer = runCatching { freshAccessToken(config) }.getOrNull()
-        val telemetryFuture = CompletableFuture.runAsync {
+        val failures = mutableListOf<String>()
+        val clients = buildList {
+            add(httpClient())
+            activeLocalProxyAddress(config)?.let { add(httpClientWithProxy(it)) }
+        }
+        for (client in clients) {
+            for (url in windowsCandidateBugReportUrls(config.reportUrls)) {
+                val gzRequest = buildBugReportRequest(url, bearer, bodyBytes = gzippedWireBytes, gzipEncoded = true)
+                var response = try {
+                    client.send(gzRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    failures += "$url :: ${error.message ?: error.javaClass.simpleName}"
+                    continue
+                }
+                if (response.statusCode() in setOf(400, 415)) {
+                    // Older intermediaries/endpoints that do not accept gzip fall back to plain UTF-8 JSON.
+                    val plainRequest = buildBugReportRequest(
+                        url,
+                        bearer,
+                        bodyBytes = wireJson.toByteArray(StandardCharsets.UTF_8),
+                        gzipEncoded = false,
+                    )
+                    response = try {
+                        client.send(plainRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        failures += "$url :: ${error.message ?: error.javaClass.simpleName}"
+                        continue
+                    }
+                }
+                if (response.statusCode() in 200..299) {
+                    return RuntimeCommandResult(
+                        0,
+                        "Bug report sent. Local copy: ${localFile.absolutePath}\nServer response: ${response.body()}",
+                    )
+                }
+                failures += "$url :: HTTP ${response.statusCode()} ${response.body()}"
+            }
+        }
+        if (telemetryPayload.get("result")?.asString in setOf("ok", "error")) {
             sendRouteTelemetry(config, telemetryPayload, bearer)
         }
-        val failures = mutableListOf<String>()
-        for (url in windowsCandidateBugReportUrls(config.reportUrls)) {
-            val requestBuilder = HttpRequest.newBuilder(URI.create(url))
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json; charset=utf-8")
-                .header("X-Yokhan-Client", "GATES-Windows")
-                .header("X-Yokhan-App-Version", WINDOWS_APP_VERSION)
-                .timeout(Duration.ofSeconds(20))
-                .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(payload), StandardCharsets.UTF_8))
-            if (!bearer.isNullOrBlank()) {
-                requestBuilder.header("Authorization", "Bearer $bearer")
-            }
-            val response = try {
-                httpClient().send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
-            } catch (error: Exception) {
-                failures += "$url :: ${error.message ?: error.javaClass.simpleName}"
-                continue
-            }
-            if (response.statusCode() in 200..299) {
-                telemetryFuture.join()
-                return RuntimeCommandResult(
-                    0,
-                    "Bug report sent. Local copy: ${localFile.absolutePath}\nServer response: ${response.body()}",
-                )
-            }
-            failures += "$url :: HTTP ${response.statusCode()} ${response.body()}"
-        }
-        telemetryFuture.join()
 
         return RuntimeCommandResult(
             1,
@@ -3922,6 +3958,45 @@ class WindowsRuntimeController(
                 append(failures.joinToString("\n"))
             }.trim(),
         )
+    }
+
+    private fun buildBugReportRequest(
+        url: String,
+        bearer: String?,
+        bodyBytes: ByteArray,
+        gzipEncoded: Boolean,
+    ): HttpRequest = HttpRequest.newBuilder(URI.create(url))
+        .header("Accept", "application/json")
+        .header("Content-Type", "application/json; charset=utf-8")
+        .apply {
+            if (gzipEncoded) header("Content-Encoding", "gzip")
+            if (!bearer.isNullOrBlank()) header("Authorization", "Bearer $bearer")
+        }
+        .header("X-Yokhan-Client", "GATES-Windows")
+        .header("X-Yokhan-App-Version", WINDOWS_APP_VERSION)
+        .timeout(Duration.ofSeconds(30))
+        .POST(HttpRequest.BodyPublishers.ofByteArray(bodyBytes))
+        .build()
+
+    private fun boundedReportJson(payload: JsonObject, maxBytes: Int = 192 * 1024): String {
+        val full = gson.toJson(payload)
+        if (full.toByteArray(StandardCharsets.UTF_8).size <= maxBytes) return full
+        payload.addProperty("runtime_logs", payload.get("runtime_logs")?.asString.orEmpty().takeLast(3000))
+        payload.addProperty("runtime_status", payload.get("runtime_status")?.asString.orEmpty().take(2500))
+        payload.addProperty("generated_config_shape", payload.get("generated_config_shape")?.asString.orEmpty().take(6000))
+        payload.addProperty("app_config", payload.get("app_config")?.asString.orEmpty().take(3500))
+        val trimmed = gson.toJson(payload)
+        if (trimmed.toByteArray(StandardCharsets.UTF_8).size <= maxBytes) return trimmed
+        payload.add("connectivity_history", JsonObject().apply { addProperty("availability", "truncated") })
+        return gson.toJson(payload)
+    }
+
+    private fun gzipCompressUtf8(text: String): ByteArray {
+        val out = ByteArrayOutputStream()
+        GZIPOutputStream(out).use { gzip ->
+            gzip.write(text.toByteArray(StandardCharsets.UTF_8))
+        }
+        return out.toByteArray()
     }
 
     private fun sendRouteTelemetry(
@@ -4057,6 +4132,59 @@ class WindowsRuntimeController(
                 },
             )
         }
+    }
+
+    private fun isBootstrapSeedOrExpired(config: WindowsAppConfig, nowMillis: Long = System.currentTimeMillis()): Boolean =
+        isBootstrapProfile(config) && (
+            config.subscriptionUrl.contains("/api/bootstrap/seed") ||
+                config.bootstrapExpiresAtEpochMillis in 1..nowMillis
+            )
+
+    private fun restoreSavedAccountProfileIfAvailable(config: WindowsAppConfig): Boolean {
+        val accountJson = accountConfigFile.takeIf { it.isFile }
+            ?.let { runCatching { profileStore.readText(it, StandardCharsets.UTF_8) }.getOrNull() }
+            ?.takeIf { hasImportedTunnelProfile(it) }
+            ?: return false
+        val selected = runCatching { windowsImportedProfileConfig(config, "account", accountJson) }.getOrNull()
+            ?: return false
+        val clearedSubscriptionUrl = if (config.subscriptionUrl.contains("/api/bootstrap/")) {
+            WindowsAppConfig().subscriptionUrl
+        } else {
+            config.subscriptionUrl
+        }
+        profileStore.transaction {
+            writeConfig(
+                selected.copy(
+                    subscriptionUrl = clearedSubscriptionUrl,
+                    bootstrapExpiresAtEpochMillis = 0L,
+                ),
+            )
+        }
+        if (isBootstrapProfile(config)) {
+            revokeBootstrapAccessBestEffort(readConfig())
+        }
+        return true
+    }
+
+    private fun syncOrRecoverSignedInAccount(config: WindowsAppConfig): RuntimeCommandResult? {
+        if (readAuthState(config) == null || config.profileSource == "manual") return null
+        val wasBootstrap = isBootstrapProfile(config)
+        val imported = runCatching { importAuthenticatedAppConfig() }.getOrElse {
+            RuntimeCommandResult(1, "Не удалось обновить аккаунтную конфигурацию.")
+        }
+        if (imported.exitCode == 0) {
+            return imported
+        }
+        if (wasBootstrap) {
+            if (restoreSavedAccountProfileIfAvailable(config)) {
+                return RuntimeCommandResult(0, "Восстановлен сохранённый профиль аккаунта.")
+            }
+            if (isBootstrapSeedOrExpired(config)) {
+                return imported
+            }
+            return null
+        }
+        return imported
     }
 
     private fun isBootstrapProfile(config: WindowsAppConfig): Boolean =
@@ -4306,6 +4434,29 @@ class WindowsRuntimeController(
             .followRedirects(if (allowRedirects) HttpClient.Redirect.NORMAL else HttpClient.Redirect.NEVER)
             .build()
 
+    private fun activeLocalProxyAddress(config: WindowsAppConfig): InetSocketAddress? {
+        localProxyAddressProvider?.let { return it(config) }
+        if (authHttpClient != null) return null
+        val host = config.listenHost.takeIf { it.isNotBlank() } ?: "127.0.0.1"
+        val port = config.httpPort.takeIf { it in 1..65535 } ?: return null
+        return runCatching {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress(host, port), 250)
+            }
+            InetSocketAddress(host, port)
+        }.getOrNull()
+    }
+
+    private fun httpClientWithProxy(
+        proxyAddress: InetSocketAddress,
+        allowRedirects: Boolean = true,
+        connectTimeout: Duration = Duration.ofSeconds(12),
+    ): HttpClient = HttpClient.newBuilder()
+        .connectTimeout(connectTimeout)
+        .followRedirects(if (allowRedirects) HttpClient.Redirect.NORMAL else HttpClient.Redirect.NEVER)
+        .proxy(ProxySelector.of(proxyAddress))
+        .build()
+
     private fun fetchJson(url: String, secureAuth: Boolean = false): JsonObject {
         val request = HttpRequest.newBuilder(URI.create(url))
             .header("Accept", "application/json")
@@ -4507,38 +4658,16 @@ class WindowsRuntimeController(
         extraHeaders: Map<String, String> = emptyMap(),
         timeoutSeconds: Long = 15,
         allowRedirects: Boolean = true,
-    ): HttpResponse<String> {
-        val bases = windowsCandidateAppApiBases(config.appApiBaseUrl)
-        var lastError: Exception? = null
-        var lastResponse: HttpResponse<String>? = null
-        val client = httpClient(allowRedirects = allowRedirects)
-        for (base in bases) {
-            val url = appEndpointWithBase(base, path, query)
-            val builder = HttpRequest.newBuilder(URI.create(url))
-                .header("Accept", "application/json")
-                .header("X-Yokhan-Client", "GATES-Windows")
-                .header("X-Yokhan-App-Version", WINDOWS_APP_VERSION)
-                .timeout(Duration.ofSeconds(timeoutSeconds))
-                .GET()
-            if (!bearerToken.isNullOrBlank()) {
-                builder.header("Authorization", "Bearer $bearerToken")
-            }
-            extraHeaders.forEach { (k, v) -> builder.header(k, v) }
-            val response = try {
-                client.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                lastError = error
-                continue
-            }
-            lastResponse = response
-            if (response.statusCode() < 500) {
-                return response
-            }
-        }
-        return lastResponse ?: throw (lastError ?: IllegalStateException("No App API endpoint configured"))
-    }
+    ): HttpResponse<String> = sendAppApiWithFallback(
+        config = config,
+        path = path,
+        method = "GET",
+        query = query,
+        bearerToken = bearerToken,
+        extraHeaders = extraHeaders,
+        timeoutSeconds = timeoutSeconds,
+        allowRedirects = allowRedirects,
+    )
 
     private fun sendAppApiPostWithFallback(
         config: WindowsAppConfig,
@@ -4548,35 +4677,65 @@ class WindowsRuntimeController(
         timeoutSeconds: Long = 12,
         extraHeaders: Map<String, String> = emptyMap(),
         allowRedirects: Boolean = true,
+    ): HttpResponse<String> = sendAppApiWithFallback(
+        config = config,
+        path = path,
+        method = "POST",
+        bodyJson = bodyJson,
+        bearerToken = bearerToken,
+        extraHeaders = extraHeaders,
+        timeoutSeconds = timeoutSeconds,
+        allowRedirects = allowRedirects,
+    )
+
+    private fun sendAppApiWithFallback(
+        config: WindowsAppConfig,
+        path: String,
+        method: String,
+        query: Map<String, String> = emptyMap(),
+        bodyJson: String? = null,
+        bearerToken: String? = null,
+        extraHeaders: Map<String, String> = emptyMap(),
+        timeoutSeconds: Long = 15,
+        allowRedirects: Boolean = true,
     ): HttpResponse<String> {
         val bases = windowsCandidateAppApiBases(config.appApiBaseUrl)
         var lastError: Exception? = null
         var lastResponse: HttpResponse<String>? = null
-        val client = httpClient(allowRedirects = allowRedirects)
-        for (base in bases) {
-            val url = appEndpointWithBase(base, path)
-            val builder = HttpRequest.newBuilder(URI.create(url))
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json; charset=utf-8")
-                .header("X-Yokhan-Client", "GATES-Windows")
-                .header("X-Yokhan-App-Version", WINDOWS_APP_VERSION)
-                .timeout(Duration.ofSeconds(timeoutSeconds))
-                .POST(HttpRequest.BodyPublishers.ofString(bodyJson, StandardCharsets.UTF_8))
-            extraHeaders.forEach { (key, value) -> builder.header(key, value) }
-            if (!bearerToken.isNullOrBlank()) {
-                builder.header("Authorization", "Bearer $bearerToken")
-            }
-            val response = try {
-                client.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                lastError = error
-                continue
-            }
-            lastResponse = response
-            if (response.statusCode() < 500) {
-                return response
+        val clients = buildList {
+            add(httpClient(allowRedirects = allowRedirects))
+            activeLocalProxyAddress(config)?.let { add(httpClientWithProxy(it, allowRedirects = allowRedirects)) }
+        }
+        for (client in clients) {
+            for (base in bases) {
+                val url = appEndpointWithBase(base, path, query)
+                val builder = HttpRequest.newBuilder(URI.create(url))
+                    .header("Accept", "application/json")
+                    .header("X-Yokhan-Client", "GATES-Windows")
+                    .header("X-Yokhan-App-Version", WINDOWS_APP_VERSION)
+                    .timeout(Duration.ofSeconds(timeoutSeconds))
+                if (method == "POST") {
+                    builder.header("Content-Type", "application/json; charset=utf-8")
+                    builder.POST(HttpRequest.BodyPublishers.ofString(bodyJson.orEmpty(), StandardCharsets.UTF_8))
+                } else {
+                    builder.GET()
+                }
+                if (!bearerToken.isNullOrBlank()) {
+                    builder.header("Authorization", "Bearer $bearerToken")
+                }
+                extraHeaders.forEach { (k, v) -> builder.header(k, v) }
+                val response = try {
+                    client.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    lastError = error
+                    continue
+                }
+                lastResponse = response
+                if (response.statusCode() < 500 && response.statusCode() != 408) {
+                    return response
+                }
             }
         }
         return lastResponse ?: throw (lastError ?: IllegalStateException("No App API endpoint configured"))
@@ -4807,23 +4966,45 @@ class WindowsRuntimeController(
         updatesDir.mkdirs()
         val target = File(updatesDir, safeFileName(name))
         val temp = File(updatesDir, "${target.name}.download")
-        if (temp.exists()) temp.delete()
-        val request = HttpRequest.newBuilder(URI.create(url))
-            .header("User-Agent", "GATES-Windows/$WINDOWS_APP_VERSION")
-            .timeout(Duration.ofMinutes(5))
-            .GET()
-            .build()
-        val response = httpClient().send(request, HttpResponse.BodyHandlers.ofFile(temp.toPath()))
-        if (response.statusCode() !in 200..299) {
-            temp.delete()
-            error("Download failed: HTTP ${response.statusCode()}")
+        val clients = buildList {
+            add(httpClient())
+            activeLocalProxyAddress(readConfig())?.let { add(httpClientWithProxy(it)) }
         }
-        if (target.exists()) target.delete()
-        if (!temp.renameTo(target)) {
-            temp.copyTo(target, overwrite = true)
+        var lastResponse: HttpResponse<java.nio.file.Path>? = null
+        var lastError: Exception? = null
+        for (client in clients) {
+            if (temp.exists()) temp.delete()
+            val request = HttpRequest.newBuilder(URI.create(url))
+                .header("User-Agent", "GATES-Windows/$WINDOWS_APP_VERSION")
+                .timeout(Duration.ofMinutes(5))
+                .GET()
+                .build()
+            val response = try {
+                client.send(request, HttpResponse.BodyHandlers.ofFile(temp.toPath()))
+            } catch (cancelled: CancellationException) {
+                temp.delete()
+                throw cancelled
+            } catch (error: Exception) {
+                temp.delete()
+                lastError = error
+                continue
+            }
+            if (response.statusCode() in 200..299) {
+                if (target.exists()) target.delete()
+                if (!temp.renameTo(target)) {
+                    temp.copyTo(target, overwrite = true)
+                    temp.delete()
+                }
+                return target
+            }
             temp.delete()
+            lastResponse = response
+            if (response.statusCode() < 500 && response.statusCode() != 408) {
+                error("Download failed: HTTP ${response.statusCode()}")
+            }
         }
-        return target
+        lastResponse?.let { error("Download failed: HTTP ${it.statusCode()}") }
+        throw (lastError ?: IllegalStateException("Download failed"))
     }
 
     private fun verifyWindowsInstallerSignature(file: File): RuntimeCommandResult {

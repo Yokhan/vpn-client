@@ -4,6 +4,7 @@ import com.google.gson.JsonParser
 import com.yokhan.gates.shared.domain.access.WiseTreeAccess
 import com.yokhan.gates.windows.service.ConfigValidationResult
 import com.yokhan.gates.windows.service.SingBoxConfigValidator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import java.net.Authenticator
 import java.net.CookieHandler
@@ -412,6 +413,150 @@ class WindowsBootstrapTest {
         assertTrue(WiseTreeAccess.EMBEDDED_UUID in startedPayloads[0])
         assertTrue(UUID in startedPayloads[1])
         assertEquals("bootstrap", controller.readConfig().profileSource)
+    }
+
+    @Test
+    fun cancellationDuringEmbeddedBootstrapTunnelRollsBackProfileAndStopsTunnel() = runBlocking {
+        val root = Files.createTempDirectory("gates-bootstrap-cancel-").toFile()
+        var running = false
+        var stopCount = 0
+        var currentDigest = "NONE"
+        val fakeService = object : WindowsRuntimeControl {
+            override fun health() = RuntimeCommandResult(0, if (running) "RUNNING" else "STOPPED")
+            override fun startTunnel(configJson: String): RuntimeCommandResult {
+                running = true
+                currentDigest = runtimeConfigurationDigest(configJson)
+                return RuntimeCommandResult(0, "STARTED")
+            }
+            override fun stop(): RuntimeCommandResult {
+                running = false
+                stopCount += 1
+                currentDigest = "NONE"
+                return RuntimeCommandResult(0, "STOPPED")
+            }
+            override fun configurationDigest() = RuntimeCommandResult(0, currentDigest)
+        }
+        val http = MockHttpClient { req, _ ->
+            val uri = req.uri().toString()
+            when {
+                uri.endsWith("/api/bootstrap/claim") && !running -> 503 to """{"error":"blocked"}"""
+                uri.endsWith("/api/bootstrap/claim") && running -> throw CancellationException("user cancelled")
+                else -> 404 to "{}"
+            }
+        }
+        val controller = WindowsRuntimeController(
+            allowRuntimeServiceDelegation = true,
+            appDir = root,
+            runtimeService = fakeService,
+            prepareRuntimeService = { RuntimeCommandResult(0, "ready") },
+            validateGeneratedConfig = { RuntimeCommandResult(0, "ok") },
+            authHttpClient = http,
+            runtimeServiceInstalled = { true },
+            xrayPinProvider = { "A".repeat(64) },
+            serviceDataDir = root.resolve("service-data"),
+            verifyBootstrapCode = { it.trim() == "tree-secret" },
+        )
+        controller.storeImportedProfile("manual", PLAIN_PROFILE, "https://app.yokhan.xyz/gates/api/sub/keep")
+
+        var cancelledCaught = false
+        try {
+            controller.run("bootstrap-claim", "tree-secret")
+        } catch (_: CancellationException) {
+            cancelledCaught = true
+        }
+        if ("Physical bind" in controller.run("logs").output) return@runBlocking
+        assertTrue(cancelledCaught)
+        assertFalse(running)
+        assertTrue(stopCount >= 1)
+        assertEquals("manual", controller.readConfig().profileSource)
+    }
+
+    @Test
+    fun signedInUserStuckOnBootstrapSeedRecoversSavedAccountProfileWhenOffline() = runBlocking {
+        val root = Files.createTempDirectory("gates-bootstrap-recover-acc-").toFile()
+        var running = false
+        var currentDigest = "NONE"
+        val startedPayloads = mutableListOf<String>()
+        val fakeService = object : WindowsRuntimeControl {
+            override fun health() = RuntimeCommandResult(0, if (running) "RUNNING" else "STOPPED")
+            override fun startTunnel(configJson: String): RuntimeCommandResult {
+                running = true
+                startedPayloads += configJson
+                currentDigest = runtimeConfigurationDigest(configJson)
+                return RuntimeCommandResult(0, "STARTED")
+            }
+            override fun stop(): RuntimeCommandResult {
+                running = false
+                currentDigest = "NONE"
+                return RuntimeCommandResult(0, "STOPPED")
+            }
+            override fun configurationDigest() = RuntimeCommandResult(0, currentDigest)
+        }
+        val futureEpoch = (System.currentTimeMillis() / 1000L) + 3600L
+        root.resolve("auth-state.json").writeText(
+            """{"issuer":"$GATES_AUTH_ISSUER","clientId":"${WindowsAppConfig().authClientId}","tokenEndpoint":"$GATES_AUTH_ISSUER/protocol/openid-connect/token","accessToken":"VALID_ACCESS","refreshToken":"VALID_REFRESH","expiresAtEpochSecond":$futureEpoch}""",
+        )
+        val http = MockHttpClient { _, _ -> 503 to """{"error":"offline"}""" }
+        val controller = WindowsRuntimeController(
+            allowRuntimeServiceDelegation = true,
+            appDir = root,
+            runtimeService = fakeService,
+            prepareRuntimeService = { RuntimeCommandResult(0, "ready") },
+            validateGeneratedConfig = { RuntimeCommandResult(0, "ok") },
+            authHttpClient = http,
+            runtimeServiceInstalled = { true },
+            xrayPinProvider = { "A".repeat(64) },
+            serviceDataDir = root.resolve("service-data"),
+        )
+        assertEquals(0, controller.storeImportedProfile("account", XHTTP_PROFILE).exitCode)
+        // Simulate stranded bootstrap seed profile while still signed into account
+        assertEquals(
+            0,
+            controller.storeImportedProfile(
+                source = "bootstrap",
+                json = WiseTreeAccess.buildEmbeddedBootstrapProfileJson(autoDetectInterface = true),
+                subscriptionUrl = "$GATES_CLOAK_APP_API_BASE_URL/api/bootstrap/seed",
+                bootstrapExpiresAtEpochMillis = System.currentTimeMillis() - 5_000L,
+            ).exitCode,
+        )
+        assertEquals("bootstrap", controller.readConfig().profileSource)
+
+        val connectResult = controller.run("connect")
+        if ("Physical bind" in connectResult.output) return@runBlocking
+        assertEquals(0, connectResult.exitCode, connectResult.output)
+        assertEquals("account", controller.readConfig().profileSource)
+        assertEquals(0L, controller.readConfig().bootstrapExpiresAtEpochMillis)
+        assertTrue(startedPayloads.isNotEmpty())
+        val startedObj = JsonParser.parseString(startedPayloads.last()).asJsonObject
+        assertEquals("xhttp", startedObj.getAsJsonObject("route").get("final").asString)
+    }
+
+    @Test
+    fun signedInUserStuckOnBootstrapSeedFailsCleanlyWithoutSavedAccountWhenOffline() = runBlocking {
+        val root = Files.createTempDirectory("gates-bootstrap-seed-fail-").toFile()
+        val futureEpoch = (System.currentTimeMillis() / 1000L) + 3600L
+        root.resolve("auth-state.json").writeText(
+            """{"issuer":"$GATES_AUTH_ISSUER","clientId":"${WindowsAppConfig().authClientId}","tokenEndpoint":"$GATES_AUTH_ISSUER/protocol/openid-connect/token","accessToken":"VALID_ACCESS","refreshToken":"VALID_REFRESH","expiresAtEpochSecond":$futureEpoch}""",
+        )
+        val http = MockHttpClient { _, _ -> 503 to """{"error":"offline"}""" }
+        val controller = WindowsRuntimeController(
+            allowRuntimeServiceDelegation = false,
+            appDir = root,
+            validateGeneratedConfig = { RuntimeCommandResult(0, "ok") },
+            authHttpClient = http,
+        )
+        assertEquals(
+            0,
+            controller.storeImportedProfile(
+                source = "bootstrap",
+                json = WiseTreeAccess.buildEmbeddedBootstrapProfileJson(autoDetectInterface = true),
+                subscriptionUrl = "$GATES_CLOAK_APP_API_BASE_URL/api/bootstrap/seed",
+                bootstrapExpiresAtEpochMillis = System.currentTimeMillis() + 600_000L,
+            ).exitCode,
+        )
+
+        val connectResult = controller.run("connect")
+        assertTrue(connectResult.exitCode != 0)
     }
 
     private class MockHttpClient(

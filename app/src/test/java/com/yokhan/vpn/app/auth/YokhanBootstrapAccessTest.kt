@@ -1,6 +1,7 @@
 package com.yokhan.gates.app.auth
 
 import com.yokhan.gates.shared.domain.access.WiseTreeAccess
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -153,5 +154,35 @@ class YokhanBootstrapAccessTest {
         assertEquals(2, importedPayloads.size)
         assertTrue(WiseTreeAccess.EMBEDDED_UUID in importedPayloads[0])
         assertTrue("per-device-uuid" in importedPayloads[1])
+    }
+
+    @Test
+    fun claimWithDeps_cancellationDuringClaimCleansUpEmbeddedTunnelAndSeedProfile() = runBlocking {
+        var tunnelUp = false
+        var stopped = false
+        var cleaned = false
+        var cancelledCaught = false
+        try {
+            YokhanBootstrapAccess.claimWithDeps(
+                code = "tree-secret",
+                codeVerifier = { it == "tree-secret" },
+                deviceId = "android-test-cancel",
+                ensureEmbeddedTunnelConnected = { tunnelUp = true; true },
+                stopEmbeddedTunnel = { tunnelUp = false; stopped = true },
+                claimRequester = { _, _, _ ->
+                    if (!tunnelUp) error("blocked without VPN")
+                    throw CancellationException("user cancelled")
+                },
+                subFetcher = { "{}" },
+                profileUpdater = { _, _ -> 1 },
+                profileCleaner = { cleaned = true },
+            )
+        } catch (_: CancellationException) {
+            cancelledCaught = true
+        }
+        assertTrue(cancelledCaught)
+        assertFalse(tunnelUp)
+        assertTrue(stopped)
+        assertTrue(cleaned)
     }
 }

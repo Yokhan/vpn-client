@@ -964,16 +964,6 @@ private fun WindowsApp(
                 if (command == "test") {
                     connectionTestRunning = true
                 }
-                if (command == "connect") {
-                    val source = withContext(Dispatchers.IO) { runCatching { controller.readConfig().profileSource }.getOrNull() }
-                    if (source == "account") {
-                        withContext(Dispatchers.IO) { runCatching { controller.run("import-app") } }
-                        activeRoute = withContext(Dispatchers.IO) {
-                            runCatching { controller.readConfig().activeRoute }.getOrDefault(activeRoute)
-                        }
-                        availableRoutes = withContext(Dispatchers.IO) { controller.availableRoutes() }
-                    }
-                }
                 val result = withContext(Dispatchers.IO) { controller.run(command, argument ?: route) }
                 val failureStage = windowsRecoveryFailureStage(command, result)
                 if (failureStage != null) {
@@ -999,13 +989,18 @@ private fun WindowsApp(
                 if (command == "set-runtime" && result.exitCode == 0) runtimeMode = argument ?: "tun"
                 if (command == "set-kill-switch" && result.exitCode == 0) killSwitchEnabled = argument == "true"
                 if (command in setOf(
-                        "set-kill-switch", "set-ru-bypass", "set-whole-traffic", "set-bypass-lan",
+                        "connect", "set-kill-switch", "set-ru-bypass", "set-whole-traffic", "set-bypass-lan",
                         "set-block-quic", "set-route-order", "enable-autostart",
                         "disable-autostart", "reconnect", "sync-runtime", "set-route",
                     ) && result.exitCode == 0
                 ) {
                     val refreshedCfg = withContext(Dispatchers.IO) { controller.readConfig() }
                     applyConfigSnapshot(refreshedCfg)
+                    bootstrapExpiresAt = if (refreshedCfg.profileSource == "bootstrap") {
+                        refreshedCfg.bootstrapExpiresAtEpochMillis
+                    } else {
+                        0L
+                    }
                     appRoutingState = withContext(Dispatchers.IO) { controller.appRoutingState() }
                 }
                 if (command == "probe-routes") {
