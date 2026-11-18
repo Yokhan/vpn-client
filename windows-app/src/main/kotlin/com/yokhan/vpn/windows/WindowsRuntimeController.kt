@@ -676,7 +676,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.9.10"
+private const val WINDOWS_APP_VERSION = "1.9.11"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")

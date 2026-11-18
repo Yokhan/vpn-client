@@ -105,4 +105,24 @@ class WindowsAppGridTest {
         val second = WindowsAppIcons.icon("C:\\Cache\\probe.exe")
         assertTrue(first === second)
     }
+
+    @Test
+    fun smallerSwingIconIsCenteredInsideTargetCanvasInsteadOfTopLeftCorner() {
+        val smallIcon = object : javax.swing.Icon {
+            override fun paintIcon(c: java.awt.Component?, g: java.awt.Graphics, x: Int, y: Int) {
+                g.color = java.awt.Color.WHITE
+                g.fillRect(x, y, iconWidth, iconHeight)
+            }
+
+            override fun getIconWidth(): Int = 16
+            override fun getIconHeight(): Int = 16
+        }
+
+        val rendered = WindowsAppIcons.renderCenteredIcon(smallIcon, minSize = 32)
+        assertEquals(32, rendered.width)
+        assertEquals(32, rendered.height)
+        assertEquals(0, rendered.getRGB(0, 0))
+        assertEquals(java.awt.Color.WHITE.rgb, rendered.getRGB(16, 16))
+        assertEquals(0, rendered.getRGB(31, 31))
+    }
 }

@@ -61,22 +61,30 @@ internal object WindowsAppIcons {
     private fun load(path: String): ImageBitmap = runCatching {
         val file = File(path)
         if (!file.exists()) return@runCatching fallback()
-        val icon = FileSystemView.getFileSystemView().getSystemIcon(file)
+        val fsv = FileSystemView.getFileSystemView()
+        val icon = runCatching { fsv.getSystemIcon(file, DEFAULT_ICON_SIZE, DEFAULT_ICON_SIZE) }.getOrNull()
+            ?: fsv.getSystemIcon(file)
         if (icon == null || icon.iconWidth <= 0 || icon.iconHeight <= 0) {
             fallback()
         } else {
-            val width = icon.iconWidth.coerceAtLeast(DEFAULT_ICON_SIZE)
-            val height = icon.iconHeight.coerceAtLeast(DEFAULT_ICON_SIZE)
-            val image = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
-            val graphics = image.createGraphics()
-            try {
-                icon.paintIcon(null, graphics, 0, 0)
-            } finally {
-                graphics.dispose()
-            }
-            image.toComposeImageBitmap()
+            renderCenteredIcon(icon, DEFAULT_ICON_SIZE).toComposeImageBitmap()
         }
     }.getOrElse { fallback() }
+
+    internal fun renderCenteredIcon(icon: javax.swing.Icon, minSize: Int = DEFAULT_ICON_SIZE): BufferedImage {
+        val width = icon.iconWidth.coerceAtLeast(minSize)
+        val height = icon.iconHeight.coerceAtLeast(minSize)
+        val image = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+        val graphics = image.createGraphics()
+        try {
+            val x = (width - icon.iconWidth) / 2
+            val y = (height - icon.iconHeight) / 2
+            icon.paintIcon(null, graphics, x, y)
+        } finally {
+            graphics.dispose()
+        }
+        return image
+    }
 
     private fun canonicalKey(path: String): String =
         path.trim().replace('/', '\\').lowercase()
