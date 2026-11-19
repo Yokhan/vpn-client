@@ -6,7 +6,6 @@
   <arguments>--runtime-service</arguments>
   <workingdirectory>%ProgramData%\GATES\Service</workingdirectory>
   <startmode>Automatic</startmode>
-  <delayedAutoStart>true</delayedAutoStart>
   <stoptimeout>20 sec</stoptimeout>
   <onfailure action="restart" delay="10 sec" />
   <resetfailure>1 hour</resetfailure>

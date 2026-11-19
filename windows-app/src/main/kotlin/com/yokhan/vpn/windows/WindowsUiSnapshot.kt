@@ -40,6 +40,23 @@ internal fun windowsUiStatusAfterCommand(
     else -> ConnectionStatus.Disconnected
 }
 
+internal fun windowsUiTransitionalStatus(requested: ConnectionStatus?): ConnectionStatus? = when (requested) {
+    ConnectionStatus.Connected -> ConnectionStatus.Connecting
+    ConnectionStatus.Disconnected -> ConnectionStatus.Disconnecting
+    else -> null
+}
+
+internal fun windowsUiResolvedStartedAtMillis(
+    currentStartedAtMillis: Long?,
+    command: String,
+    exitCode: Int,
+    liveStartedAtMillis: Long?,
+): Long? = if (command == "stop" && exitCode == 0) {
+    null
+} else {
+    liveStartedAtMillis ?: currentStartedAtMillis
+}
+
 internal class WindowsRuntimeCommandGeneration {
     private var generation = 0L
 

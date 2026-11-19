@@ -147,8 +147,9 @@ fun main(args: Array<String>) {
         Runtime.getRuntime().halt(0)
     }
 
+    val launchedFromAutostart = qa == null && args.any { it.equals("--autostart", ignoreCase = true) }
     val singleInstanceGuard = if (qa == null) {
-        WindowsSingleInstanceGuard.tryAcquireOrWakeExisting() ?: return
+        WindowsSingleInstanceGuard.tryAcquireOrWakeExisting(wakeExisting = !launchedFromAutostart) ?: return
     } else {
         null
     }
@@ -160,8 +161,8 @@ fun main(args: Array<String>) {
             val windowState = rememberWindowState(
                 size = if (qa != null) DpSize(AppWidth, AppHeight) else DpSize(savedWindowPrefs.widthDp.dp, savedWindowPrefs.heightDp.dp),
             )
-            val traySupported = remember { qa == null && NativeTray.isSupported() }
-            var windowVisible by remember { mutableStateOf(true) }
+            val trayEnabled = qa == null
+            var windowVisible by remember { mutableStateOf(!launchedFromAutostart) }
             val trayActions = remember { Channel<String>(Channel.UNLIMITED) }
             var trayRef by remember { mutableStateOf<NativeTray?>(null) }
             var ownerWindowRef by remember { mutableStateOf<AwtWindow?>(null) }
@@ -192,8 +193,8 @@ fun main(args: Array<String>) {
                 }
             }
 
-            DisposableEffect(traySupported) {
-                val tray = if (traySupported) {
+            DisposableEffect(trayEnabled) {
+                val tray = if (trayEnabled) {
                     NativeTray(
                         onOpen = {
                             windowVisible = true
@@ -227,7 +228,7 @@ fun main(args: Array<String>) {
             Window(
                 visible = windowVisible,
                 onCloseRequest = {
-                    if (traySupported) {
+                    if (trayEnabled && (trayRef?.isInstalled() == true || NativeTray.isSupported())) {
                         windowVisible = false
                     } else {
                         exitApplication()
@@ -252,7 +253,8 @@ fun main(args: Array<String>) {
                 WindowsApp(
                     ownerWindow = window,
                     qa = qa,
-                    trayActions = if (traySupported) trayActions else null,
+                    launchedFromAutostart = launchedFromAutostart,
+                    trayActions = if (trayEnabled) trayActions else null,
                     onTrayStateChanged = { connected, routeLabel, routeTag, routes, ruBypass ->
                         trayRef?.updateState(
                             connected = connected,
@@ -422,6 +424,7 @@ private fun runCli(args: List<String>): Int = runBlocking {
 private fun WindowsApp(
     ownerWindow: AwtWindow? = null,
     qa: WindowsQaSession? = null,
+    launchedFromAutostart: Boolean = false,
     trayActions: Channel<String>? = null,
     onTrayStateChanged: (
         connected: Boolean,
@@ -773,11 +776,16 @@ private fun WindowsApp(
             return@LaunchedEffect
         }
         var snapshotLoaded = false
+        var snapshotSessionReady = false
+        var snapshotSignedIn = false
+        var snapshotProfileSource = "legacy"
+        var snapshotBootstrapExpiresAt = 0L
         var autoCheckUpdates = false
         runWindowsUiAction(
             setBusy = { busy = it },
             onFailure = { lastMessage = it },
         ) {
+            withContext(Dispatchers.IO) { runCatching { controller.reconcileAutoStartWithRegistry() } }
             val snapshot = loadWindowsUiSnapshot(
                 readConfig = controller::readConfig,
                 readSession = controller::sessionState,
@@ -790,6 +798,10 @@ private fun WindowsApp(
             appRoutingState = snapshot.appRouting
             recoveryPreferenceLoaded = true
             autoCheckUpdates = snapshot.config.autoCheckUpdates
+            snapshotSessionReady = snapshot.session.ready
+            snapshotSignedIn = snapshot.session.signedIn
+            snapshotProfileSource = snapshot.config.profileSource
+            snapshotBootstrapExpiresAt = snapshot.config.bootstrapExpiresAtEpochMillis
             snapshotLoaded = true
             if (qa == null && runtimeMode == "tun") {
                 lastMessage = "Проверка службы GATES…"
@@ -801,17 +813,87 @@ private fun WindowsApp(
         if (qa?.realAccess == true) return@LaunchedEffect
 
         val startupGeneration = runtimeCommandGeneration.capture()
+        var liveConnected = false
         runCatching {
             val live = withContext(Dispatchers.IO) { controller.queryLiveRuntimeStatus() }
             if (runtimeCommandGeneration.isUnchanged(startupGeneration)) {
                 protectionState = live.protectionState
                 resolvedActiveRoute = live.resolvedRoute
                 tunnelStartedAtMillis = live.startedAtEpochMillis
+                liveConnected = live.connected
                 if (live.connected) {
                     connectionStatus = ConnectionStatus.Connected
                     val roomNetResult = withContext(Dispatchers.IO) { controller.run("roomnet-info") }
                     if (runtimeCommandGeneration.isUnchanged(startupGeneration)) {
                         roomNetMessage = roomNetUiMessage(roomNetResult)
+                    }
+                }
+            }
+        }
+
+        val expiredAnonBootstrap = snapshotProfileSource == "bootstrap" &&
+            !snapshotSignedIn &&
+            snapshotBootstrapExpiresAt in 1..System.currentTimeMillis()
+        if (
+            launchedFromAutostart &&
+            snapshotSessionReady &&
+            !liveConnected &&
+            !expiredAnonBootstrap &&
+            runtimeCommandGeneration.isUnchanged(startupGeneration)
+        ) {
+            runWindowsUiAction(
+                setBusy = { busy = it },
+                onFailure = { lastMessage = it },
+            ) {
+                var connectResult = RuntimeCommandResult(1, "")
+                val maxAttempts = 3
+                for (attempt in 1..maxAttempts) {
+                    if (!runtimeCommandGeneration.isUnchanged(startupGeneration)) break
+                    connectionStatus = ConnectionStatus.Connecting
+                    connectResult = withContext(Dispatchers.IO) { controller.run("connect") }
+                    if (connectResult.exitCode == 0) break
+                    val failureCode = windowsUiFailureCode("connect", connectResult)
+                    val nonRetryable = failureCode in setOf(
+                        "GATES_UAC_CANCELLED",
+                        "GATES_INSTALL_LOCATION",
+                        "GATES_ROUTE_UNAVAILABLE",
+                    )
+                    if (nonRetryable || attempt == maxAttempts) break
+                    delay(3_000)
+                }
+                if (runtimeCommandGeneration.isUnchanged(startupGeneration)) {
+                    connectionStatus = windowsUiStatusAfterCommand(
+                        connectionStatus,
+                        ConnectionStatus.Connected,
+                        connectResult.exitCode,
+                    )
+                    sessionState = withContext(Dispatchers.IO) { controller.sessionState() }
+                    availableRoutes = withContext(Dispatchers.IO) { controller.availableRoutes() }
+                    if (connectResult.exitCode == 0) {
+                        val refreshedCfg = withContext(Dispatchers.IO) { controller.readConfig() }
+                        applyConfigSnapshot(refreshedCfg)
+                        bootstrapExpiresAt = if (refreshedCfg.profileSource == "bootstrap") {
+                            refreshedCfg.bootstrapExpiresAtEpochMillis
+                        } else {
+                            0L
+                        }
+                        tunnelStartedAtMillis = System.currentTimeMillis()
+                        roomNetMessage = roomNetUiMessage(
+                            withContext(Dispatchers.IO) { controller.run("roomnet-info") },
+                        )
+                        val liveAfterConnect = withContext(Dispatchers.IO) {
+                            runCatching { controller.queryLiveRuntimeStatus() }.getOrNull()
+                        }
+                        if (liveAfterConnect != null) {
+                            protectionState = liveAfterConnect.protectionState
+                            resolvedActiveRoute = liveAfterConnect.resolvedRoute
+                            if (liveAfterConnect.startedAtEpochMillis != null) {
+                                tunnelStartedAtMillis = liveAfterConnect.startedAtEpochMillis
+                            }
+                        }
+                        lastMessage = ""
+                    } else {
+                        lastMessage = windowsUiResultMessage("connect", connectResult)
                     }
                 }
             }
@@ -954,10 +1036,12 @@ private fun WindowsApp(
         scope.launch {
             if (busy) return@launch
             runtimeCommandGeneration.commandStarted()
+            windowsUiTransitionalStatus(nextStatus)?.let { connectionStatus = it }
             runWindowsUiAction(
                 setBusy = { busy = it },
                 onFailure = {
                     connectionTestRunning = false
+                    connectionStatus = windowsUiStatusAfterCommand(connectionStatus, nextStatus, exitCode = 1)
                     lastMessage = it
                 },
             ) {
@@ -985,6 +1069,8 @@ private fun WindowsApp(
                 if (command == "stop" && result.exitCode == 0) {
                     tunnelStartedAtMillis = null
                     roomNetMessage = ""
+                    latestLatencyMs = null
+                    liveTelemetry = WindowsLiveTelemetrySnapshot()
                 }
                 if (command == "set-runtime" && result.exitCode == 0) runtimeMode = argument ?: "tun"
                 if (command == "set-kill-switch" && result.exitCode == 0) killSwitchEnabled = argument == "true"
@@ -1002,6 +1088,8 @@ private fun WindowsApp(
                         0L
                     }
                     appRoutingState = withContext(Dispatchers.IO) { controller.appRoutingState() }
+                } else if (command in setOf("enable-autostart", "disable-autostart")) {
+                    autoStartOnLogin = withContext(Dispatchers.IO) { controller.readConfig().autoStartOnLogin }
                 }
                 if (command == "probe-routes") {
                     probeOutput = result.output
@@ -1017,10 +1105,17 @@ private fun WindowsApp(
                 if (live != null) {
                     protectionState = live.protectionState
                     resolvedActiveRoute = live.resolvedRoute
-                    if (live.startedAtEpochMillis != null) tunnelStartedAtMillis = live.startedAtEpochMillis
+                    tunnelStartedAtMillis = windowsUiResolvedStartedAtMillis(
+                        currentStartedAtMillis = tunnelStartedAtMillis,
+                        command = command,
+                        exitCode = result.exitCode,
+                        liveStartedAtMillis = live.startedAtEpochMillis,
+                    )
                 }
                 if (command == "check-update" && result.exitCode == 0) {
                     updateAvailable = result.output.contains("Update available: true")
+                } else if (command == "update" && result.exitCode == 0) {
+                    updateAvailable = false
                 }
                 lastMessage = windowsUiResultMessage(command, result)
                 if (result.exitCode == 0) onSuccess?.invoke()
@@ -1035,10 +1130,8 @@ private fun WindowsApp(
             when {
                 action == "toggle" -> {
                     if (connectionStatus == ConnectionStatus.Connected || (!killSwitchEnabled && protectionState.retainsProtection)) {
-                        connectionStatus = ConnectionStatus.Disconnecting
                         launchRuntime("Отключение", "stop", nextStatus = ConnectionStatus.Disconnected)
                     } else {
-                        connectionStatus = ConnectionStatus.Connecting
                         launchRuntime("Подключение", "connect", nextStatus = ConnectionStatus.Connected)
                     }
                 }
@@ -1092,7 +1185,7 @@ private fun WindowsApp(
                 val result = withContext(Dispatchers.IO) { controller.addAppsRouting(resolved, proxy) }
                 appRoutingState = withContext(Dispatchers.IO) { controller.appRoutingState() }
                 pendingDroppedPaths = emptyList()
-                lastMessage = result.output.ifBlank { windowsUiResultMessage(if (proxy) "add-app-proxy" else "add-app-direct", result) }
+                lastMessage = windowsUiResultMessage(if (proxy) "add-app-proxy" else "add-app-direct", result)
             }
         }
     }
@@ -1111,7 +1204,7 @@ private fun WindowsApp(
             ) {
                 val result = withContext(Dispatchers.IO) { controller.moveAppRouting(target, toProxy) }
                 appRoutingState = withContext(Dispatchers.IO) { controller.appRoutingState() }
-                lastMessage = result.output
+                lastMessage = windowsUiResultMessage(if (toProxy) "add-app-proxy" else "add-app-direct", result)
             }
         }
     }
@@ -1491,7 +1584,7 @@ private fun WindowsApp(
                                     applyConfigSnapshot(snapshot.config)
                                     availableRoutes = snapshot.routes
                                     appRoutingState = snapshot.appRouting
-                                    lastMessage = result.output.ifBlank { windowsUiResultMessage("import-sub", result) }
+                                    lastMessage = windowsUiResultMessage("import-sub", result)
                                     if (result.exitCode == 0) {
                                         accessFailure = null
                                         accessPending = false
@@ -1654,10 +1747,8 @@ private fun WindowsApp(
                             lastMessage = "Операция недоступна в тестовом режиме."
                         } else if (!busy) {
                             if (connectionStatus == ConnectionStatus.Connected || (!killSwitchEnabled && protectionState.retainsProtection)) {
-                                connectionStatus = ConnectionStatus.Disconnecting
                                 launchRuntime("Отключение", "stop", nextStatus = ConnectionStatus.Disconnected)
                             } else {
-                                connectionStatus = ConnectionStatus.Connecting
                                 launchRuntime("Подключение", "connect", nextStatus = ConnectionStatus.Connected)
                             }
                         }
@@ -2012,7 +2103,7 @@ private fun WindowsApp(
                                         launchAppRouting("Приложение", "add-app-proxy", path)
                                     }
                                 }) else null,
-                                onOpenRouting = { routeStack = routeStack.switchTab(WindowsRoute.Routing) },
+                                onOpenRouting = { navigateToRoute(WindowsRoute.Routing) },
                                 autoUploadRecoveryReports = autoUploadRecoveryReports,
                                 onAutoUploadRecoveryReportsChange = if (qa == null) { enabled ->
                                     scope.launch {
@@ -2041,7 +2132,7 @@ private fun WindowsApp(
                                 onRefreshStatus = { refreshToolsStatus() },
                                 onOpenLogs = { navigateToRoute(WindowsRoute.Logs) },
                                 onExportSupportBundle = { launchRuntime("Диагностика", "support-bundle") },
-                                onResetSystemProxy = { launchRuntime("Сброс прокси", "reset-system-proxy") },
+                                onResetSystemProxy = { launchRuntime("Сброс прокси", "disable-system-proxy") },
                                 autoStartOnLogin = autoStartOnLogin,
                                 onAutoStartChange = if (qa == null) ({ enabled ->
                                     launchRuntime(

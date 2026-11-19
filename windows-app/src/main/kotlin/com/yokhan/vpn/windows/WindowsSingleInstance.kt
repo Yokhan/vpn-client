@@ -51,6 +51,7 @@ internal class WindowsSingleInstanceGuard private constructor(
     companion object {
         fun tryAcquireOrWakeExisting(
             appDir: File = windowsGatesAppDir(),
+            wakeExisting: Boolean = true,
             onActivateRequest: () -> Unit = {},
         ): WindowsSingleInstanceGuard? {
             appDir.mkdirs()
@@ -66,7 +67,9 @@ internal class WindowsSingleInstanceGuard private constructor(
             val lock = runCatching { channel.tryLock() }.getOrNull()
             if (lock == null) {
                 runCatching { channel.close() }
-                wakeExistingInstance(portFile)
+                if (wakeExisting) {
+                    wakeExistingInstance(portFile)
+                }
                 return null
             }
             val token = UUID.randomUUID().toString()

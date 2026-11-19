@@ -36,7 +36,7 @@ internal fun resolveWindowsRuntimeServiceAssets(
 }
 
 class WindowsRuntimeServiceManager(
-    private val client: WindowsRuntimeServiceClient = WindowsRuntimeServiceClient(),
+    private val client: WindowsRuntimeControl = WindowsRuntimeServiceClient(),
     private val launcherPathProvider: () -> String? = ::currentLauncherPath,
     private val programFilesPath: String = System.getenv("ProgramFiles").orEmpty(),
     private val processRunner: (List<String>, File, Int) -> RuntimeCommandResult = ::runWindowsServiceManagerProcess,
@@ -95,13 +95,26 @@ class WindowsRuntimeServiceManager(
     fun ensureRunning(): RuntimeCommandResult {
         val health = client.health()
         if (health.exitCode == 0) return health
+        awaitInstalledServiceStartup()?.let { return it }
         return install()
     }
 
     fun prepareWithoutConnecting(forceRestart: Boolean = false): RuntimeCommandResult {
         val health = client.health()
         if (health.exitCode == 0 && !forceRestart) return health
+        if (!forceRestart) {
+            awaitInstalledServiceStartup()?.let { return it }
+        }
         return install(allowSessionRestore = false, forceRestart = forceRestart)
+    }
+
+    private fun awaitInstalledServiceStartup(): RuntimeCommandResult? {
+        val svc = runCatching { queryService() }.getOrNull() ?: return null
+        if (svc.exitCode != 0) return null
+        val isPendingOrRunning = svc.output.contains("START_PENDING") || svc.output.contains("RUNNING")
+        if (!isPendingOrRunning) return null
+        val awaited = waitUntilHealthy(6)
+        return if (awaited.exitCode == 0) awaited else null
     }
 
     private fun currentAssets(): WindowsRuntimeServiceAssets? {

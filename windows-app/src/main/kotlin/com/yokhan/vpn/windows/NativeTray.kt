@@ -7,8 +7,50 @@ import java.awt.PopupMenu
 import java.awt.SystemTray
 import java.awt.TrayIcon
 import java.awt.image.BufferedImage
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
-class NativeTray(
+internal interface TraySystemBackend {
+    fun isSupported(): Boolean
+    fun add(icon: TrayIcon)
+    fun remove(icon: TrayIcon)
+    fun contains(icon: TrayIcon): Boolean
+    fun iconSize(): Int
+}
+
+internal object AwtTraySystemBackend : TraySystemBackend {
+    override fun isSupported(): Boolean = runCatching { SystemTray.isSupported() }.getOrDefault(false)
+
+    override fun add(icon: TrayIcon) {
+        SystemTray.getSystemTray().add(icon)
+    }
+
+    override fun remove(icon: TrayIcon) {
+        runCatching { SystemTray.getSystemTray().remove(icon) }
+    }
+
+    override fun contains(icon: TrayIcon): Boolean = runCatching {
+        icon in SystemTray.getSystemTray().trayIcons
+    }.getOrDefault(false)
+
+    override fun iconSize(): Int = runCatching {
+        val size = SystemTray.getSystemTray().trayIconSize
+        maxOf(size.width, size.height, 16)
+    }.getOrDefault(16)
+}
+
+internal data class NativeTrayStateSnapshot(
+    val connected: Boolean = false,
+    val activeRouteLabel: String = "Автоматически",
+    val activeRouteTag: String = "auto",
+    val routes: List<WindowsProfileRoute> = emptyList(),
+    val enableRuBypass: Boolean = true,
+)
+
+class NativeTray internal constructor(
     private val onOpen: () -> Unit,
     private val onToggleConnection: () -> Unit = {},
     private val onTestConnection: () -> Unit = {},
@@ -16,7 +58,32 @@ class NativeTray(
     private val onToggleRuBypass: () -> Unit = {},
     private val onHideToTray: () -> Unit = {},
     private val onQuit: () -> Unit,
+    private val backend: TraySystemBackend = AwtTraySystemBackend,
+    private val runOnUiThread: (() -> Unit) -> Unit = { block -> EventQueue.invokeLater(block) },
+    private val startWatchdog: Boolean = true,
 ) {
+    constructor(
+        onOpen: () -> Unit,
+        onToggleConnection: () -> Unit = {},
+        onTestConnection: () -> Unit = {},
+        onSelectRoute: (String) -> Unit = {},
+        onToggleRuBypass: () -> Unit = {},
+        onHideToTray: () -> Unit = {},
+        onQuit: () -> Unit,
+    ) : this(
+        onOpen = onOpen,
+        onToggleConnection = onToggleConnection,
+        onTestConnection = onTestConnection,
+        onSelectRoute = onSelectRoute,
+        onToggleRuBypass = onToggleRuBypass,
+        onHideToTray = onHideToTray,
+        onQuit = onQuit,
+        backend = AwtTraySystemBackend,
+        runOnUiThread = { block -> EventQueue.invokeLater(block) },
+        startWatchdog = true,
+    )
+
+    @Volatile
     private var trayIcon: TrayIcon? = null
     private var statusItem: MenuItem? = null
     private var toggleItem: MenuItem? = null
@@ -24,54 +91,110 @@ class NativeTray(
     private var ruBypassItem: MenuItem? = null
     private var lastRouteMenuKey: String = ""
 
-    fun install() {
-        if (!isSupported() || trayIcon != null) return
-        EventQueue.invokeLater {
-            if (trayIcon != null) return@invokeLater
-            val menu = PopupMenu()
-            val status = MenuItem("GATES · проверка…").apply { isEnabled = false }
-            val open = MenuItem("Открыть GATES").apply {
-                addActionListener { onOpen() }
-            }
-            val toggle = MenuItem("Подключить туннель").apply {
-                addActionListener { onToggleConnection() }
-            }
-            val routesSubmenu = Menu("Маршрут")
-            val ruItem = MenuItem("Автообход РФ: ВКЛ").apply {
-                addActionListener { onToggleRuBypass() }
-            }
-            val test = MenuItem("Проверить соединение").apply {
-                addActionListener { onTestConnection() }
-            }
-            val hide = MenuItem("Свернуть в трей (служба работает)").apply {
-                addActionListener { onHideToTray() }
-            }
-            val quit = MenuItem("Выйти из интерфейса GATES").apply {
-                addActionListener { onQuit() }
-            }
-            menu.add(status)
-            menu.addSeparator()
-            menu.add(open)
-            menu.add(toggle)
-            menu.add(routesSubmenu)
-            menu.add(ruItem)
-            menu.add(test)
-            menu.add(hide)
-            menu.addSeparator()
-            menu.add(quit)
+    @Volatile
+    private var latestState: NativeTrayStateSnapshot = NativeTrayStateSnapshot()
+    private val disposed = AtomicBoolean(false)
+    private val watchdogTickCount = AtomicInteger(0)
+    private var watchdogExecutor: ScheduledExecutorService? = null
 
-            val icon = TrayIcon(createIcon(), "GATES — Туннель Windows", menu).apply {
+    fun install() {
+        if (disposed.get()) return
+        ensureWatchdogStarted()
+        runOnUiThread { ensureInstalledOnUiThread() }
+    }
+
+    internal fun attemptInstallNowForTest() {
+        ensureInstalledOnUiThread()
+    }
+
+    fun isInstalled(): Boolean {
+        val current = trayIcon ?: return false
+        return backend.isSupported() && backend.contains(current)
+    }
+
+    private fun ensureWatchdogStarted() {
+        if (!startWatchdog) return
+        synchronized(this) {
+            if (disposed.get() || watchdogExecutor != null) return
+            val executor = Executors.newSingleThreadScheduledExecutor { task ->
+                Thread(task, "gates-tray-watchdog").apply { isDaemon = true }
+            }
+            watchdogExecutor = executor
+            // Windows autostart apps often launch while explorer.exe / Shell_TrayWnd is still initializing.
+            // Poll quickly during the first ~90s, then gently afterwards to recover if Explorer restarts.
+            executor.scheduleWithFixedDelay({
+                if (disposed.get()) return@scheduleWithFixedDelay
+                val tick = watchdogTickCount.incrementAndGet()
+                if (isInstalled() && tick % 5 != 0) return@scheduleWithFixedDelay
+                if (!isInstalled() || tick % 5 == 0) {
+                    runOnUiThread { ensureInstalledOnUiThread() }
+                }
+            }, 1500L, 2000L, TimeUnit.MILLISECONDS)
+        }
+    }
+
+    private fun ensureInstalledOnUiThread() {
+        if (disposed.get()) return
+        if (!backend.isSupported()) return
+        val existing = trayIcon
+        if (existing != null) {
+            if (backend.contains(existing)) return
+            // Explorer restarted or dropped the shell notification icon; clean up and re-add.
+            backend.remove(existing)
+            clearMenuRefs()
+        }
+
+        val menu = PopupMenu()
+        val status = MenuItem("GATES · проверка…").apply { isEnabled = false }
+        val open = MenuItem("Открыть GATES").apply {
+            addActionListener { onOpen() }
+        }
+        val toggle = MenuItem("Подключить туннель").apply {
+            addActionListener { onToggleConnection() }
+        }
+        val routesSubmenu = Menu("Маршрут")
+        val ruItem = MenuItem("Автообход РФ: ВКЛ").apply {
+            addActionListener { onToggleRuBypass() }
+        }
+        val test = MenuItem("Проверить соединение").apply {
+            addActionListener { onTestConnection() }
+        }
+        val hide = MenuItem("Свернуть в трей (служба работает)").apply {
+            addActionListener { onHideToTray() }
+        }
+        val quit = MenuItem("Выйти из интерфейса GATES").apply {
+            addActionListener { onQuit() }
+        }
+        menu.add(status)
+        menu.addSeparator()
+        menu.add(open)
+        menu.add(toggle)
+        menu.add(routesSubmenu)
+        menu.add(ruItem)
+        menu.add(test)
+        menu.add(hide)
+        menu.addSeparator()
+        menu.add(quit)
+
+        val icon = runCatching {
+            TrayIcon(createIcon(), "GATES — Туннель Windows", menu).apply {
                 isImageAutoSize = true
                 addActionListener { onOpen() }
             }
-            SystemTray.getSystemTray().add(icon)
-            statusItem = status
-            toggleItem = toggle
-            routeMenu = routesSubmenu
-            ruBypassItem = ruItem
-            trayIcon = icon
-            rebuildRoutesMenu(emptyList(), "auto")
+        }.getOrNull() ?: return
+
+        val added = runCatching { backend.add(icon) }.isSuccess
+        if (!added) {
+            runCatching { backend.remove(icon) }
+            return
         }
+        statusItem = status
+        toggleItem = toggle
+        routeMenu = routesSubmenu
+        ruBypassItem = ruItem
+        trayIcon = icon
+        lastRouteMenuKey = ""
+        applyStateOnUiThread(latestState)
     }
 
     fun updateStatus(connected: Boolean, activeRoute: String) {
@@ -91,17 +214,32 @@ class NativeTray(
         routes: List<WindowsProfileRoute>,
         enableRuBypass: Boolean,
     ) {
-        EventQueue.invokeLater {
-            val stateText = if (connected) "Подключено ($activeRouteLabel)" else "Отключено"
-            statusItem?.label = "GATES · $stateText"
-            toggleItem?.label = if (connected) "Отключить туннель" else "Подключить туннель"
-            ruBypassItem?.label = "Умный автообход РФ: ${if (enableRuBypass) "ВКЛ" else "ВЫКЛ"}"
-            trayIcon?.toolTip = "GATES — $stateText"
-            val routeKey = "$activeRouteTag|${routes.joinToString(",") { it.tag }}"
-            if (routeKey != lastRouteMenuKey) {
-                lastRouteMenuKey = routeKey
-                rebuildRoutesMenu(routes, activeRouteTag)
+        val snapshot = NativeTrayStateSnapshot(
+            connected = connected,
+            activeRouteLabel = activeRouteLabel,
+            activeRouteTag = activeRouteTag,
+            routes = routes,
+            enableRuBypass = enableRuBypass,
+        )
+        latestState = snapshot
+        runOnUiThread {
+            if (trayIcon == null && !disposed.get()) {
+                ensureInstalledOnUiThread()
             }
+            applyStateOnUiThread(snapshot)
+        }
+    }
+
+    private fun applyStateOnUiThread(snapshot: NativeTrayStateSnapshot) {
+        val stateText = if (snapshot.connected) "Подключено (${snapshot.activeRouteLabel})" else "Отключено"
+        statusItem?.label = "GATES · $stateText"
+        toggleItem?.label = if (snapshot.connected) "Отключить туннель" else "Подключить туннель"
+        ruBypassItem?.label = "Умный автообход РФ: ${if (snapshot.enableRuBypass) "ВКЛ" else "ВЫКЛ"}"
+        trayIcon?.toolTip = "GATES — $stateText"
+        val routeKey = "${snapshot.activeRouteTag}|${snapshot.routes.joinToString(",") { it.tag }}"
+        if (routeKey != lastRouteMenuKey) {
+            lastRouteMenuKey = routeKey
+            rebuildRoutesMenu(snapshot.routes, snapshot.activeRouteTag)
         }
     }
 
@@ -128,23 +266,30 @@ class NativeTray(
     }
 
     fun uninstall() {
-        val icon = trayIcon ?: return
+        disposed.set(true)
+        synchronized(this) {
+            watchdogExecutor?.shutdownNow()
+            watchdogExecutor = null
+        }
+        val icon = trayIcon
+        clearMenuRefs()
+        if (icon != null) {
+            runOnUiThread { backend.remove(icon) }
+        }
+    }
+
+    private fun clearMenuRefs() {
         trayIcon = null
         statusItem = null
         toggleItem = null
         routeMenu = null
         ruBypassItem = null
-        EventQueue.invokeLater {
-            runCatching { SystemTray.getSystemTray().remove(icon) }
-        }
+        lastRouteMenuKey = ""
     }
 
-    private fun createIcon(): BufferedImage {
-        val size = SystemTray.getSystemTray().trayIconSize
-        return WindowsBrandIcons.load(maxOf(size.width, size.height))
-    }
+    private fun createIcon(): BufferedImage = WindowsBrandIcons.load(backend.iconSize())
 
     companion object {
-        fun isSupported(): Boolean = runCatching { SystemTray.isSupported() }.getOrDefault(false)
+        fun isSupported(): Boolean = AwtTraySystemBackend.isSupported()
     }
 }

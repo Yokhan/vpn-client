@@ -326,6 +326,14 @@ fun GatesAccessScreen(
                         }
                     },
                     modifier = Modifier.fillMaxWidth().testTag("form.input.manual-input")
+                        .onPreviewKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) {
+                                if (!busy && manualInput.isNotBlank()) {
+                                    onImport()
+                                }
+                                true
+                            } else false
+                        }
                         .padding(vertical = YokhanSpacing.CompactGap)
                         .yokhanOutlinedSurface(palette).padding(YokhanSpacing.ControlHorizontal),
                 )

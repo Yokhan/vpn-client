@@ -227,7 +227,7 @@ internal fun WindowsNetworkSettingsSection(
         YokhanRouteCard("Запуск Windows", colors, typography) {
             YokhanToggleRow(
                 title = "Запускать при входе в Windows",
-                summary = "Открывает GATES автоматически; закрытие окна оставляет туннель в фоновой службе.",
+                summary = "Автоматически запускает GATES в трей при входе в Windows и подключает туннель.",
                 checked = autoStartOnLogin,
                 colors = colors,
                 typography = typography,

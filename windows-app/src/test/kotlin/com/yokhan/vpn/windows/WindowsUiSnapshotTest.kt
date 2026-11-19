@@ -123,4 +123,29 @@ class WindowsUiSnapshotTest {
         assertEquals(listOf(true, false), busyChanges)
         assertFalse(failureReported)
     }
+
+    @Test
+    fun transitionalStatusAndStoppedTimerAreGuarded() {
+        assertEquals(ConnectionStatus.Connecting, windowsUiTransitionalStatus(ConnectionStatus.Connected))
+        assertEquals(ConnectionStatus.Disconnecting, windowsUiTransitionalStatus(ConnectionStatus.Disconnected))
+        assertEquals(null, windowsUiTransitionalStatus(null))
+        assertEquals(
+            null,
+            windowsUiResolvedStartedAtMillis(
+                currentStartedAtMillis = null,
+                command = "stop",
+                exitCode = 0,
+                liveStartedAtMillis = 123456L,
+            ),
+        )
+        assertEquals(
+            987654L,
+            windowsUiResolvedStartedAtMillis(
+                currentStartedAtMillis = 111L,
+                command = "connect",
+                exitCode = 0,
+                liveStartedAtMillis = 987654L,
+            ),
+        )
+    }
 }

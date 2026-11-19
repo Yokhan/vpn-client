@@ -96,4 +96,17 @@ class WindowsUiMessagesTest {
         assertEquals("GATES_PROTECTION_SERVICE_UNAVAILABLE", windowsUiFailureCode("set-kill-switch", staleService))
         assertTrue(windowsUiResultMessage("set-kill-switch", staleService).contains("служба"))
     }
+    @Test fun autostartSuccessAndFailureMessagesAreLocalized() {
+        assertEquals("Автозапуск включён.", windowsUiResultMessage("enable-autostart", RuntimeCommandResult(0, "ok")))
+        assertEquals("Автозапуск выключен.", windowsUiResultMessage("disable-autostart", RuntimeCommandResult(0, "ok")))
+        assertEquals("Не удалось включить автозапуск.", windowsUiResultMessage("enable-autostart", RuntimeCommandResult(5, "Access denied")))
+        assertEquals("Не удалось отключить автозапуск.", windowsUiResultMessage("disable-autostart", RuntimeCommandResult(5, "Access denied")))
+    }
+
+    @Test fun updateAndPrepareRuntimeMessagesAreLocalized() {
+        assertEquals("Обновление загружено и запущено.", windowsUiResultMessage("update", RuntimeCommandResult(0, "ok")))
+        assertEquals("Не удалось загрузить обновление.", windowsUiResultMessage("update", RuntimeCommandResult(1, "HTTP 502")))
+        assertEquals("Служба GATES готова.", windowsUiResultMessage("prepare-runtime", RuntimeCommandResult(0, "ok")))
+        assertTrue(windowsUiResultMessage("prepare-runtime", RuntimeCommandResult(1, "install failed")).contains("служб"))
+    }
 }

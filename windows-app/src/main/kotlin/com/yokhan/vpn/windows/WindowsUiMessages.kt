@@ -49,6 +49,9 @@ internal fun windowsUiResultMessage(command: String, result: RuntimeCommandResul
         "set-tun-routing" -> "Не удалось изменить режим разделения приложений."
         "add-app-proxy", "add-app-direct" -> "Не удалось добавить правило для приложения."
         "remove-app-proxy", "remove-app-direct" -> "Не удалось удалить правило для приложения."
+        "enable-autostart" -> "Не удалось включить автозапуск."
+        "disable-autostart" -> "Не удалось отключить автозапуск."
+        "update" -> "Не удалось загрузить обновление."
         else -> "Не удалось сохранить изменения."
     }
     return when (command) {
@@ -62,6 +65,8 @@ internal fun windowsUiResultMessage(command: String, result: RuntimeCommandResul
             result.output.contains("No update") || result.output.contains("Update available: false") -> "Установлена последняя версия."
             else -> "Проверка обновлений завершена."
         }
+        "update" -> "Обновление загружено и запущено."
+        "prepare-runtime" -> "Служба GATES готова."
         "connect" -> "Подключено."
         "stop" -> "Отключено."
         "reconnect", "sync-runtime" -> "Туннель и конфигурация службы синхронизированы."

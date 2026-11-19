@@ -679,7 +679,7 @@ internal fun normalizeWindowsAuthClientId(
     return trimmed
 }
 
-private const val WINDOWS_APP_VERSION = "1.9.12"
+private const val WINDOWS_APP_VERSION = "1.9.13"
 internal fun windowsAppVersionForDisplay(): String = WINDOWS_APP_VERSION
 private const val WINDOWS_UPDATE_SIGNER_PROPERTY = "gates.update.signer.sha1"
 private val WINDOWS_SIGNER_PATTERN = Regex("[0-9A-F]{40}")
@@ -779,6 +779,8 @@ class WindowsRuntimeController(
         WindowsRuntimeServiceManager().prepareWithoutConnecting(forceRestart = true)
     },
     private val localProxyAddressProvider: ((WindowsAppConfig) -> InetSocketAddress?)? = null,
+    private val autoStartLauncherProvider: () -> String? = ::defaultSelfLauncher,
+    private val registryCommandRunner: ((List<String>) -> RuntimeCommandResult)? = null,
 ) {
     internal val authorizationPrompt = MutableStateFlow<WindowsAuthorizationPrompt?>(null)
     internal val authorizationPhase = MutableStateFlow(WindowsAuthorizationPhase.Idle)
@@ -823,6 +825,8 @@ class WindowsRuntimeController(
     private val reportsDir = File(appDir, "reports")
     private val internetSettingsRegKey = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"
     private val runRegKey = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+    private val startupApprovedRunRegKey =
+        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run"
 
     val summary: String
         get() = "AppData: ${appDir.absolutePath}"
@@ -4819,25 +4823,78 @@ class WindowsRuntimeController(
     private fun setAutoStart(enabled: Boolean): RuntimeCommandResult {
         ensureDirs()
         val result = if (enabled) {
-            val launcher = selfLauncher()
+            val launcher = autoStartLauncherProvider()?.takeIf { it.isNotBlank() }
                 ?: return RuntimeCommandResult(1, "Packaged GATES launcher was not found.")
             val launcherName = File(launcher).name.lowercase()
             if (launcherName == "java.exe" || launcherName == "javaw.exe") {
                 return RuntimeCommandResult(1, "Autostart requires the packaged GATES.exe launcher.")
             }
-            regAdd(runRegKey, "GATES", "REG_SZ", "\"$launcher\"")
+            val added = regAdd(runRegKey, "GATES", "REG_SZ", windowsAutoStartRegistryCommand(launcher))
+            if (added.exitCode == 0) {
+                // Clear any disabled override from Task Manager / Windows Startup settings.
+                regDelete(startupApprovedRunRegKey, "GATES")
+            }
+            added
         } else {
+            regDelete(startupApprovedRunRegKey, "GATES")
             regDelete(runRegKey, "GATES").let {
-                if (it.exitCode == 0) it else RuntimeCommandResult(0, "GATES autostart was already disabled.")
+                if (it.exitCode == 0 || isRegistryValueMissing(it)) {
+                    RuntimeCommandResult(0, "GATES autostart was already disabled.")
+                } else {
+                    it
+                }
             }
         }
-        if (result.exitCode == 0) {
-            writeConfig(readConfig().copy(autoStartOnLogin = enabled))
+        if (result.exitCode != 0) {
+            return RuntimeCommandResult(
+                result.exitCode,
+                result.output.ifBlank {
+                    if (enabled) "Failed to register GATES autostart." else "Failed to remove GATES autostart."
+                },
+            )
         }
+        writeConfig(readConfig().copy(autoStartOnLogin = enabled))
         return RuntimeCommandResult(
-            result.exitCode,
+            0,
             if (enabled) "GATES autostart enabled." else "GATES autostart disabled.",
         )
+    }
+
+    internal fun reconcileAutoStartWithRegistry(): WindowsAppConfig {
+        val config = readConfig()
+        val runEntry = runCatching { regQuery(runRegKey, "GATES") }.getOrNull() ?: return config
+        val approvedEntry = runCatching { regQuery(startupApprovedRunRegKey, "GATES") }.getOrNull()
+        val startupApproved = approvedEntry == null || !approvedEntry.present ||
+            isWindowsStartupApprovedEnabled(approvedEntry.value)
+        val effectiveEnabled = runEntry.present && startupApproved
+        if (effectiveEnabled) {
+            val launcher = autoStartLauncherProvider()?.takeIf { it.isNotBlank() }
+            val launcherName = launcher?.let { File(it).name.lowercase() }
+            if (
+                launcher != null &&
+                launcherName !in setOf("java.exe", "javaw.exe") &&
+                isGatesAutoStartRegistryEntry(runEntry.value)
+            ) {
+                val expectedCommand = windowsAutoStartRegistryCommand(launcher)
+                if (!runEntry.value.trim().equals(expectedCommand, ignoreCase = true)) {
+                    regAdd(runRegKey, "GATES", "REG_SZ", expectedCommand)
+                }
+            }
+        }
+        if (config.autoStartOnLogin != effectiveEnabled) {
+            val updated = config.copy(autoStartOnLogin = effectiveEnabled)
+            writeConfig(updated)
+            return updated
+        }
+        return config
+    }
+
+    private fun runRegistryCommand(args: List<String>): RuntimeCommandResult =
+        registryCommandRunner?.invoke(args) ?: runProcess(args, appDir, timeoutSeconds = 10)
+
+    private fun isRegistryValueMissing(result: RuntimeCommandResult): Boolean {
+        val lower = result.output.lowercase()
+        return "unable to find" in lower || "не удается найти" in lower || "the system was unable to find" in lower
     }
 
     private fun currentSystemProxySnapshot(): SystemProxySnapshot {
@@ -4855,7 +4912,7 @@ class WindowsRuntimeController(
     }
 
     private fun regQuery(key: String, name: String): RegistryValue {
-        val result = runProcess(listOf("reg.exe", "query", key, "/v", name), appDir, timeoutSeconds = 10)
+        val result = runRegistryCommand(listOf("reg.exe", "query", key, "/v", name))
         if (result.exitCode != 0) return RegistryValue(false, "")
         val line = result.output
             .lineSequence()
@@ -4867,10 +4924,10 @@ class WindowsRuntimeController(
     }
 
     private fun regAdd(key: String, name: String, type: String, value: String): RuntimeCommandResult =
-        runProcess(listOf("reg.exe", "add", key, "/v", name, "/t", type, "/d", value, "/f"), appDir, timeoutSeconds = 10)
+        runRegistryCommand(listOf("reg.exe", "add", key, "/v", name, "/t", type, "/d", value, "/f"))
 
     private fun regDelete(key: String, name: String): RuntimeCommandResult =
-        runProcess(listOf("reg.exe", "delete", key, "/v", name, "/f"), appDir, timeoutSeconds = 10)
+        runRegistryCommand(listOf("reg.exe", "delete", key, "/v", name, "/f"))
 
     private fun isRunningAsAdministrator(): Boolean {
         val script =
@@ -5174,10 +5231,7 @@ class WindowsRuntimeController(
         return ProcessHandle.of(pid).orElse(null)
     }
 
-    private fun selfLauncher(): String? {
-        val command = ProcessHandle.current().info().command().orElse("")
-        return command.takeIf { it.isNotBlank() && File(it).isFile }
-    }
+    private fun selfLauncher(): String? = autoStartLauncherProvider()
 
     private fun readProcessState(): Map<String, String> {
         if (!processStateFile.isFile) return emptyMap()
@@ -5382,4 +5436,30 @@ class WindowsRuntimeController(
     internal fun recoveryCoreVersion(): String =
         if (System.getenv("YOKHAN_SING_BOX_DIR").isNullOrBlank()) "1.13.12" else "unknown"
 
+}
+
+internal fun windowsAutoStartRegistryCommand(launcherPath: String): String =
+    "\"$launcherPath\" --autostart"
+
+internal fun isGatesAutoStartRegistryEntry(value: String): Boolean {
+    val trimmed = value.trim()
+    if (trimmed.isBlank()) return false
+    val executablePath = if (trimmed.startsWith('"')) {
+        trimmed.substring(1).substringBefore('"')
+    } else {
+        trimmed.substringBefore(" --").trim()
+    }
+    return File(executablePath).name.equals("GATES.exe", ignoreCase = true)
+}
+
+internal fun isWindowsStartupApprovedEnabled(hexValue: String): Boolean {
+    val clean = hexValue.trim().replace(" ", "")
+    if (clean.length < 2) return true
+    val firstByte = clean.substring(0, 2).toIntOrNull(16) ?: return true
+    return (firstByte and 1) == 0
+}
+
+private fun defaultSelfLauncher(): String? {
+    val command = ProcessHandle.current().info().command().orElse("")
+    return command.takeIf { it.isNotBlank() && File(it).isFile }
 }

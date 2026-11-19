@@ -14,11 +14,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -304,7 +309,7 @@ internal fun WindowsLogsScreen(
     var levelFilter by remember { mutableStateOf("all") }
     var searchQuery by remember { mutableStateOf("") }
 
-    val filteredText = remember(logText, levelFilter, searchQuery) {
+    val filteredLines = remember(logText, levelFilter, searchQuery) {
         val lines = logText.lineSequence()
         val levelFiltered = when (levelFilter) {
             "warn" -> lines.filter { line ->
@@ -320,7 +325,13 @@ internal fun WindowsLogsScreen(
         val finalLines = if (query.isEmpty()) levelFiltered else levelFiltered.filter {
             it.startsWith("===") || it.contains(query, ignoreCase = true)
         }
-        finalLines.joinToString("\n").ifBlank { "(нет строк по текущему фильтру)" }
+        finalLines.toList()
+    }
+    val hasFilteredLines = remember(logText, filteredLines) {
+        logText.isNotBlank() && filteredLines.any { it.isNotBlank() }
+    }
+    val filteredText = remember(filteredLines, hasFilteredLines) {
+        if (hasFilteredLines) filteredLines.joinToString("\n") else "(нет строк по текущему фильтру)"
     }
 
     YokhanRouteFrame(
@@ -383,6 +394,7 @@ internal fun WindowsLogsScreen(
                     .yokhanOutlinedSurface(colors, radius = YokhanRadius.Panel)
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 BasicTextField(
                     value = searchQuery,
@@ -398,6 +410,19 @@ internal fun WindowsLogsScreen(
                         }
                     },
                 )
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(
+                        onClick = { searchQuery = "" },
+                        modifier = Modifier.size(24.dp).testTag("logs.search.clear"),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Очистить фильтр логов",
+                            tint = colors.secondary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
             }
             Spacer(Modifier.height(YokhanSpacing.CompactGap))
             Row(horizontalArrangement = Arrangement.spacedBy(YokhanSpacing.CompactGap)) {
@@ -413,7 +438,7 @@ internal fun WindowsLogsScreen(
                 YokhanRouteButton(
                     text = "Копировать",
                     primary = false,
-                    enabled = filteredText.isNotBlank(),
+                    enabled = hasFilteredLines,
                     colors = colors,
                     typography = typography,
                     onClick = { onCopy(filteredText) },
@@ -422,7 +447,7 @@ internal fun WindowsLogsScreen(
                 YokhanRouteButton(
                     text = "Сохранить",
                     primary = false,
-                    enabled = filteredText.isNotBlank(),
+                    enabled = hasFilteredLines,
                     colors = colors,
                     typography = typography,
                     onClick = { onSave(filteredText) },
